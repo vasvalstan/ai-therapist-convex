@@ -31,6 +31,11 @@ const components: { title: string; href: string; description: string }[] = [
     description: "Interact with the AI in the playground.",
   },
   {
+    title: "Chat",
+    href: "/chat",
+    description: "Voice chat with empathic AI using Hume.",
+  },
+  {
     title: "Dashboard",
     href: "/dashboard",
     description: "Access your personal dashboard.",
@@ -183,6 +188,9 @@ export default function NavBar() {
           </Link>
           <Link href="/playground" prefetch={true}>
             <Button variant="ghost">AI Playground</Button>
+          </Link>
+          <Link href="/chat" prefetch={true}>
+            <Button variant="ghost">Chat</Button>
           </Link>
           <Link
             href="https://github.com/michaelshimeles/nextjs14-starter-template"
