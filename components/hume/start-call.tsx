@@ -3,7 +3,7 @@
 import { useVoice } from "@humeai/voice-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { History, Phone } from "lucide-react";
+import { History, MessageCircle } from "lucide-react";
 import Link from "next/link";
 
 export function StartCall() {
@@ -41,13 +41,13 @@ export function StartCall() {
               }}
             >
               <span>
-                <Phone
+                <MessageCircle
                   className="size-4 opacity-50"
                   strokeWidth={2}
                   stroke="currentColor"
                 />
               </span>
-              <span>Start Call</span>
+              <span>Start conversation</span>
             </Button>
 
             <Link href="/chat/history">

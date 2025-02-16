@@ -13,6 +13,8 @@ interface HumeChatProps {
   sessionId?: string;
 }
 
+type MessageRole = "user" | "assistant";
+
 export default function HumeChat({ accessToken, sessionId: initialSessionId }: HumeChatProps) {
   const timeout = useRef<number | null>(null);
   const ref = useRef<ComponentRef<typeof Messages> | null>(null);
@@ -21,35 +23,39 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
   const createSession = useMutation(api.chat.createChatSession);
   const addMessage = useMutation(api.chat.addMessageToSession);
 
+  // Create a new session if we don't have one
   useEffect(() => {
-    if (!currentSessionId) {
-      createSession({}).then((result) => {
+    const initSession = async () => {
+      if (!currentSessionId) {
+        const result = await createSession({});
         if (result?.sessionId) {
           setCurrentSessionId(result.sessionId);
         }
-      });
-    }
+      }
+    };
+
+    initSession();
   }, [currentSessionId, createSession]);
 
-  if (!currentSessionId) {
-    return <div>Loading...</div>;
-  }
-
-  const handleMessage = (message: any) => {
+  const handleMessage = async (message: any) => {
     if (timeout.current) {
       window.clearTimeout(timeout.current);
     }
 
-    // Store the message in the database
+    // Handle message storage
     if (message.type === "user_message" || message.type === "assistant_message") {
-      addMessage({
-        sessionId: currentSessionId,
-        message: {
-          role: message.type === "user_message" ? "user" : "assistant",
-          content: message.message.content,
-          emotions: message.models.prosody?.scores,
-        },
-      });
+      const messageData = {
+        role: (message.type === "user_message" ? "user" : "assistant") as MessageRole,
+        content: message.message.content,
+        emotions: message.models.prosody?.scores,
+      };
+
+      if (currentSessionId) {
+        await addMessage({
+          sessionId: currentSessionId,
+          message: messageData,
+        });
+      }
     }
 
     timeout.current = window.setTimeout(() => {
@@ -62,6 +68,10 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
       }
     }, 200);
   };
+
+  if (!currentSessionId) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="relative flex-1 flex flex-col mx-auto w-full overflow-hidden">

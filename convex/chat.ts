@@ -5,6 +5,11 @@ import { Id } from "./_generated/dataModel";
 export const createChatSession = mutation({
     args: {
         sessionId: v.optional(v.string()),
+        initialMessage: v.optional(v.object({
+            role: v.union(v.literal("user"), v.literal("assistant")),
+            content: v.string(),
+            emotions: v.optional(v.any()),
+        })),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -15,10 +20,28 @@ export const createChatSession = mutation({
         const userId = identity.subject;
         const newSessionId = args.sessionId ?? crypto.randomUUID();
 
+        // Check if a session with this sessionId already exists
+        const existingSession = await ctx.db
+            .query("chatHistory")
+            .filter((q) => q.eq(q.field("userId"), userId))
+            .filter((q) => q.eq(q.field("sessionId"), newSessionId))
+            .first();
+
+        if (existingSession) {
+            return {
+                id: existingSession._id,
+                sessionId: existingSession.sessionId,
+            };
+        }
+
+        // If no existing session, create a new one
         const id = await ctx.db.insert("chatHistory", {
             userId,
             sessionId: newSessionId,
-            messages: [],
+            messages: args.initialMessage ? [{
+                ...args.initialMessage,
+                timestamp: Date.now(),
+            }] : [],
             createdAt: Date.now(),
             updatedAt: Date.now(),
         });
@@ -106,5 +129,59 @@ export const getChatSession = query({
             .filter((q) => q.eq(q.field("userId"), userId))
             .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
             .first();
+    },
+});
+
+export const deleteChat = mutation({
+    args: { id: v.id("chatHistory") },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const userId = identity.subject;
+        const chat = await ctx.db.get(args.id);
+
+        if (!chat) {
+            throw new Error("Chat not found");
+        }
+
+        if (chat.userId !== userId) {
+            throw new Error("Not authorized");
+        }
+
+        await ctx.db.delete(args.id);
+        return true;
+    },
+});
+
+export const renameChat = mutation({
+    args: { 
+        id: v.id("chatHistory"),
+        title: v.string()
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const userId = identity.subject;
+        const chat = await ctx.db.get(args.id);
+
+        if (!chat) {
+            throw new Error("Chat not found");
+        }
+
+        if (chat.userId !== userId) {
+            throw new Error("Not authorized");
+        }
+
+        await ctx.db.patch(args.id, {
+            title: args.title
+        });
+
+        return true;
     },
 }); 
