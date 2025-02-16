@@ -18,6 +18,7 @@ export default function HumeChat({ accessToken }: HumeChatProps) {
     <div className="relative flex-1 flex flex-col mx-auto w-full overflow-hidden">
       <VoiceProvider
         auth={{ type: "accessToken", value: accessToken }}
+        configId={process.env.NEXT_PUBLIC_HUME_CONFIG_ID}
         onMessage={() => {
           if (timeout.current) {
             window.clearTimeout(timeout.current);
