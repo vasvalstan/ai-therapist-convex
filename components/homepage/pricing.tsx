@@ -93,8 +93,6 @@ const PricingCard = ({
   const getProCheckoutUrl = useAction(api.subscriptions.getProOnboardingCheckoutUrl);
   const subscriptionStatus = useQuery(api.subscriptions.getUserSubscriptionStatus);
 
-
-
   const handleCheckout = async (interval: "month" | "year") => {
     try {
       const checkoutProUrl = await getProCheckoutUrl({
@@ -109,10 +107,9 @@ const PricingCard = ({
     }
   };
 
-
   return (
     <Card
-      className={cn("w-full max-w-sm flex flex-col justify-between px-2 py-1", {
+      className={cn("w-full max-w-sm flex flex-col justify-between px-8 py-6", {
         "relative border-2 border-blue-500 dark:border-blue-400": popular,
         "shadow-2xl bg-gradient-to-b from-gray-900 to-gray-800 text-white":
           exclusive,
@@ -126,9 +123,9 @@ const PricingCard = ({
 
       <div>
         <CardHeader className="space-y-2 pb-4">
-          <CardTitle className="text-xl">{title}</CardTitle>
+          <CardTitle className="text-2xl font-bold">{title}</CardTitle>
           <CardDescription
-            className={cn("", {
+            className={cn("text-base", {
               "text-gray-300": exclusive,
             })}
           >
@@ -139,7 +136,7 @@ const PricingCard = ({
         <CardContent className="pb-4">
           <div className="flex items-baseline gap-1">
             <span
-              className={cn("text-4xl font-bold", {
+              className={cn("text-5xl font-bold", {
                 "text-white": exclusive,
               })}
             >
@@ -150,20 +147,20 @@ const PricingCard = ({
                 "text-gray-300": exclusive,
               })}
             >
-              /mo
+              /month
             </span>
           </div>
 
-          <div className="mt-6 space-y-2">
+          <div className="mt-8 space-y-4">
             {features.map((feature) => (
-              <div key={feature} className="flex gap-2">
+              <div key={feature} className="flex gap-3">
                 <CheckCircle2
                   className={cn("h-5 w-5 text-blue-500", {
                     "text-blue-400": exclusive,
                   })}
                 />
                 <p
-                  className={cn("text-muted-foreground", {
+                  className={cn("text-base", {
                     "text-gray-300": exclusive,
                   })}
                 >
@@ -184,8 +181,8 @@ const PricingCard = ({
             }
             handleCheckout("month")
           }}
-          className={cn("w-full", {
-            "bg-blue-500 hover:bg-blue-400": popular,
+          className={cn("w-full py-6 text-lg", {
+            "bg-blue-600 hover:bg-blue-500": popular,
             "bg-white text-gray-900 hover:bg-gray-100": exclusive,
           })}
         >
@@ -204,36 +201,48 @@ export default function Pricing() {
 
   const plans = [
     {
-      title: "Pro",
+      title: "plus",
       monthlyPrice: 12,
-      yearlyPrice: 100,
-      description: "Advanced features for growing teams and businesses.",
+      yearlyPrice: 120,
+      description: "all the yapping you need, but on a student budget.",
       features: [
-        "All Basic features",
-        "Up to 20 team members",
-        "50GB storage",
-        "Priority support",
-        "Advanced analytics",
+        "8 sessions/month",
+        "20min session duration",
+        "super empathetic ai voice model",
+        "extended session history",
+        "sneak peek at beta features"
       ],
-      actionLabel: "Get Pro",
-      popular: true,
+      actionLabel: "upgrade to plus",
     },
+    {
+      title: "pro",
+      monthlyPrice: 20,
+      yearlyPrice: 200,
+      description: "for when you've got a lot more on your mind.",
+      features: [
+        "all in plus, plus...",
+        "20 sessions/month",
+        "30min session duration",
+        "direct support straight from the soul devs team"
+      ],
+      actionLabel: "upgrade to pro",
+      popular: true
+    }
   ];
 
   return (
-    <section className="px-4">
+    <section className="px-4 py-24">
       <div className="max-w-7xl mx-auto">
         <PricingHeader
-          title="Choose Your Plan"
-          subtitle="Select the perfect plan for your needs. All plans include a 14-day free trial."
+          title="upgrade your plan"
+          subtitle="unlimited access. cancel anytime"
         />
-        <PricingSwitch onSwitch={togglePricingPeriod} />
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           viewport={{ once: true }}
-          className="flex justify-center mt-10"
+          className="flex flex-col md:flex-row justify-center gap-8 mt-10"
         >
           {plans.map((plan) => (
             <PricingCard

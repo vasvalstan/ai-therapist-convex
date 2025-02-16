@@ -3,7 +3,7 @@
 import { api } from "@/convex/_generated/api";
 import { useQuery, useMutation } from "convex/react";
 import { formatDistanceToNow } from "date-fns";
-import { MessageCircle, Plus, Trash2, Pencil } from "lucide-react";
+import { MessageCircle, Plus, Trash2, Pencil, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "../ui/button";
@@ -65,11 +65,13 @@ export function ChatHistory() {
         <>
             <div className="w-64 h-full border-r border-border flex flex-col">
                 <div className="p-4 border-b border-border flex items-center justify-between">
+                    <Link href="/" className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                        <ArrowLeft className="w-5 h-5" />
+                    </Link>
                     <h2 className="font-semibold">Chat History</h2>
                     <Link href="/chat">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MessageCircle className="h-6 w-6" strokeWidth={3} />
-                            
+                        <Button size="icon" variant="ghost">
+                            <Plus className="w-5 h-5" />
                         </Button>
                     </Link>
                 </div>

@@ -10,20 +10,28 @@ import { motion } from "motion/react"
 
 const faqs = [
     {
-        question: "Do I get access to this landing page in the starter kit?",
-        answer: "Yes, this page isn't even a real landing page more so a template for you to build on."
+        question: "what is included in the plus plan?",
+        answer: "the plus plan offers unlimited well-being sessions, access to temporary chats, priority customer support, and early access to new features. it's perfect for those who want continuous support."
     },
     {
-        question: "Is the starter kit regularly updated?",
-        answer: "Yes, we continuously update the starter kit with the latest features, security patches, and best practices to ensure you're always working with cutting-edge technology."
+        question: "can I cancel my subscription?",
+        answer: "yes, you can cancel your subscription at any time. there are no long-term commitments, and you'll continue to have access to Sereni until the end of your current billing period."
     },
     {
-        question: "Can I use this for commercial projects?",
-        answer: "Absolutely! The starter kit comes with a commercial license, allowing you to use it in both personal and commercial projects without any restrictions."
+        question: "is Sereni a replacement for traditional therapy?",
+        answer: "no, Sereni is designed to be a supportive companion to your mental health journey, not a replacement for professional therapy. while our AI can provide emotional support and coping strategies, we recommend consulting licensed mental health professionals for clinical needs."
     },
     {
-        question: "What kind of support do you provide?",
-        answer: "We offer comprehensive support through our Discord community, where you can get help from both our team and other developers using the starter kit."
+        question: "what payment methods do you accept?",
+        answer: "we accept all major credit cards (Visa, Mastercard, American Express) and popular digital payment methods. all payments are processed securely through our trusted payment partners."
+    },
+    {
+        question: "is my data secure and confidential?",
+        answer: "absolutely. we take your privacy seriously. all conversations with Sereni are encrypted end-to-end, and your personal information is protected with industry-standard security measures. we never share your data with third parties."
+    },
+    {
+        question: "does Sereni support multiple languages?",
+        answer: "currently, Sereni primarily operates in English, but we're actively working on adding support for more languages to make our service accessible to a broader global community."
     }
 ]
 
@@ -42,10 +50,10 @@ export function AccordionComponent() {
                     </div>
 
                     <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 dark:from-white dark:via-blue-300 dark:to-white pb-2">
-                        Frequently Asked Questions
+                        frequently asked questions
                     </h2>
                     <p className="text-gray-600 dark:text-gray-300 mt-4 max-w-2xl mx-auto">
-                        Everything you need to know about the Next.js Starter Kit. Can&apos;t find the answer you&apos;re looking for? Reach out to our team.
+                        have questions about Sereni? we're here to help. if you can't find what you're looking for, our support team is just a message away.
                     </p>
                 </div>
 
