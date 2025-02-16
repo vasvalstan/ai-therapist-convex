@@ -80,5 +80,19 @@ export default defineSchema({
     })
         .index("type", ["type"])
         .index("polarEventId", ["polarEventId"]),
-
+    chatHistory: defineTable({
+        userId: v.string(),
+        sessionId: v.string(),
+        messages: v.array(v.object({
+            role: v.union(v.literal("user"), v.literal("assistant")),
+            content: v.string(),
+            timestamp: v.number(),
+            emotions: v.optional(v.any()),
+        })),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+        title: v.optional(v.string()),
+    })
+        .index("by_user", ["userId"])
+        .index("by_user_and_time", ["userId", "createdAt"]),
 })

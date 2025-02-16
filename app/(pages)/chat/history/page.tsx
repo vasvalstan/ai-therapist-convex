@@ -1,9 +1,8 @@
 import { getHumeAccessToken } from "@/lib/hume";
-import { ChatWrapper } from "@/components/hume/chat-wrapper";
 import { ChatHistory } from "@/components/hume/chat-history";
 import { Suspense } from "react";
 
-export default async function ChatPage() {
+export default async function ChatHistoryPage() {
   const accessToken = await getHumeAccessToken();
 
   if (!accessToken) {
@@ -15,8 +14,8 @@ export default async function ChatPage() {
       <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
         <ChatHistory />
       </Suspense>
-      <div className="flex-1">
-        <ChatWrapper accessToken={accessToken} />
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
+        Select a conversation from the sidebar or start a new one
       </div>
     </div>
   );

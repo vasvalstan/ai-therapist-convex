@@ -12,4 +12,23 @@ export const getHumeAccessToken = async () => {
   }
 
   return accessToken ?? null;
+};
+
+export const fetchChatEvents = async (chatId: string) => {
+  const accessToken = await getHumeAccessToken();
+  if (!accessToken) return null;
+
+  const response = await fetch(`https://api.hume.ai/v0/evi/chats/${chatId}/events`, {
+    headers: {
+      "X-Hume-Api-Key": String(process.env.HUME_API_KEY),
+    },
+  });
+
+  if (!response.ok) {
+    console.error("Failed to fetch chat events:", await response.text());
+    return null;
+  }
+
+  const data = await response.json();
+  return data.events;
 }; 

@@ -3,7 +3,8 @@
 import { useVoice } from "@humeai/voice-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Phone } from "lucide-react";
+import { History, Phone } from "lucide-react";
+import Link from "next/link";
 
 export function StartCall() {
   const { status, connect } = useVoice();
@@ -22,34 +23,46 @@ export function StartCall() {
             exit: { opacity: 0 },
           }}
         >
-          <AnimatePresence>
-            <motion.div
-              variants={{
-                initial: { scale: 0.5 },
-                enter: { scale: 1 },
-                exit: { scale: 0.5 },
+          <motion.div
+            className="flex flex-col gap-4 items-center"
+            variants={{
+              initial: { scale: 0.5 },
+              enter: { scale: 1 },
+              exit: { scale: 0.5 },
+            }}
+          >
+            <Button
+              className="flex items-center gap-1.5"
+              onClick={() => {
+                connect()
+                  .then(() => {})
+                  .catch(() => {})
+                  .finally(() => {});
               }}
             >
-              <Button
-                className="z-50 flex items-center gap-1.5"
-                onClick={() => {
-                  connect()
-                    .then(() => {})
-                    .catch(() => {})
-                    .finally(() => {});
-                }}
-              >
+              <span>
+                <Phone
+                  className="size-4 opacity-50"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                />
+              </span>
+              <span>Start Call</span>
+            </Button>
+
+            <Link href="/chat/history">
+              <Button variant="outline" className="flex items-center gap-1.5">
                 <span>
-                  <Phone
+                  <History
                     className="size-4 opacity-50"
                     strokeWidth={2}
                     stroke="currentColor"
                   />
                 </span>
-                <span>Start Call</span>
+                <span>Go to chat history</span>
               </Button>
-            </motion.div>
-          </AnimatePresence>
+            </Link>
+          </motion.div>
         </motion.div>
       ) : null}
     </AnimatePresence>
