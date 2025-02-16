@@ -23,20 +23,6 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
   const createSession = useMutation(api.chat.createChatSession);
   const addMessage = useMutation(api.chat.addMessageToSession);
 
-  // Create a new session if we don't have one
-  useEffect(() => {
-    const initSession = async () => {
-      if (!currentSessionId) {
-        const result = await createSession({});
-        if (result?.sessionId) {
-          setCurrentSessionId(result.sessionId);
-        }
-      }
-    };
-
-    initSession();
-  }, [currentSessionId, createSession]);
-
   const handleMessage = async (message: any) => {
     if (timeout.current) {
       window.clearTimeout(timeout.current);
@@ -50,7 +36,16 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
         emotions: message.models.prosody?.scores,
       };
 
-      if (currentSessionId) {
+      // If no session exists, create one with the initial message
+      if (!currentSessionId) {
+        const result = await createSession({
+          initialMessage: messageData
+        });
+        if (result?.sessionId) {
+          setCurrentSessionId(result.sessionId);
+        }
+      } else {
+        // Add message to existing session
         await addMessage({
           sessionId: currentSessionId,
           message: messageData,
@@ -69,7 +64,7 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
     }, 200);
   };
 
-  if (!currentSessionId) {
+  if (!accessToken) {
     return <div>Loading...</div>;
   }
 
