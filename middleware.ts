@@ -1,6 +1,9 @@
 import { clerkMiddleware } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
+// Set runtime to nodejs
+export const runtime = 'nodejs';
+
 export default clerkMiddleware(async (auth, req) => {
   // Check if the user is trying to access dashboard
   const isDashboard = req.nextUrl.pathname.startsWith('/dashboard');
@@ -23,5 +26,7 @@ export default clerkMiddleware(async (auth, req) => {
 });
 
 export const config = {
-  matcher: ['/((?!.+\\.[\\w]+$|_next).*)', '/', '/(api|trpc)(.*)'],
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
 };
