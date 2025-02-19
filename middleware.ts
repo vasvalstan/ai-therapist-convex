@@ -1,36 +1,27 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
-import { fetchQuery } from 'convex/nextjs';
+import { clerkMiddleware } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import { api } from './convex/_generated/api';
-
-const isProtectedRoute = createRouteMatcher(['/dashboard(.*)'])
 
 export default clerkMiddleware(async (auth, req) => {
-
-  const token = (await (await auth()).getToken({ template: "convex" }))
-
-
-  const { hasActiveSubscription } = await fetchQuery(api.subscriptions.getUserSubscriptionStatus, {
-  }, {
-    token: token!,
-  });
-
-  const isDashboard = req.nextUrl.href.includes(`/dashboard`)
-
-  if (isDashboard && !hasActiveSubscription) {
-    const pricingUrl = new URL('/pricing', req.nextUrl.origin)
-    // Redirect to the pricing page
-    return NextResponse.redirect(pricingUrl);
+  // Check if the user is trying to access dashboard
+  const isDashboard = req.nextUrl.pathname.startsWith('/dashboard');
+  
+  // If it's not a dashboard route, let the request through
+  if (!isDashboard) {
+    return NextResponse.next();
   }
 
-  if (isProtectedRoute(req)) await auth.protect()
-})
+  // If it's a dashboard route but user is not signed in, redirect to sign in
+  const { userId } = await auth();
+  if (!userId) {
+    const signInUrl = new URL('/sign-in', req.nextUrl.origin);
+    signInUrl.searchParams.set('redirect_url', req.nextUrl.pathname);
+    return NextResponse.redirect(signInUrl);
+  }
+
+  // Let the request through - subscription check will happen at the page level
+  return NextResponse.next();
+});
 
 export const config = {
-  matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
-  ],
-}
+  matcher: ['/((?!.+\\.[\\w]+$|_next).*)', '/', '/(api|trpc)(.*)'],
+};
