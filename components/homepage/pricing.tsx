@@ -206,8 +206,8 @@ export default function Pricing() {
       yearlyPrice: 120,
       description: "all the yapping you need, but on a student budget.",
       features: [
-        "8 sessions/month",
-        "20min session duration",
+        "6 sessions/month",
+        "10min session duration",
         "super empathetic ai voice model",
         "extended session history",
         "sneak peek at beta features"
