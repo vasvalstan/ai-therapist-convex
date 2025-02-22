@@ -1,12 +1,11 @@
-import PageWrapper from "@/components/wrapper/page-wrapper";
 import { SignIn } from "@clerk/nextjs";
+
+export const runtime = 'nodejs';
 
 export default function SignInPage() {
     return (
-        <PageWrapper >
-            <div className="flex min-w-screen justify-center my-[5rem]">
-                <SignIn fallbackRedirectUrl="/" signUpFallbackRedirectUrl="/dashboard" />
-            </div>
-        </PageWrapper>
+        <div className="flex items-center justify-center min-h-screen">
+            <SignIn />
+        </div>
     );
 }

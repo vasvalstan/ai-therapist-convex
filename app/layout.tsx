@@ -7,32 +7,32 @@ import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
 import "./globals.css";
 
+export const runtime = 'nodejs';
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://nextstarter.xyz/"),
+  metadataBase: new URL("https://www.sereni.day"),
   title: {
-    default: 'Next Starter',
-    template: `%s | Next Starter`
+    default: 'Sereni | AI Therapist',
+    template: `%s | Sereni`
   },
   description:
-    "The Ultimate Nextjs 15 Starter Kit for quickly building your SaaS, giving you time to focus on what really matters",
+    "Your AI-powered companion for mental wellness and personal growth. Experience empathetic conversations and emotional support anytime, anywhere.",
   openGraph: {
     description:
-      "The Ultimate Nextjs 15 Starter Kit for quickly building your SaaS, giving you time to focus on what really matters",
+      "Your AI-powered companion for mental wellness and personal growth. Experience empathetic conversations and emotional support anytime, anywhere.",
     images: [
-      "https://dwdwn8b5ye.ufs.sh/f/MD2AM9SEY8GucGJl7b5qyE7FjNDKYduLOG2QHWh3f5RgSi0c",
+      "https://www.sereni.day/og-image.png",
     ],
-    url: "https://nextstarter.xyz/",
+    url: "https://www.sereni.day",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Nextjs Starter Kit",
+    title: "Sereni | AI Therapist",
     description:
-      "The Ultimate Nextjs 15 Starter Kit for quickly building your SaaS, giving you time to focus on what really matters",
-    siteId: "",
-    creator: "@rasmickyy",
-    creatorId: "",
+      "Your AI-powered companion for mental wellness and personal growth. Experience empathetic conversations and emotional support anytime, anywhere.",
+    creator: "@serenidayai",
     images: [
-      "https://dwdwn8b5ye.ufs.sh/f/MD2AM9SEY8GucGJl7b5qyE7FjNDKYduLOG2QHWh3f5RgSi0c",
+      "https://www.sereni.day/og-image.png",
     ],
   },
 };
