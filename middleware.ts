@@ -48,14 +48,12 @@ export default clerkMiddleware(async (auth, req) => {
 export const config = {
   matcher: [
     /*
-     * Match all paths except:
+     * Match all request paths except for the ones starting with:
      * - api/webhooks (webhook endpoints)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public files with image extensions
      */
-    '/((?!api/webhooks|_next/static|_next/image|favicon.ico).*)',
-    '/((?!.*\\.(jpg|jpeg|png|gif|svg)).*)'
+    '/((?!api/webhooks|_next/static|_next/image|favicon.ico).*)'
   ]
 };
