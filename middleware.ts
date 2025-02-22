@@ -9,6 +9,7 @@ const publicPaths = [
   '/sign-in*',
   '/sign-up*',
   '/api/webhooks*', // Allow webhook endpoints
+  '/api/hume/token*', // Allow Hume token endpoint
   '/blog*', // If you have a public blog
   '/privacy*', // Privacy policy
   '/terms*', // Terms of service
