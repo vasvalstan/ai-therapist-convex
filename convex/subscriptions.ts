@@ -27,7 +27,7 @@ const createCheckout = async ({
     }
 
     const polar = new Polar({
-        server: "sandbox",
+        server: process.env.NODE_ENV === "production" ? "production" : "sandbox",
         accessToken: process.env.POLAR_ACCESS_TOKEN,
     });
 
