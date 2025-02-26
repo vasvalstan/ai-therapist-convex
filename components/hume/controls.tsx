@@ -5,11 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Phone } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Toggle } from "@/components/ui/toggle";
-import { MicFFT } from "./mic-fft";
 import { cn } from "@/lib/utils";
 
 export function Controls() {
-  const { disconnect, status, isMuted, unmute, mute, micFft } = useVoice();
+  const { disconnect, status, isMuted, unmute, mute } = useVoice();
 
   return (
     <div
@@ -44,32 +43,34 @@ export function Controls() {
                   mute();
                 }
               }}
+              className="flex items-center gap-2"
             >
               {isMuted ? (
-                <MicOff className="size-4" />
+                <>
+                  <MicOff className="size-4" />
+                  <span className="text-sm">Unmute</span>
+                </>
               ) : (
-                <Mic className="size-4" />
+                <>
+                  <Mic className="size-4" />
+                  <span className="text-sm">Mute</span>
+                </>
               )}
             </Toggle>
 
-            <div className="relative grid h-8 w-48 shrink grow-0">
-              <MicFFT fft={micFft} className="fill-current" />
-            </div>
-
             <Button
-              className="flex items-center gap-1"
+              className="flex items-center gap-1.5 ml-2"
               onClick={() => {
                 disconnect();
               }}
               variant="destructive"
+              size="sm"
             >
-              <span>
-                <Phone
-                  className="size-4 opacity-50"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                />
-              </span>
+              <Phone
+                className="size-4 opacity-70"
+                strokeWidth={2}
+                stroke="currentColor"
+              />
               <span>End Call</span>
             </Button>
           </motion.div>

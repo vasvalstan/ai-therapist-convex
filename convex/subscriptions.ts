@@ -22,21 +22,27 @@ const createCheckout = async ({
     metadata?: Record<string, string>;
 }) => {
     try {
-        if (!process.env.POLAR_ACCESS_TOKEN) {
-            console.error("POLAR_ACCESS_TOKEN is not configured");
-            throw new Error("POLAR_ACCESS_TOKEN is not configured");
-        }
-
-        // Force production environment for Polar SDK
-        const environment = "production";
+        // Determine environment based on NODE_ENV
+        const environment = process.env.NODE_ENV === "production" ? "production" : "sandbox";
         console.log("Initializing Polar SDK with environment:", environment);
+        console.log("Current NODE_ENV:", process.env.NODE_ENV);
+        
+        // Select the appropriate token based on environment
+        const accessToken = environment === "production" 
+            ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN 
+            : process.env.POLAR_SANDBOX_ACCESS_TOKEN;
+            
+        if (!accessToken) {
+            console.error(`${environment === "production" ? "POLAR_PRODUCTION_ACCESS_TOKEN" : "POLAR_SANDBOX_ACCESS_TOKEN"} is not configured`);
+            throw new Error("Polar access token is not configured for the current environment");
+        }
         
         const polar = new Polar({
             server: environment,
-            accessToken: process.env.POLAR_ACCESS_TOKEN,
+            accessToken: accessToken,
         });
 
-        console.log("Initialized Polar SDK with token:", process.env.POLAR_ACCESS_TOKEN?.substring(0, 8) + "...");
+        console.log(`Initialized Polar SDK with ${environment} token:`, accessToken.substring(0, 8) + "...");
 
         console.log("Creating checkout with params:", {
             productPriceId,
@@ -62,7 +68,7 @@ const createCheckout = async ({
             if (polarError.statusCode === 401) {
                 console.error("Authentication error with Polar API. Token may be invalid or expired.");
                 // Fall back to test URL in case of auth errors
-                return { url: `${successUrl}?mock=true&error=auth_failed` };
+                return { url: `${successUrl}?mock=true&error=auth_failed&env=${environment}` };
             }
             
             throw polarError;
@@ -123,11 +129,16 @@ export const getOnboardingCheckoutUrl = action({
             plan: "free"
         };
 
+        // Determine the appropriate frontend URL
+        const frontendUrl = process.env.NODE_ENV === "production" 
+            ? (process.env.FRONTEND_URL || "https://www.sereni.day")
+            : (process.env.FRONTEND_URL_DEV || process.env.FRONTEND_URL || "http://localhost:3000");
+
         const checkout = await createCheckout({
             customerEmail: user.email,
             productPriceId: price.polarId,
             metadata,
-            successUrl: `${process.env.FRONTEND_URL}/success`,
+            successUrl: `${frontendUrl}/success`,
         });
 
         return checkout.url;
@@ -141,12 +152,26 @@ export const getProOnboardingCheckoutUrl = action({
     handler: async (ctx, args) => {
         try {
             console.log("Starting getProOnboardingCheckoutUrl");
-            console.log("POLAR_ACCESS_TOKEN exists:", !!process.env.POLAR_ACCESS_TOKEN);
-            console.log("FRONTEND_URL exists:", !!process.env.FRONTEND_URL);
             
-            // Fallback values for development/testing
-            const polarToken = process.env.POLAR_ACCESS_TOKEN || "missing_token";
-            const frontendUrl = process.env.FRONTEND_URL || "https://www.sereni.day";
+            // Determine environment based on NODE_ENV
+            const environment = process.env.NODE_ENV === "production" ? "production" : "sandbox";
+            
+            // Check for appropriate token
+            const accessToken = environment === "production" 
+                ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN 
+                : process.env.POLAR_SANDBOX_ACCESS_TOKEN;
+                
+            console.log(`${environment.toUpperCase()} token exists:`, !!accessToken);
+            console.log("FRONTEND_URL exists:", !!process.env.FRONTEND_URL);
+            console.log("FRONTEND_URL_DEV exists:", !!process.env.FRONTEND_URL_DEV);
+            
+            // Determine the appropriate frontend URL
+            // For development, prefer FRONTEND_URL_DEV (ngrok) if available
+            const frontendUrl = process.env.NODE_ENV === "production" 
+                ? (process.env.FRONTEND_URL || "https://www.sereni.day")
+                : (process.env.FRONTEND_URL_DEV || process.env.FRONTEND_URL || "http://localhost:3000");
+            
+            console.log("Using frontend URL:", frontendUrl);
             
             const identity = await ctx.auth.getUserIdentity();
             if (!identity) {
@@ -206,10 +231,10 @@ export const getProOnboardingCheckoutUrl = action({
                 successUrl: `${frontendUrl}/success`,
             });
 
-            // If we're missing the Polar token, return a mock URL for development
-            if (!process.env.POLAR_ACCESS_TOKEN) {
-                console.warn("Using mock checkout URL due to missing POLAR_ACCESS_TOKEN");
-                return `${frontendUrl}/success?mock=true`;
+            // If we're missing the appropriate Polar token, return a mock URL for development
+            if (!accessToken) {
+                console.warn(`Using mock checkout URL due to missing ${environment === "production" ? "POLAR_PRODUCTION_ACCESS_TOKEN" : "POLAR_SANDBOX_ACCESS_TOKEN"}`);
+                return `${frontendUrl}/success?mock=true&env=${environment}`;
             }
 
             const checkout = await createCheckout({
@@ -236,12 +261,18 @@ export const getProOnboardingCheckoutUrlTest = action({
         try {
             console.log("Starting test checkout function");
             
-            // Get the frontend URL with fallback
-            const frontendUrl = process.env.FRONTEND_URL || "https://www.sereni.day";
+            // Determine the appropriate frontend URL
+            // For development, prefer FRONTEND_URL_DEV (ngrok) if available
+            const frontendUrl = process.env.NODE_ENV === "production" 
+                ? (process.env.FRONTEND_URL || "https://www.sereni.day")
+                : (process.env.FRONTEND_URL_DEV || process.env.FRONTEND_URL || "http://localhost:3000");
+            
+            console.log("Using frontend URL for test function:", frontendUrl);
             
             console.log("Environment variables:", {
                 polarExists: !!process.env.POLAR_ACCESS_TOKEN,
                 frontendUrlExists: !!process.env.FRONTEND_URL,
+                frontendUrlDevExists: !!process.env.FRONTEND_URL_DEV,
                 nodeEnv: process.env.NODE_ENV || "not set",
                 usingFrontendUrl: frontendUrl
             });
@@ -478,15 +509,37 @@ export const subscriptionStoreWebhook = mutation({
 });
 
 export const paymentWebhook = httpAction(async (ctx, request) => {
-
+    // Determine environment based on NODE_ENV
+    const environment = process.env.NODE_ENV === "production" ? "production" : "sandbox";
+    
     console.log("Webhook received!", {
         method: request.method,
         url: request.url,
-        headers: request.headers
+        headers: request.headers,
+        environment: environment
     });
 
     try {
         const body = await request.json();
+
+        // Select the appropriate webhook secret based on environment
+        const webhookSecret = environment === "production" 
+            ? process.env.POLAR_PRODUCTION_WEBHOOK_SECRET 
+            : process.env.POLAR_SANDBOX_WEBHOOK_SECRET;
+            
+        if (!webhookSecret) {
+            console.error(`${environment === "production" ? "POLAR_PRODUCTION_WEBHOOK_SECRET" : "POLAR_SANDBOX_WEBHOOK_SECRET"} is not configured`);
+            return new Response(JSON.stringify({ error: "Webhook secret not configured for the current environment" }), {
+                status: 500,
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            });
+        }
+
+        // Here you would typically verify the webhook signature using the webhook secret
+        // This is a placeholder for webhook signature verification
+        console.log(`Using ${environment} webhook secret:`, webhookSecret.substring(0, 4) + "...");
 
         // track events and based on events store data
         await ctx.runMutation(api.subscriptions.subscriptionStoreWebhook, {
@@ -510,18 +563,28 @@ export const paymentWebhook = httpAction(async (ctx, request) => {
             }
         });
     }
-
 });
 
 export const getUserDashboardUrl = action({
     handler: async (ctx, args: { customerId: string }) => {
-        // Force production environment for Polar SDK
-        const environment = "production";
+        // Determine environment based on NODE_ENV
+        const environment = process.env.NODE_ENV === "production" ? "production" : "sandbox";
         console.log("Initializing Polar SDK with environment for dashboard:", environment);
+        console.log("Current NODE_ENV for dashboard:", process.env.NODE_ENV);
+        
+        // Select the appropriate token based on environment
+        const accessToken = environment === "production" 
+            ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN 
+            : process.env.POLAR_SANDBOX_ACCESS_TOKEN;
+            
+        if (!accessToken) {
+            console.error(`${environment === "production" ? "POLAR_PRODUCTION_ACCESS_TOKEN" : "POLAR_SANDBOX_ACCESS_TOKEN"} is not configured for dashboard`);
+            throw new Error("Polar access token is not configured for the current environment");
+        }
         
         const polar = new Polar({
             server: environment,
-            accessToken: process.env.POLAR_ACCESS_TOKEN,
+            accessToken: accessToken,
         });
 
         try {
