@@ -515,8 +515,12 @@ export const paymentWebhook = httpAction(async (ctx, request) => {
 
 export const getUserDashboardUrl = action({
     handler: async (ctx, args: { customerId: string }) => {
+        // Determine environment - default to sandbox for safety
+        const environment = process.env.NODE_ENV === "production" ? "production" : "sandbox";
+        console.log("Initializing Polar SDK with environment for dashboard:", environment);
+        
         const polar = new Polar({
-            server: "sandbox",
+            server: environment,
             accessToken: process.env.POLAR_ACCESS_TOKEN,
         });
 
