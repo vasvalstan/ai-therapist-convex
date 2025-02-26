@@ -50,10 +50,11 @@ export const config = {
     /*
      * Match all request paths except for the ones starting with:
      * - api/webhooks (webhook endpoints)
+     * - api/hume/token (Hume token endpoint)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      */
-    '/((?!api/webhooks|_next/static|_next/image|favicon.ico).*)'
+    '/((?!api/webhooks|api/hume/token|_next/static|_next/image|favicon.ico).*)'
   ]
 };
