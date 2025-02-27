@@ -92,6 +92,14 @@ const PricingCard = ({
       
       console.log("Starting checkout process for plan:", planKey);
       
+      // Check if we're in production
+      const isProduction = typeof window !== 'undefined' && 
+        (window.location.hostname === 'www.sereni.day' || 
+         window.location.hostname === 'sereni.day');
+      
+      console.log("Is production environment:", isProduction);
+      console.log("Current hostname:", typeof window !== 'undefined' ? window.location.hostname : 'unknown');
+      
       let checkoutUrl = null;
       
       // First try the regular function
@@ -102,39 +110,32 @@ const PricingCard = ({
           planKey
         });
         console.log("Main checkout function succeeded with URL:", checkoutUrl);
-        
-        // Verify the URL contains sandbox.polar.sh for development environment
-        if (checkoutUrl && !checkoutUrl.includes('sandbox.polar.sh')) {
-          console.warn("Warning: Checkout URL does not contain sandbox.polar.sh domain:", checkoutUrl);
-        }
       } catch (mainError) {
         console.error("Failed with main checkout function:", mainError);
+        
+        // In production, don't fall back to test function
+        if (isProduction) {
+          setError("Unable to process checkout. Please try again later or contact support.");
+          setIsLoading(false);
+          return;
+        }
+        
         checkoutUrl = null;
       }
       
       // Only fall back to test function in development environment
-      if (!checkoutUrl) {
-        // Check if we're in production
-        const isProduction = typeof window !== 'undefined' && 
-          (window.location.hostname === 'www.sereni.day' || 
-           window.location.hostname === 'sereni.day');
-        
-        if (!isProduction) {
-          try {
-            console.log("Falling back to test checkout function (development only)");
-            checkoutUrl = await getProCheckoutUrlTest({
-              interval: "month",
-              planKey
-            });
-            console.log("Test checkout function succeeded with URL:", checkoutUrl);
-          } catch (testError) {
-            console.error("Test function also failed:", testError);
-            setError("Unable to process checkout. Please try again later.");
-            return;
-          }
-        } else {
-          console.log("In production environment - not using test checkout fallback");
+      if (!checkoutUrl && !isProduction) {
+        try {
+          console.log("Falling back to test checkout function (development only)");
+          checkoutUrl = await getProCheckoutUrlTest({
+            interval: "month",
+            planKey
+          });
+          console.log("Test checkout function succeeded with URL:", checkoutUrl);
+        } catch (testError) {
+          console.error("Test function also failed:", testError);
           setError("Unable to process checkout. Please try again later.");
+          setIsLoading(false);
           return;
         }
       }

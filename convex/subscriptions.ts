@@ -24,10 +24,19 @@ const createCheckout = async ({
     metadata?: Record<string, string>;
 }) => {
     try {
-        // Determine environment based on NODE_ENV
-        const environment = process.env.NODE_ENV === "production" ? "production" : "sandbox";
+        // Force production environment if hostname is sereni.day
+        const isProductionDomain = typeof window !== 'undefined' && 
+            (window.location.hostname === 'www.sereni.day' || 
+             window.location.hostname === 'sereni.day');
+             
+        // Determine environment based on NODE_ENV or domain
+        const environment = isProductionDomain || process.env.NODE_ENV === "production" 
+            ? "production" 
+            : "sandbox";
+            
         console.log("Initializing Polar SDK with environment:", environment);
         console.log("Current NODE_ENV:", process.env.NODE_ENV);
+        console.log("Is production domain:", isProductionDomain);
         
         // Select the appropriate token based on environment
         const accessToken = environment === "production" 
@@ -36,7 +45,14 @@ const createCheckout = async ({
             
         if (!accessToken) {
             console.error(`${environment === "production" ? "POLAR_PRODUCTION_ACCESS_TOKEN" : "POLAR_SANDBOX_ACCESS_TOKEN"} is not configured`);
-            throw new Error("Polar access token is not configured for the current environment");
+            
+            // In production, throw an error instead of returning a mock URL
+            if (environment === "production") {
+                throw new Error("Payment provider configuration error. Please contact support.");
+            }
+            
+            // Only return mock URL in development
+            return { url: `${successUrl}?mock=true&error=missing_token&env=${environment}` };
         }
         
         const polar = new Polar({
@@ -45,6 +61,7 @@ const createCheckout = async ({
         });
 
         console.log(`Initialized Polar SDK with ${environment} token:`, accessToken.substring(0, 8) + "...");
+        console.log(`Using success URL: ${successUrl}`);
 
         console.log("Creating checkout with params:", {
             productPriceId,
@@ -160,8 +177,9 @@ export const getProOnboardingCheckoutUrl = action({
         try {
             console.log("Starting getProOnboardingCheckoutUrl");
             
-            // Determine environment based on NODE_ENV
+            // Force production environment if we're in a production context
             const environment = process.env.NODE_ENV === "production" ? "production" : "sandbox";
+            console.log("Environment based on NODE_ENV:", environment);
             
             // Check for appropriate token
             const accessToken = environment === "production" 
