@@ -1,0 +1,22 @@
+[
+  {
+    "_creationTime": 1740678483122.3525,
+    "_id": "j97fnhqt5st738s5r52kd0tbxh7b4tx0",
+    "amount": 1000,
+    "cancelAtPeriodEnd": false,
+    "currency": "USD",
+    "currentPeriodEnd": 1743270483124,
+    "currentPeriodStart": 1740678483124,
+    "customerId": "test-customer-1740678483124",
+    "interval": "month",
+    "metadata": {
+      "plan": "basic",
+      "userId": "user_2tdGhIQZ4rAut1RkniYbe3Wm8gI"
+    },
+    "polarId": "test-subscription-1740678483124",
+    "polarPriceId": "95f4b508-c66a-40f6-85c8-33400fe7e8da",
+    "startedAt": 1740678483124,
+    "status": "active",
+    "userId": "user_2tdGhIQZ4rAut1RkniYbe3Wm8gI"
+  }
+]

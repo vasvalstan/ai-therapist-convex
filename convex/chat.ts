@@ -327,4 +327,16 @@ export const renameChat = mutation({
 
         return true;
     },
+});
+
+// Debug function to get all chat history - for admin use only
+export const getAllChatHistory = query({
+    handler: async (ctx) => {
+        // This function should only be used for debugging purposes
+        // In a production environment, you would want to add authentication checks
+        
+        return await ctx.db
+            .query("chatHistory")
+            .collect();
+    },
 }); 

@@ -1,0 +1,67 @@
+[
+  {
+    "_creationTime": 1740649401522.3584,
+    "_id": "j579mar0kbnxtqbcg3s6xp3dkn7b54cb",
+    "description": "Basic access with limited features",
+    "features": [
+      "2 sessions total",
+      "1min session duration",
+      "basic ai voice model",
+      "limited session history"
+    ],
+    "key": "free",
+    "maxSessionDurationMinutes": 1,
+    "name": "Free Plan",
+    "polarProductId": "free",
+    "prices": {},
+    "totalMinutes": 2
+  },
+  {
+    "_creationTime": 1740649401522.3586,
+    "_id": "j578xx3jpwf0g0kxffjy481q5d7b5wzy",
+    "description": "30 minutes of chat time per month",
+    "features": [
+      "Full AI therapy access",
+      "30 minutes of chat time",
+      "Unlimited sessions until time runs out"
+    ],
+    "key": "basic",
+    "maxSessionDurationMinutes": 10,
+    "maxSessions": 3,
+    "name": "Basic Plan",
+    "polarProductId": "48989e04-ea50-4eed-aecd-bf01a82d0efb",
+    "prices": {
+      "month": {
+        "usd": {
+          "amount": 1000,
+          "polarId": "a444d695-bc9c-4a18-8dc1-a64fa1cb0a71"
+        }
+      }
+    },
+    "totalMinutes": 30
+  },
+  {
+    "_creationTime": 1740649401522.359,
+    "_id": "j572h937a61d9g2db0sa6f6wwd7b5vh7",
+    "description": "60 minutes of chat time per month",
+    "features": [
+      "Priority AI therapy access",
+      "60 minutes of chat time",
+      "Unlimited sessions until time runs out"
+    ],
+    "key": "premium",
+    "maxSessionDurationMinutes": 10,
+    "maxSessions": 6,
+    "name": "Premium Plan",
+    "polarProductId": "017f4bad-bc01-4380-8e8d-58d96c5e87d5",
+    "prices": {
+      "month": {
+        "usd": {
+          "amount": 2000,
+          "polarId": "d4f6281a-fa99-4bd2-b390-70bb5aeeec3f"
+        }
+      }
+    },
+    "totalMinutes": 60
+  }
+]
