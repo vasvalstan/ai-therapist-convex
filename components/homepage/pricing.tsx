@@ -112,17 +112,28 @@ const PricingCard = ({
         checkoutUrl = null;
       }
       
-      // If that fails, try the test function
+      // Only fall back to test function in development environment
       if (!checkoutUrl) {
-        try {
-          console.log("Falling back to test checkout function");
-          checkoutUrl = await getProCheckoutUrlTest({
-            interval: "month",
-            planKey
-          });
-          console.log("Test checkout function succeeded with URL:", checkoutUrl);
-        } catch (testError) {
-          console.error("Test function also failed:", testError);
+        // Check if we're in production
+        const isProduction = typeof window !== 'undefined' && 
+          (window.location.hostname === 'www.sereni.day' || 
+           window.location.hostname === 'sereni.day');
+        
+        if (!isProduction) {
+          try {
+            console.log("Falling back to test checkout function (development only)");
+            checkoutUrl = await getProCheckoutUrlTest({
+              interval: "month",
+              planKey
+            });
+            console.log("Test checkout function succeeded with URL:", checkoutUrl);
+          } catch (testError) {
+            console.error("Test function also failed:", testError);
+            setError("Unable to process checkout. Please try again later.");
+            return;
+          }
+        } else {
+          console.log("In production environment - not using test checkout fallback");
           setError("Unable to process checkout. Please try again later.");
           return;
         }

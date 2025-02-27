@@ -69,7 +69,11 @@ const createCheckout = async ({
             // Check if it's an authentication error
             if (polarError.statusCode === 401) {
                 console.error("Authentication error with Polar API. Token may be invalid or expired.");
-                // Fall back to test URL in case of auth errors
+                // In production, throw the error instead of returning a mock URL
+                if (environment === "production") {
+                    throw new Error("Authentication error with payment provider. Please contact support.");
+                }
+                // Only fall back to test URL in development
                 return { url: `${successUrl}?mock=true&error=auth_failed&env=${environment}` };
             }
             
@@ -242,6 +246,13 @@ export const getProOnboardingCheckoutUrl = action({
             // If we're missing the appropriate Polar token, return a mock URL for development
             if (!accessToken) {
                 console.warn(`Using mock checkout URL due to missing ${environment === "production" ? "POLAR_PRODUCTION_ACCESS_TOKEN" : "POLAR_SANDBOX_ACCESS_TOKEN"}`);
+                
+                // In production, throw an error instead of returning a mock URL
+                if (environment === "production") {
+                    throw new Error("Polar production access token is not configured. Please contact support.");
+                }
+                
+                // Only return mock URL in development
                 return `${frontendUrl}/success?mock=true&env=${environment}`;
             }
 
