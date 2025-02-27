@@ -4,18 +4,18 @@ import { AccordionComponent } from "@/components/homepage/accordion-component";
 import Pricing from "@/components/homepage/pricing";
 import PageWrapper from "@/components/wrapper/page-wrapper";
 import { motion } from "framer-motion";
-import { Check, DollarSign } from "lucide-react";
+import { Check, DollarSign, CheckCircle2 } from "lucide-react";
 
 export default function PricingPage() {
   const features = [
-    "Authentication & Authorization",
-    "Payment Processing",
-    "SEO Optimization",
-    "TypeScript Support",
-    "Database Integration",
-    "Dark Mode Support",
-    "Responsive Design",
-    "API Integration",
+    "Empathetic AI Therapy",
+    "Voice Conversations",
+    "Secure & Private",
+    "Available 24/7",
+    "Session History",
+    "Emotional Analysis",
+    "No Judgment",
+    "Personalized Experience",
   ];
 
   return (
@@ -58,8 +58,7 @@ export default function PricingPage() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto"
             >
-              Get started with our powerful Next.js starter kit and build your
-              next big idea faster than ever
+              Get started with our powerful AI therapy service and experience meaningful conversations whenever you need them
             </motion.p>
           </div>
         </section>
@@ -76,9 +75,7 @@ export default function PricingPage() {
                 Everything You Need
               </h2>
               <p className="text-gray-600 dark:text-gray-400">
-                Our starter kit comes packed with all the essential features you
-                need to build modern web applications. No more wasting time on
-                repetitive setups.
+                Our AI therapy service comes packed with all the essential features you need for meaningful conversations. No more wasting time on repetitive therapy sessions.
               </p>
             </motion.div>
             <motion.div
@@ -104,10 +101,52 @@ export default function PricingPage() {
           </div>
         </section>
 
+        <section className="py-16">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">Why Choose Sereni?</h2>
+            <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+              Our AI therapy service provides a unique combination of accessibility, privacy, and personalized support
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
+            <FeatureCard 
+              title="Available Anytime" 
+              description="Get support whenever you need it, without scheduling appointments or waiting for availability." 
+            />
+            <FeatureCard 
+              title="Complete Privacy" 
+              description="Share your thoughts in a completely private environment with no human judgment." 
+            />
+            <FeatureCard 
+              title="Affordable Therapy" 
+              description="Access quality therapeutic conversations at a fraction of the cost of traditional therapy." 
+            />
+            <FeatureCard 
+              title="Consistent Experience" 
+              description="Every session provides the same high-quality, empathetic experience without variability." 
+            />
+          </div>
+        </section>
+
         <section className="pb-20">
           <AccordionComponent />
         </section>
       </div>
     </PageWrapper>
+  );
+}
+
+function FeatureCard({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="bg-card border border-border rounded-lg p-6 hover:shadow-md transition-shadow">
+      <div className="flex items-start gap-3">
+        <CheckCircle2 className="h-6 w-6 text-blue-500 mt-1 flex-shrink-0" />
+        <div>
+          <h3 className="font-medium text-lg mb-2">{title}</h3>
+          <p className="text-muted-foreground text-sm">{description}</p>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -35,6 +35,10 @@ export default defineSchema({
         subscription: v.optional(v.string()),
         credits: v.optional(v.string()),
         tokenIdentifier: v.string(),
+        currentPlanKey: v.optional(v.string()),
+        minutesRemaining: v.optional(v.number()),
+        totalMinutesAllowed: v.optional(v.number()),
+        planRenewalDate: v.optional(v.number()),
     }).index("by_token", ["tokenIdentifier"]),
     plans: defineTable({
         key: v.string(),
@@ -45,6 +49,10 @@ export default defineSchema({
             month: v.optional(intervalPricesValidator),
             year: v.optional(intervalPricesValidator),
         }),
+        features: v.optional(v.array(v.string())),
+        maxSessionDurationMinutes: v.optional(v.number()),
+        totalMinutes: v.optional(v.number()),
+        maxSessions: v.optional(v.number()),
     })
         .index("key", ["key"])
         .index("polarProductId", ["polarProductId"]),

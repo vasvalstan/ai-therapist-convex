@@ -1,6 +1,124 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
+import { QueryCtx } from "./_generated/server";
+
+// Helper function to check if user has access to chat
+async function checkUserChatAccess(ctx: QueryCtx, userId: string) {
+    // Get user details
+    const user = await ctx.db
+        .query("users")
+        .withIndex("by_token", (q) => q.eq("tokenIdentifier", userId))
+        .unique();
+    
+    if (!user) {
+        throw new Error("User not found");
+    }
+    
+    // Get user's plan
+    const planKey = user.currentPlanKey || "free"; // Default to free plan if not set
+    
+    const plan = await ctx.db
+        .query("plans")
+        .withIndex("key", (q) => q.eq("key", planKey))
+        .unique();
+    
+    if (!plan) {
+        throw new Error("Plan not found");
+    }
+    
+    // For free plan, check session count limit
+    if (planKey === "free" && plan.maxSessions) {
+        const sessions = await ctx.db
+            .query("chatHistory")
+            .filter((q) => q.eq(q.field("userId"), userId))
+            .collect();
+        
+        if (sessions.length >= plan.maxSessions) {
+            return {
+                hasAccess: false,
+                reason: `You have reached your limit of ${plan.maxSessions} sessions. Please upgrade your plan to continue.`,
+                upgradeRequired: true,
+                limitType: "sessions"
+            };
+        }
+    }
+    
+    // Check if user has minutes remaining
+    if (user.minutesRemaining !== undefined && user.minutesRemaining <= 0) {
+        return {
+            hasAccess: false,
+            reason: "You have used all your available minutes. Please upgrade your plan to continue.",
+            upgradeRequired: true,
+            limitType: "minutes"
+        };
+    }
+    
+    return {
+        hasAccess: true,
+        maxSessionDurationMinutes: plan.maxSessionDurationMinutes || 5,
+        minutesRemaining: user.minutesRemaining
+    };
+}
+
+// New mutation to update user's remaining minutes
+export const updateUserRemainingMinutes = mutation({
+    args: {
+        sessionDurationMinutes: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const userId = identity.subject;
+        console.log(`Updating minutes for user ${userId}, duration: ${args.sessionDurationMinutes} minutes`);
+        
+        // Get user details
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_token", (q) => q.eq("tokenIdentifier", userId))
+            .unique();
+        
+        if (!user) {
+            throw new Error("User not found");
+        }
+        
+        // Get user's plan
+        const planKey = user.currentPlanKey || "free";
+        const plan = await ctx.db
+            .query("plans")
+            .withIndex("key", (q) => q.eq("key", planKey))
+            .unique();
+            
+        if (!plan) {
+            console.error(`Plan ${planKey} not found for user ${userId}`);
+        }
+        
+        // Calculate new remaining minutes
+        const currentMinutesRemaining = user.minutesRemaining || 0;
+        const newMinutesRemaining = Math.max(0, currentMinutesRemaining - args.sessionDurationMinutes);
+        
+        console.log(`User ${userId} minutes: ${currentMinutesRemaining} -> ${newMinutesRemaining} (deducted ${args.sessionDurationMinutes})`);
+        console.log(`User plan: ${planKey}, total allowed: ${user.totalMinutesAllowed || 0}`);
+        
+        // Update user's remaining minutes
+        await ctx.db.patch(user._id, {
+            minutesRemaining: newMinutesRemaining,
+        });
+        
+        return {
+            success: true,
+            previousMinutesRemaining: currentMinutesRemaining,
+            newMinutesRemaining: newMinutesRemaining,
+            minutesUsed: args.sessionDurationMinutes,
+            planKey: planKey,
+            totalMinutesAllowed: user.totalMinutesAllowed
+        };
+    },
+});
 
 export const createChatSession = mutation({
     args: {
@@ -14,10 +132,18 @@ export const createChatSession = mutation({
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Not authenticated");
+            throw new Error("Authentication required");
         }
 
         const userId = identity.subject;
+        
+        // Check if user has access to chat
+        const accessCheck = await checkUserChatAccess(ctx, userId);
+        if (!accessCheck.hasAccess) {
+            console.log(`Access denied for user ${userId}: ${accessCheck.reason}`);
+            throw new Error(accessCheck.reason);
+        }
+        
         const newSessionId = args.sessionId ?? crypto.randomUUID();
 
         // Check if a session with this sessionId already exists
@@ -46,9 +172,13 @@ export const createChatSession = mutation({
             updatedAt: Date.now(),
         });
 
+        console.log(`New chat session created for user ${userId}: ${newSessionId}`);
+        
         return {
             id,
             sessionId: newSessionId,
+            minutesRemaining: accessCheck.minutesRemaining,
+            maxSessionDurationMinutes: accessCheck.maxSessionDurationMinutes
         };
     },
 });
@@ -65,10 +195,17 @@ export const addMessageToSession = mutation({
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Not authenticated");
+            throw new Error("Authentication required");
         }
 
         const userId = identity.subject;
+        
+        // Check if user has access to chat
+        const accessCheck = await checkUserChatAccess(ctx, userId);
+        if (!accessCheck.hasAccess) {
+            console.log(`Message denied for user ${userId}: ${accessCheck.reason}`);
+            throw new Error(accessCheck.reason);
+        }
 
         // Find the chat session
         const session = await ctx.db
@@ -93,7 +230,13 @@ export const addMessageToSession = mutation({
             updatedAt: Date.now(),
         });
 
-        return session._id;
+        console.log(`Message added to session ${args.sessionId} for user ${userId}`);
+        
+        return {
+            sessionId: session._id,
+            minutesRemaining: accessCheck.minutesRemaining,
+            maxSessionDurationMinutes: accessCheck.maxSessionDurationMinutes
+        };
     },
 });
 

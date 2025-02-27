@@ -7,8 +7,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ComponentRef, forwardRef, useEffect, useState, useRef } from "react";
 import { AudioVisualizerBall } from "./audio-visualizer-ball";
 import { FadingText } from "./fading-text";
-import { History } from "lucide-react";
-import { Button } from "../ui/button";
 
 export const Messages = forwardRef<
   ComponentRef<typeof motion.div>,
@@ -24,9 +22,6 @@ export const Messages = forwardRef<
   
   // Track which messages have been processed and should be shown in history
   const [processedMessageIndices, setProcessedMessageIndices] = useState<number[]>([]);
-  
-  // State to control chat history visibility
-  const [showHistory, setShowHistory] = useState(false);
   
   // Ref to track active timers
   const fadeTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -54,9 +49,6 @@ export const Messages = forwardRef<
           isActive: true,
           index: lastMsgIndex
         });
-        
-        // Hide history when new message comes in
-        setShowHistory(false);
         
         // Clear any existing timers
         if (fadeTimerRef.current) {
@@ -86,10 +78,8 @@ export const Messages = forwardRef<
             setVisualizerActive(false);
           }, 300);
           
-          // Add a delay before showing in chat history
-          setTimeout(() => {
-            setProcessedMessageIndices(prev => [...prev, lastMsgIndex]);
-          }, 300); // Small delay after fade-out
+          // Add to processed messages immediately after fade-out
+          setProcessedMessageIndices(prev => [...prev, lastMsgIndex]);
           
           fadeTimerRef.current = null;
         }, displayDuration);
@@ -121,80 +111,6 @@ export const Messages = forwardRef<
       className="grow rounded-md overflow-auto p-4 flex flex-col"
       ref={ref}
     >
-      {/* Toggle history button */}
-      {status.value === "connected" && messages.length > 0 && (
-        <div className="fixed top-4 right-4 z-50">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-2"
-            onClick={() => setShowHistory(!showHistory)}
-          >
-            <History className="w-4 h-4" />
-            {showHistory ? "Hide History" : "Show History"}
-          </Button>
-        </div>
-      )}
-      
-      {/* Chat history */}
-      <AnimatePresence>
-        {showHistory && (
-          <motion.div 
-            className="max-w-2xl mx-auto w-full flex flex-col gap-4 pb-24 flex-1"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <AnimatePresence mode="popLayout">
-              {messages.map((msg, index) => {
-                // Only show messages that have been processed (after visualizer display)
-                if (!processedMessageIndices.includes(index)) {
-                  return null;
-                }
-                
-                if (
-                  msg.type === "user_message" ||
-                  msg.type === "assistant_message"
-                ) {
-                  return (
-                    <motion.div
-                      key={msg.type + index}
-                      className={cn(
-                        "w-[80%]",
-                        "bg-card",
-                        "border border-border rounded",
-                        msg.type === "user_message" ? "ml-auto" : ""
-                      )}
-                      initial={{
-                        opacity: 0,
-                        y: 10,
-                      }}
-                      animate={{
-                        opacity: 1,
-                        y: 0,
-                      }}
-                      exit={{
-                        opacity: 0,
-                        y: 0,
-                      }}
-                    >
-                      <div className={cn(
-                        "text-xs capitalize font-medium leading-none opacity-50 pt-4 px-3"
-                      )}>
-                        {msg.message.role}
-                      </div>
-                      <div className="pb-3 px-3">{msg.message.content}</div>
-                      <Expressions values={msg.models.prosody?.scores} />
-                    </motion.div>
-                  );
-                }
-                return null;
-              })}
-            </AnimatePresence>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
       {/* Audio visualizer and fading text overlay */}
       {status.value === "connected" && (
         <div className="fixed inset-0 pointer-events-none flex flex-col items-center justify-center">
