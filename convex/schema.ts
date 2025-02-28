@@ -103,4 +103,15 @@ export default defineSchema({
     })
         .index("by_user", ["userId"])
         .index("by_user_and_time", ["userId", "createdAt"]),
+    feedback: defineTable({
+        userId: v.optional(v.string()),
+        tokenIdentifier: v.optional(v.string()),
+        sessionId: v.optional(v.string()),
+        message: v.string(),
+        createdAt: v.number(),
+        source: v.optional(v.string()),
+    })
+        .index("by_user", ["userId"])
+        .index("by_token", ["tokenIdentifier"])
+        .index("by_session", ["sessionId"]),
 })

@@ -343,8 +343,11 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
   if (timeExpired || (error && (error.includes("session limit") || error.includes("minutes") || error.includes("upgrade") || error.includes("limit")))) {
     console.log("Showing upgrade prompt due to error:", error);
     return (
-      <div className="relative flex-1 flex flex-col mx-auto w-full h-full">
-        <UpgradePrompt reason={error || "You've reached the time limit on your free plan. Please upgrade to continue."} />
+      <div className="flex flex-col min-h-screen">
+        <UpgradePrompt 
+          reason={error || "You've reached the 2-minute limit on your free plan. Please upgrade to continue."} 
+          sessionId={currentSessionId || undefined}
+        />
       </div>
     );
   }

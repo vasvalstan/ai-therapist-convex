@@ -155,7 +155,10 @@ function ChatContent() {
           </Link>
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <UpgradePrompt reason={accessStatus.reason} />
+          <UpgradePrompt 
+            reason={accessStatus.reason} 
+            sessionId={chatSessions && chatSessions.length > 0 ? chatSessions[0].sessionId : undefined} 
+          />
         </div>
       </div>
     );
