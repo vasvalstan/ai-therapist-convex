@@ -84,7 +84,7 @@ export default function PricingPage() {
               transition={{ duration: 0.5, delay: 0.4 }}
               className="grid grid-cols-1 sm:grid-cols-2 gap-4"
             >
-              {features.map((feature, index) => (
+              {features.map((feature) => (
                 <div
                   key={feature}
                   className="flex items-center gap-2 text-gray-600 dark:text-gray-400"

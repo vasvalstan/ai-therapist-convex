@@ -1,9 +1,7 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { useVoice } from "@humeai/voice-react";
-import { Expressions } from "./expressions";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { ComponentRef, forwardRef, useEffect, useState, useRef } from "react";
 import { AudioVisualizerBall } from "./audio-visualizer-ball";
 import { FadingText } from "./fading-text";

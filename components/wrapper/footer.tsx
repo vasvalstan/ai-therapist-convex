@@ -1,5 +1,5 @@
 "use client"
-import { Instagram, Linkedin, Sparkles, Twitter } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Footer() {

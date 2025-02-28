@@ -217,9 +217,13 @@ export function Controls() {
                 pressed={!isMuted}
                 onPressedChange={() => {
                   if (isMuted) {
-                    unmute && unmute();
+                    if (unmute) {
+                      unmute();
+                    }
                   } else {
-                    mute && mute();
+                    if (mute) {
+                      mute();
+                    }
                   }
                 }}
                 className="flex items-center gap-2"

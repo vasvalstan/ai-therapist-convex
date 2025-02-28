@@ -17,22 +17,46 @@ interface HumeChatProps {
 
 type MessageRole = "user" | "assistant";
 
+// Define proper types for events
+type TimeExpiredEvent = CustomEvent<{ message: string }>;
+type MinutesUpdatedEvent = CustomEvent<{ 
+  previousMinutesRemaining?: number;
+  newMinutesRemaining?: number;
+  minutesUsed?: number;
+  planKey?: string;
+}>;
+type UpdateMinutesDisplayEvent = CustomEvent<{ minutesRemaining: number }>;
+
+// Expanded message type to include all properties used in the component
+type MessageType = {
+  role: MessageRole;
+  content: string;
+  timestamp?: number;
+  emotions?: Record<string, unknown>;
+  saved?: boolean;
+  data?: {
+    role: MessageRole;
+    content: string;
+    emotions: Record<string, unknown>;
+  };
+};
+
 // Component to display minutes remaining
 function MinutesRemainingDisplay({ initialMinutes, planKey }: { initialMinutes: number, planKey?: string }) {
   const [minutesRemaining, setMinutesRemaining] = useState(initialMinutes);
   
   useEffect(() => {
-    const handleUpdateMinutes = (event: any) => {
+    const handleUpdateMinutes = (event: UpdateMinutesDisplayEvent) => {
       if (event.detail && event.detail.minutesRemaining !== undefined) {
         console.log("Updating minutes display to:", event.detail.minutesRemaining);
         setMinutesRemaining(event.detail.minutesRemaining);
       }
     };
     
-    window.addEventListener('updateMinutesDisplay', handleUpdateMinutes);
+    window.addEventListener('updateMinutesDisplay', handleUpdateMinutes as EventListener);
     
     return () => {
-      window.removeEventListener('updateMinutesDisplay', handleUpdateMinutes);
+      window.removeEventListener('updateMinutesDisplay', handleUpdateMinutes as EventListener);
     };
   }, []);
   
@@ -58,9 +82,8 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
   const ref = useRef<ComponentRef<typeof Messages> | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(initialSessionId ?? null);
   const [error, setError] = useState<string | null>(null);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<MessageType[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const createSession = useMutation(api.chat.createChatSession);
   const addMessage = useMutation(api.chat.addMessageToSession);
@@ -74,21 +97,21 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
   
   // Listen for the timeExpired event
   useEffect(() => {
-    const handleTimeExpired = (event: any) => {
+    const handleTimeExpired = (event: TimeExpiredEvent) => {
       console.log("Time expired event received:", event.detail);
       setError(event.detail.message);
     };
 
-    window.addEventListener('timeExpired', handleTimeExpired);
+    window.addEventListener('timeExpired', handleTimeExpired as EventListener);
     
     return () => {
-      window.removeEventListener('timeExpired', handleTimeExpired);
+      window.removeEventListener('timeExpired', handleTimeExpired as EventListener);
     };
   }, []);
   
   // Listen for the minutesUpdated event to refresh user details
   useEffect(() => {
-    const handleMinutesUpdated = (event: any) => {
+    const handleMinutesUpdated = (event: MinutesUpdatedEvent) => {
       console.log("Minutes updated event received:", event.detail);
       
       // Update the minutes display without refetching
@@ -103,17 +126,19 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
       }
     };
     
-    window.addEventListener('minutesUpdated', handleMinutesUpdated);
+    window.addEventListener('minutesUpdated', handleMinutesUpdated as EventListener);
     
     return () => {
-      window.removeEventListener('minutesUpdated', handleMinutesUpdated);
+      window.removeEventListener('minutesUpdated', handleMinutesUpdated as EventListener);
     };
   }, [userDetails]);
 
   // Listen for the saveChat event
   useEffect(() => {
-    const handleSaveChat = async (event: any) => {
-      console.log("Save chat event received:", event.detail);
+    const handleSaveChat = async (event: Event) => {
+      // Cast to CustomEvent to access detail property
+      const customEvent = event as CustomEvent<{ sessionId?: string }>;
+      console.log("Save chat event received:", customEvent.detail);
       
       if (messages.length > 0 && currentSessionId) {
         setIsSaving(true);
@@ -123,12 +148,18 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
           let savedCount = 0;
           for (const msg of messages) {
             if (!msg.saved) {
-              await addMessage({
-                sessionId: currentSessionId,
-                message: msg.data,
-              });
-              msg.saved = true;
-              savedCount++;
+              try {
+                if (msg.data && msg.data.role && msg.data.content) {
+                  await addMessage({
+                    sessionId: currentSessionId,
+                    message: msg.data,
+                  });
+                  msg.saved = true;
+                  savedCount++;
+                }
+              } catch (err) {
+                console.error("Failed to save messages on disconnect:", err);
+              }
             }
           }
           
@@ -154,7 +185,7 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
 
   // Handle page unload or visibility change to save messages
   useEffect(() => {
-    const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = async () => {
       if (messages.length > 0 && currentSessionId) {
         // Show a message to the user
         const saveMessage = document.createElement('div');
@@ -164,15 +195,20 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
         
         setIsSaving(true);
         
-        // Try to save any pending messages
         try {
           for (const msg of messages) {
             if (!msg.saved) {
-              await addMessage({
-                sessionId: currentSessionId,
-                message: msg.data,
-              });
-              msg.saved = true;
+              try {
+                if (msg.data && msg.data.role && msg.data.content) {
+                  await addMessage({
+                    sessionId: currentSessionId,
+                    message: msg.data,
+                  });
+                  msg.saved = true;
+                }
+              } catch (err) {
+                console.error("Failed to save messages on unload:", err);
+              }
             }
           }
           
@@ -192,7 +228,7 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
     
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && messages.length > 0 && currentSessionId) {
-        handleBeforeUnload(new Event('visibilitychange') as unknown as BeforeUnloadEvent);
+        handleBeforeUnload();
       }
     };
     
@@ -212,7 +248,18 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
     }
   }, [error]);
 
-  const handleMessage = async (message: any) => {
+  const handleMessage = async (message: { 
+    type: string; 
+    message?: { 
+      content?: string;
+      emotions?: Record<string, unknown>;
+    };
+    models?: {
+      prosody?: {
+        scores?: Record<string, unknown>;
+      };
+    };
+  }) => {
     if (timeout.current) {
       window.clearTimeout(timeout.current);
     }
@@ -221,13 +268,26 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
     if (message.type === "user_message" || message.type === "assistant_message") {
       const messageData = {
         role: (message.type === "user_message" ? "user" : "assistant") as MessageRole,
-        content: message.message.content,
-        emotions: message.models.prosody?.scores,
+        content: message.message?.content || "",
+        emotions: message.message?.emotions,
       };
       
-      // Add message to local state first
-      const newMessage = { data: messageData, saved: false };
-      setMessages(prev => [...prev, newMessage]);
+      // Update the messages state with the new message
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: message.type === "user_message" ? "user" : "assistant",
+          content: message.message?.content || "",
+          timestamp: Date.now(),
+          emotions: message.message?.emotions,
+          data: {
+            role: message.type === "user_message" ? "user" : "assistant",
+            content: message.message?.content || "",
+            emotions: message.message?.emotions,
+          },
+          saved: false,
+        },
+      ]);
 
       try {
         // If no session exists, create one with the initial message
@@ -239,7 +299,7 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
             setCurrentSessionId(result.sessionId);
           }
           // Mark message as saved
-          newMessage.saved = true;
+          messages[messages.length - 1].saved = true;
         } else {
           // Add message to existing session
           await addMessage({
@@ -247,13 +307,14 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
             message: messageData,
           });
           // Mark message as saved
-          newMessage.saved = true;
+          messages[messages.length - 1].saved = true;
         }
         // Clear any previous errors
         setError(null);
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Handle errors related to plan limits
-        setError(err.message || "An error occurred");
+        const errorMessage = err instanceof Error ? err.message : "An error occurred";
+        setError(errorMessage);
         console.error("Chat error:", err);
       }
     }
@@ -319,7 +380,7 @@ function VoiceController() {
   const prevStatusRef = useRef<string | undefined>(undefined);
   
   useEffect(() => {
-    const handleTimeExpired = (event: any) => {
+    const handleTimeExpired = () => {
       console.log("VoiceController: Time expired event received, forcing disconnect");
       
       // Show a notification that the chat is being saved
@@ -370,7 +431,7 @@ function VoiceController() {
       // Update the previous status
       prevStatusRef.current = currentStatus;
     }
-  }, [voice?.status?.value]);
+  }, [voice, voice?.status?.value]);
   
   return null; // This component doesn't render anything
 } 

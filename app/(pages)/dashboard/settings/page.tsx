@@ -55,11 +55,11 @@ export default function SettingsPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" placeholder="Your email" defaultValue={user?.user?.emailAddresses?.[0]?.emailAddress!} />
+                    <Input id="email" type="email" placeholder="Your email" defaultValue={user?.user?.emailAddresses?.[0]?.emailAddress || ""} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="username">Username</Label>
-                    <Input id="username" placeholder="Username" defaultValue={user?.user?.username!} />
+                    <Input id="username" placeholder="Username" defaultValue={user?.user?.username || ""} />
                   </div>
                 </div>
                 <div className="space-y-2">

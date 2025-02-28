@@ -3,7 +3,6 @@
 import clsx from 'clsx'
 import {
   Banknote,
-  Folder,
   HomeIcon,
   Settings,
   LucideIcon

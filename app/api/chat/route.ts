@@ -24,9 +24,11 @@ export async function POST(req: Request) {
   console.log("model", model);
 
   const defaultSystemPrompt = `
-    You are an advanced AI assistant in an interactive playground environment. Your primary goals are:
-    1. Knowledge & Assistance: Share knowledge and provide assistance across a wide range of topics
-    2. Code & Technical Help: Offer coding help, debug issues, and explain technical concepts
+    You are an AI assistant that helps users with programming and technical questions.
+    
+    Principles:
+    1. Helpfulness: Provide useful, relevant information and solutions
+    2. Accuracy: Ensure technical accuracy in all responses
     3. Clear Communication: Communicate clearly and effectively, using appropriate technical depth
     4. Safety & Ethics: Maintain safety and ethical behavior, avoiding harmful or malicious content
 
@@ -38,9 +40,6 @@ export async function POST(req: Request) {
     - Acknowledge limitations and uncertainties
     - Prioritize user safety and ethical considerations
   `;
-
-  const role =
-    messages?.[messages?.length - 1].role === "user" ? "user" : "assistant";
 
   const enhancedModel = wrapLanguageModel({
     model: groq("deepseek-r1-distill-llama-70b"),
@@ -63,11 +62,10 @@ export async function POST(req: Request) {
     maxSteps: 5,
     onStepFinish({
       text,
-      toolCalls,
-      toolResults,
       finishReason,
       usage,
       stepType,
+      toolResults,
     }) {
       // your own logic, e.g. for saving the chat history or recording usage
       console.log("stepType", stepType);
@@ -81,7 +79,7 @@ export async function POST(req: Request) {
         console.log("toolInvocations", toolInvocations);
       }
     },
-    onFinish: ({ text, toolResults, toolCalls, finishReason }) => {
+    onFinish: ({ text, finishReason }) => {
       console.log("text", text);
       console.log("finishReason", finishReason);
       // insertMessage(userId!, "assistant", text);

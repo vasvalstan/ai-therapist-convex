@@ -23,11 +23,13 @@ export default function FinancePage() {
 
   const handleManageSubscription = async () => {
     try {
-      const result = await getDashboardUrl({
-        customerId: subscription?.customerId!
-      });
-      if (result?.url) {
-        window.location.href = result.url;
+      if (subscription?.customerId) {
+        const result = await getDashboardUrl({
+          customerId: subscription.customerId
+        });
+        if (result?.url) {
+          window.location.href = result.url;
+        }
       }
     } catch (error) {
       console.error("Error getting dashboard URL:", error);
@@ -109,7 +111,7 @@ export default function FinancePage() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Plan Amount:</span>
-                  <span className="font-medium">${(subscription?.amount! / 100).toFixed(2)}</span>
+                  <span className="font-medium">${subscription?.amount && (subscription.amount / 100).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Billing Interval:</span>
@@ -117,7 +119,7 @@ export default function FinancePage() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Next Billing:</span>
-                  <span className="font-medium">{new Date(subscription?.currentPeriodEnd!).toLocaleDateString()}</span>
+                  <span className="font-medium">{subscription?.currentPeriodEnd && new Date(subscription.currentPeriodEnd).toLocaleDateString()}</span>
                 </div>
               </div>
             )}
@@ -191,7 +193,7 @@ export default function FinancePage() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Started At:</span>
-                  <span className="font-medium">{new Date(subscription?.startedAt!).toLocaleDateString()}</span>
+                  <span className="font-medium">{subscription?.startedAt && new Date(subscription.startedAt).toLocaleDateString()}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Auto Renew:</span>

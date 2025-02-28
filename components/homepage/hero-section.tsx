@@ -52,7 +52,7 @@ export default function HeroSection() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto"
         >
-          Experience supportive conversations with our AI therapist, designed to help you navigate life's challenges with empathy and understanding.
+          Experience supportive conversations with our AI therapist, designed to help you navigate life&apos;s challenges with empathy and understanding.
         </motion.p>
 
         {/* CTA Buttons */}

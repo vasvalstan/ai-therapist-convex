@@ -43,7 +43,8 @@ export async function GET(request: Request) {
       hostname,
       nodeEnv: process.env.NODE_ENV,
       tokenFirstChars: accessToken.substring(0, 8) + "...",
-      server: environment
+      server: environment,
+      polarInitialized: !!polar
     });
   } catch (error) {
     return NextResponse.json({

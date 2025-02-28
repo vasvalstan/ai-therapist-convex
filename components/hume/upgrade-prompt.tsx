@@ -18,7 +18,7 @@ export function UpgradePrompt({ reason }: UpgradePromptProps) {
             Upgrade Your Plan
           </CardTitle>
           <CardDescription>
-            You've reached the limits of your free plan
+            You&apos;ve reached the limits of your free plan
           </CardDescription>
         </CardHeader>
         <CardContent>

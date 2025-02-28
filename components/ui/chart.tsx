@@ -68,8 +68,9 @@ const ChartContainer = React.forwardRef<
 ChartContainer.displayName = "Chart"
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
+  // Filter entries without destructuring to avoid unused variable warning
   const colorConfig = Object.entries(config).filter(
-    ([_, config]) => config.theme || config.color
+    entry => entry[1].theme || entry[1].color
   )
 
   if (!colorConfig.length) {

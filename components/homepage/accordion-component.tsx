@@ -11,11 +11,11 @@ import { motion } from "motion/react"
 const faqs = [
     {
         question: "what is included in the plus plan?",
-        answer: "the plus plan offers unlimited well-being sessions, access to temporary chats, priority customer support, and early access to new features. it's perfect for those who want continuous support."
+        answer: "the plus plan offers unlimited well-being sessions, access to temporary chats, priority customer support, and early access to new features. it&apos;s perfect for those who want continuous support."
     },
     {
         question: "can I cancel my subscription?",
-        answer: "yes, you can cancel your subscription at any time. there are no long-term commitments, and you'll continue to have access to Sereni until the end of your current billing period."
+        answer: "yes, you can cancel your subscription at any time. there are no long-term commitments, and you&apos;ll continue to have access to Sereni until the end of your current billing period."
     },
     {
         question: "is Sereni a replacement for traditional therapy?",
@@ -31,7 +31,7 @@ const faqs = [
     },
     {
         question: "does Sereni support multiple languages?",
-        answer: "currently, Sereni primarily operates in English, but we're actively working on adding support for more languages to make our service accessible to a broader global community."
+        answer: "currently, Sereni primarily operates in English, but we&apos;re actively working on adding support for more languages to make our service accessible to a broader global community."
     }
 ]
 
@@ -53,7 +53,7 @@ export function AccordionComponent() {
                         frequently asked questions
                     </h2>
                     <p className="text-gray-600 dark:text-gray-300 mt-4 max-w-2xl mx-auto">
-                        have questions about Sereni? we're here to help. if you can't find what you're looking for, our support team is just a message away.
+                        have questions about Sereni? we&apos;re here to help. if you can&apos;t find what you&apos;re looking for, our support team is just a message away.
                     </p>
                 </div>
 
