@@ -85,7 +85,7 @@ const PricingCard = ({
   const [isClient, setIsClient] = useState(false);
 
   // Move Convex hooks into useEffect to ensure they only run on client
-  const getProCheckoutUrl = useAction(api.subscriptions.getProOnboardingCheckoutUrl);
+  const getProCheckoutUrl = useAction(api.subscriptions.getOnboardingCheckoutUrl);
   const getProCheckoutUrlTest = useAction(api.subscriptions.getProOnboardingCheckoutUrlTest);
 
   // Mark component as mounted on client

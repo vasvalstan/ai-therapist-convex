@@ -147,7 +147,7 @@ export const getOnboardingCheckoutUrl = action({
             }
             
             console.warn("Using mock checkout URL due to missing access token");
-            return { url: `${successUrl}?mock=true&error=missing_token&env=${environment}` };
+            return `${successUrl}?mock=true&error=missing_token&env=${environment}`;
         }
         
         try {
@@ -175,7 +175,7 @@ export const getOnboardingCheckoutUrl = action({
             });
 
             console.log("Checkout created successfully with URL:", result.url);
-            return result;
+            return result.url;
         } catch (error: any) {
             console.error(`${environment} Polar API error:`, error);
             
@@ -191,9 +191,7 @@ export const getOnboardingCheckoutUrl = action({
             }
             
             // In development, return a mock URL with error details
-            return { 
-                url: `${successUrl}?mock=true&error=${encodeURIComponent(error.message)}&env=${environment}` 
-            };
+            return `${successUrl}?mock=true&error=${encodeURIComponent(error.message)}&env=${environment}`;
         }
     }
 });
