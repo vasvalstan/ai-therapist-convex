@@ -119,53 +119,32 @@ export const getOnboardingCheckoutUrl = action({
         successUrl: v.string(),
         metadata: v.optional(v.record(v.string(), v.string()))
     },
-    handler: async (ctx, args) => {
+    handler: async (ctx, args): Promise<string> => {
         const { customerEmail, productPriceId, successUrl, metadata } = args;
         
-        console.log("Starting getOnboardingCheckoutUrl function");
-        console.log("Request parameters:", {
-            customerEmail,
-            productPriceId,
-            successUrl,
-            metadata
-        });
+        // Extract plan key from productPriceId (e.g., "price_basic_monthly" -> "basic")
+        const planKeyMatch = productPriceId.match(/price_([a-z]+)_/);
+        const planKey = planKeyMatch ? planKeyMatch[1] : null;
         
-        // Determine environment based on the request URL
+        if (!planKey) {
+            throw new Error(`Invalid product price ID: ${productPriceId}`);
+        }
+        
+        // Determine environment based on the success URL
         const isProduction = successUrl.includes('www.sereni.day') || successUrl.includes('sereni.day');
         const environment = isProduction ? "production" : "sandbox";
         
-        console.log(`Environment determined from URL (${successUrl}):`, environment);
+        console.log(`Creating checkout for plan ${planKey} in ${environment} environment`);
+        console.log(`Success URL: ${successUrl}`);
         
-        // Map our plan keys to actual Polar price IDs
-        const polarProducts = {
-            basic: {
-                production: {
-                    productId: "prod_01HQ5JGXV2TNQN8QZXR1KQJG8N",
-                    priceId: "price_01HQ5JGXV2TNQN8QZXR1KQJG8N"
-                },
-                sandbox: {
-                    productId: "prod_01HQ5JGXV2TNQN8QZXR1KQJG8N_test",
-                    priceId: "price_01HQ5JGXV2TNQN8QZXR1KQJG8N_test"
-                }
-            },
-            premium: {
-                production: {
-                    productId: "prod_01HQ5JGXV2TNQN8QZXR1KQJG8P",
-                    priceId: "price_01HQ5JGXV2TNQN8QZXR1KQJG8P"
-                },
-                sandbox: {
-                    productId: "prod_01HQ5JGXV2TNQN8QZXR1KQJG8P_test",
-                    priceId: "price_01HQ5JGXV2TNQN8QZXR1KQJG8P_test"
-                }
-            }
-        };
+        // Get the plan from the database
+        const plan: any = await ctx.runQuery(internal.subscriptions.getPlanByKey, { key: planKey });
         
-        // Extract plan key from the productPriceId (e.g., "price_basic_monthly" -> "basic")
-        const planKey = productPriceId.split('_')[1] as keyof typeof polarProducts;
-        
-        if (!planKey || !polarProducts[planKey]) {
-            throw new Error(`Invalid plan key: ${planKey}`);
+        if (!plan) {
+            throw new Error(`Plan with key ${planKey} not found in database`);
         }
+        
+        console.log(`Found plan in database:`, plan);
         
         // Get the appropriate access token
         const accessToken = environment === "production"
@@ -184,70 +163,74 @@ export const getOnboardingCheckoutUrl = action({
         }
         
         try {
-            // Get the correct Polar product and price IDs for the environment
-            const polarProduct = polarProducts[planKey][environment];
+            // Get the correct Polar price ID from the plan
+            const priceId: string | undefined = plan.prices?.month?.usd?.polarId;
+            
+            if (!priceId) {
+                throw new Error(`No price ID found for plan ${planKey}`);
+            }
+            
+            console.log(`Using price ID from database: ${priceId}`);
             
             // Create checkout session with direct API call
             const apiUrl = environment === "production" 
                 ? "https://api.polar.sh/v1/checkouts" 
                 : "https://api.sandbox.polar.sh/v1/checkouts";
             
-            // Format the request body according to Polar API requirements
-            // Based on the error message, we need to structure this differently
-            const requestBody = {
+            // Use the product_price_id directly as required by the API
+            const requestBody: {
+                success_url: string;
+                customer_email: string;
+                metadata: Record<string, string>;
+                product_price_id: string;
+            } = {
                 success_url: successUrl,
                 customer_email: customerEmail,
                 metadata: metadata || {},
-                products: [
-                    {
-                        product_id: polarProduct.productId,
-                        prices: [
-                            {
-                                price_id: polarProduct.priceId
-                            }
-                        ]
-                    }
-                ]
+                product_price_id: priceId
             };
             
-            console.log("Creating checkout with params:", requestBody);
+            console.log(`Making API request to ${apiUrl} with body:`, JSON.stringify(requestBody));
             
-            const response = await fetch(apiUrl, {
-                method: "POST",
+            const response: Response = await fetch(apiUrl, {
+                method: 'POST',
                 headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${accessToken}`
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`
                 },
                 body: JSON.stringify(requestBody)
             });
             
             if (!response.ok) {
                 const errorData = await response.json();
-                console.error(`API error response: ${response.status}`, errorData);
+                console.error(`${environment} Polar API error:`, errorData);
+                
+                if (response.status === 401) {
+                    throw new Error(`Authentication error with payment provider. Please contact support.`);
+                }
+                
                 throw new Error(`API error: ${response.status} ${JSON.stringify(errorData)}`);
             }
             
-            const result = await response.json();
-            console.log("Checkout created successfully with URL:", result.url);
-            return result.url;
-        } catch (error: any) {
-            console.error(`${environment} Polar API error:`, error);
+            const data: { url?: string } = await response.json();
+            console.log(`Checkout created successfully:`, data);
             
-            // Check if it's an authentication error
-            if (error.message && error.message.includes("401")) {
-                console.error("Authentication error with Polar API. Token may be invalid or expired.");
-                throw new Error("Authentication error with payment provider. Please contact support.");
+            if (!data.url) {
+                throw new Error("No checkout URL returned from payment provider");
             }
             
-            // For other errors in production, throw a generic error
+            return data.url;
+        } catch (error) {
+            console.error(`${environment} Polar API error:`, error);
+            
             if (isProduction) {
                 throw new Error("Unable to process checkout. Please try again later or contact support.");
             }
             
             // In development, return a mock URL with error details
-            return `${successUrl}?mock=true&error=${encodeURIComponent(error.message)}&env=${environment}`;
+            return `${successUrl}?mock=true&error=${encodeURIComponent(String(error))}&env=${environment}`;
         }
-    }
+    },
 });
 
 export const getProOnboardingCheckoutUrlTest = action({
