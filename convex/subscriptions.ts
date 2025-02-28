@@ -33,10 +33,11 @@ const createCheckout = async ({
         // Select the appropriate token based on environment
         const accessToken = environment === "production" 
             ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN 
-            : process.env.POLAR_SANDBOX_ACCESS_TOKEN;
+            : process.env.POLAR_SANDBOX_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN;
             
         if (!accessToken) {
             console.error(`${environment === "production" ? "POLAR_PRODUCTION_ACCESS_TOKEN" : "POLAR_SANDBOX_ACCESS_TOKEN"} is not configured`);
+            console.error("Available POLAR environment variables:", Object.keys(process.env).filter(key => key.includes("POLAR")));
             
             // In production, throw an error instead of returning a mock URL
             if (environment === "production") {
@@ -131,12 +132,14 @@ export const getOnboardingCheckoutUrl = async ({
     // Get the appropriate access token based on environment
     const accessToken = environment === "production"
         ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN
-        : process.env.POLAR_SANDBOX_ACCESS_TOKEN;
+        : process.env.POLAR_SANDBOX_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN; // Try fallback to POLAR_ACCESS_TOKEN
         
     console.log(`Using ${environment} access token:`, accessToken ? `${accessToken.substring(0, 8)}...` : "undefined");
+    console.log("POLAR_ACCESS_TOKEN exists:", !!process.env.POLAR_ACCESS_TOKEN);
     
     if (!accessToken) {
         console.error(`Polar ${environment} access token is not configured.`);
+        console.error("Available POLAR environment variables:", Object.keys(process.env).filter(key => key.includes("POLAR")));
         if (environment === "production") {
             throw new Error("Polar production access token is not configured. Please contact support.");
         }
@@ -202,15 +205,18 @@ export const getProOnboardingCheckoutUrl = action({
             console.log("Environment based on NODE_ENV:", environment);
             console.log("NODE_ENV value:", process.env.NODE_ENV);
             
+            // Log all environment variables for debugging
+            console.log("All environment variables keys:", Object.keys(process.env));
+            
             // Check for appropriate token
             const accessToken = environment === "production" 
                 ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN 
-                : process.env.POLAR_SANDBOX_ACCESS_TOKEN;
+                : process.env.POLAR_SANDBOX_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN;
                 
             console.log(`${environment.toUpperCase()} token exists:`, !!accessToken);
             console.log(`${environment.toUpperCase()} token first chars:`, accessToken ? accessToken.substring(0, 8) + "..." : "N/A");
+            console.log("POLAR_ACCESS_TOKEN exists:", !!process.env.POLAR_ACCESS_TOKEN);
             console.log("FRONTEND_URL exists:", !!process.env.FRONTEND_URL);
-            console.log("FRONTEND_URL value:", process.env.FRONTEND_URL);
             console.log("FRONTEND_URL_DEV exists:", !!process.env.FRONTEND_URL_DEV);
             
             // Determine the appropriate frontend URL
@@ -287,6 +293,7 @@ export const getProOnboardingCheckoutUrl = action({
             // If we're missing the appropriate Polar token, return a mock URL for development
             if (!accessToken) {
                 console.warn(`Using mock checkout URL due to missing ${environment === "production" ? "POLAR_PRODUCTION_ACCESS_TOKEN" : "POLAR_SANDBOX_ACCESS_TOKEN"}`);
+                console.warn("Available environment variables:", Object.keys(process.env).filter(key => key.includes("POLAR")));
                 
                 // In production, throw an error instead of returning a mock URL
                 if (environment === "production") {
@@ -667,10 +674,11 @@ export const paymentWebhook = httpAction(async (ctx, request) => {
         // Select the appropriate webhook secret based on environment
         const webhookSecret = environment === "production" 
             ? process.env.POLAR_PRODUCTION_WEBHOOK_SECRET 
-            : process.env.POLAR_SANDBOX_WEBHOOK_SECRET;
+            : process.env.POLAR_SANDBOX_WEBHOOK_SECRET || process.env.POLAR_WEBHOOK_SECRET; // Try fallback
             
         if (!webhookSecret) {
             console.error(`${environment === "production" ? "POLAR_PRODUCTION_WEBHOOK_SECRET" : "POLAR_SANDBOX_WEBHOOK_SECRET"} is not configured`);
+            console.error("Available POLAR environment variables:", Object.keys(process.env).filter(key => key.includes("POLAR")));
             return new Response(JSON.stringify({ error: "Webhook secret not configured for the current environment" }), {
                 status: 500,
                 headers: {
@@ -717,10 +725,11 @@ export const getUserDashboardUrl = action({
         // Select the appropriate token based on environment
         const accessToken = environment === "production" 
             ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN 
-            : process.env.POLAR_SANDBOX_ACCESS_TOKEN;
+            : process.env.POLAR_SANDBOX_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN; // Try fallback to POLAR_ACCESS_TOKEN
             
         if (!accessToken) {
             console.error(`${environment === "production" ? "POLAR_PRODUCTION_ACCESS_TOKEN" : "POLAR_SANDBOX_ACCESS_TOKEN"} is not configured for dashboard`);
+            console.error("Available POLAR environment variables:", Object.keys(process.env).filter(key => key.includes("POLAR")));
             throw new Error("Polar access token is not configured for the current environment");
         }
         
@@ -830,5 +839,25 @@ export const getUserSubscriptions = query({
       .query("subscriptions")
       .withIndex("userId", (q) => q.eq("userId", userId))
       .collect();
+  }
+});
+
+// Debug function to check environment variables
+export const debugEnvironmentVariables = action({
+  handler: async (ctx) => {
+    const envVars = {
+      NODE_ENV: process.env.NODE_ENV,
+      POLAR_PRODUCTION_ACCESS_TOKEN_EXISTS: !!process.env.POLAR_PRODUCTION_ACCESS_TOKEN,
+      POLAR_SANDBOX_ACCESS_TOKEN_EXISTS: !!process.env.POLAR_SANDBOX_ACCESS_TOKEN,
+      POLAR_ACCESS_TOKEN_EXISTS: !!process.env.POLAR_ACCESS_TOKEN,
+      FRONTEND_URL: process.env.FRONTEND_URL,
+      FRONTEND_URL_DEV: process.env.FRONTEND_URL_DEV,
+      ALL_ENV_KEYS: Object.keys(process.env),
+      POLAR_KEYS: Object.keys(process.env).filter(key => key.includes("POLAR")),
+    };
+    
+    console.log("Debug environment variables:", envVars);
+    
+    return envVars;
   }
 });
