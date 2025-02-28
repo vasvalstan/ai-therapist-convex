@@ -123,24 +123,45 @@ export const getOnboardingCheckoutUrl = action({
         const { customerEmail, productPriceId, successUrl, metadata } = args;
         
         console.log("Starting getOnboardingCheckoutUrl function");
+        console.log("Request parameters:", {
+            customerEmail,
+            productPriceId,
+            successUrl,
+            metadata
+        });
         
         // Determine environment based on the request URL
         const isProduction = successUrl.includes('www.sereni.day') || successUrl.includes('sereni.day');
         const environment = isProduction ? "production" : "sandbox";
         
         console.log(`Environment determined from URL (${successUrl}):`, environment);
-        console.log(`NODE_ENV:`, process.env.NODE_ENV);
         
-        // Get the appropriate access token based on environment
+        // Map our plan keys to actual Polar price IDs
+        const polarPriceIds = {
+            basic: {
+                production: "price_01HQ5JGXV2TNQN8QZXR1KQJG8N",
+                sandbox: "price_01HQ5JGXV2TNQN8QZXR1KQJG8N_test"
+            },
+            premium: {
+                production: "price_01HQ5JGXV2TNQN8QZXR1KQJG8P",
+                sandbox: "price_01HQ5JGXV2TNQN8QZXR1KQJG8P_test"
+            }
+        };
+        
+        // Extract plan key from the productPriceId (e.g., "price_basic_monthly" -> "basic")
+        const planKey = productPriceId.split('_')[1] as keyof typeof polarPriceIds;
+        
+        if (!planKey || !polarPriceIds[planKey]) {
+            throw new Error(`Invalid plan key: ${planKey}`);
+        }
+        
+        // Get the appropriate access token
         const accessToken = environment === "production"
             ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN
             : process.env.POLAR_SANDBOX_ACCESS_TOKEN;
             
-        console.log(`Using ${environment} access token:`, accessToken ? `${accessToken.substring(0, 8)}...` : "undefined");
-        
         if (!accessToken) {
             console.error(`Polar ${environment} access token is not configured.`);
-            console.error("Available POLAR environment variables:", Object.keys(process.env).filter(key => key.includes("POLAR")));
             
             if (isProduction) {
                 throw new Error(`Payment provider configuration error: ${environment} access token is missing. Please contact support.`);
@@ -157,27 +178,26 @@ export const getOnboardingCheckoutUrl = action({
                 accessToken: accessToken,
             });
             
-            console.log(`Initialized Polar SDK with ${environment} token:`, accessToken.substring(0, 8) + "...");
-            console.log(`Using server parameter:`, environment);
+            // Get the correct Polar price ID for the environment
+            const polarPriceId = polarPriceIds[planKey][environment];
             
-            console.log("Creating checkout with params:", {
-                productPriceId,
-                successUrl,
-                customerEmail,
-                metadataKeys: metadata ? Object.keys(metadata) : []
-            });
-
-            const result = await polar.checkouts.create({
-                productPriceId: productPriceId,
+            // Create checkout session with the required parameters
+            const checkoutData = {
+                productPriceId: polarPriceId,
                 successUrl: successUrl,
                 customerEmail: customerEmail,
                 metadata: metadata
-            });
+            };
+            
+            console.log("Creating checkout with params:", checkoutData);
+
+            const result = await polar.checkouts.create(checkoutData);
 
             console.log("Checkout created successfully with URL:", result.url);
             return result.url;
         } catch (error: any) {
             console.error(`${environment} Polar API error:`, error);
+            console.error("Full error details:", JSON.stringify(error, null, 2));
             
             // Check if it's an authentication error
             if (error.statusCode === 401) {
