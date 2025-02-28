@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { getHumeAccessToken } from "@/lib/hume";
 import { ChatHistory } from "@/components/hume/chat-history";
 import { Suspense } from "react";
