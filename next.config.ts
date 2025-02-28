@@ -39,6 +39,9 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     reactCompiler: true,
+    // Ensure Clerk packages are treated as external packages
+    // This prevents Edge Runtime compatibility warnings
+    serverComponentsExternalPackages: ['@clerk/nextjs', '@clerk/shared'],
   },
   pageExtensions: ["ts", "tsx", "mdx"],
 };
