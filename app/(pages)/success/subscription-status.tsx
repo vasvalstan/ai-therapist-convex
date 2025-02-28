@@ -64,7 +64,7 @@ export default function SubscriptionStatus() {
       <h1 className="mt-[35vh] mb-3 scroll-m-20 text-5xl font-semibold tracking-tight transition-colors first:mt-0">
         {hasActiveSubscription ? "Subscription Successful 🎉" : "You Can Subscribe Now"}
       </h1>
-      <Link href={hasActiveSubscription ? "/dashboard" : "/pricing"} className='mt-4'>
+      <Link href={hasActiveSubscription ? "/" : "/pricing"} className='mt-4'>
         <Button>{hasActiveSubscription ? "Access Dashboard" : "View Pricing"}</Button>
       </Link>
     </>

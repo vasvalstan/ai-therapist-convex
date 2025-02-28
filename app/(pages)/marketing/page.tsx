@@ -35,10 +35,10 @@ export default async function MarketingPage() {
           copy. Great for marketing your product and getting sales.
         </p>
         <div className="flex gap-2 mt-2">
-          <Link href="/dashboard" prefetch={true} className="mt-2">
+          <Link href="/" prefetch={true} className="mt-2">
             <Button size="lg">Get Started</Button>
           </Link>
-          <Link href="/dashboard" prefetch={true} className="mt-2">
+          <Link href="/" prefetch={true} className="mt-2">
             <Button size="lg" variant="outline">
               Get Started
             </Button>

@@ -231,7 +231,7 @@ const PricingCard = ({
     if (currentPlan) {
       return {
         text: "Current Plan",
-        action: () => router.push("/dashboard")
+        action: () => router.push("/")
       };
     }
     

@@ -17,7 +17,6 @@ import {
 import { SignOutButton, useUser } from "@clerk/nextjs";
 import {
     LogOut,
-    Settings,
     Sparkles,
     User
 } from "lucide-react";
@@ -55,12 +54,6 @@ export function UserProfile() {
                         <DropdownMenuItem className="focus:bg-blue-50 dark:focus:bg-blue-950">
                             <User className="mr-2 h-4 w-4" />
                             <span>Profile</span>
-                        </DropdownMenuItem>
-                    </Link>
-                    <Link href="/dashboard/settings">
-                        <DropdownMenuItem className="focus:bg-blue-50 dark:focus:bg-blue-950">
-                            <Settings className="mr-2 h-4 w-4" />
-                            <span>Settings</span>
                         </DropdownMenuItem>
                     </Link>
                     <Link href="/#pricing">
