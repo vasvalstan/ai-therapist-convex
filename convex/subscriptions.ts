@@ -137,21 +137,33 @@ export const getOnboardingCheckoutUrl = action({
         console.log(`Environment determined from URL (${successUrl}):`, environment);
         
         // Map our plan keys to actual Polar price IDs
-        const polarPriceIds = {
+        const polarProducts = {
             basic: {
-                production: "price_01HQ5JGXV2TNQN8QZXR1KQJG8N",
-                sandbox: "price_01HQ5JGXV2TNQN8QZXR1KQJG8N_test"
+                production: {
+                    productId: "prod_01HQ5JGXV2TNQN8QZXR1KQJG8N",
+                    priceId: "price_01HQ5JGXV2TNQN8QZXR1KQJG8N"
+                },
+                sandbox: {
+                    productId: "prod_01HQ5JGXV2TNQN8QZXR1KQJG8N_test",
+                    priceId: "price_01HQ5JGXV2TNQN8QZXR1KQJG8N_test"
+                }
             },
             premium: {
-                production: "price_01HQ5JGXV2TNQN8QZXR1KQJG8P",
-                sandbox: "price_01HQ5JGXV2TNQN8QZXR1KQJG8P_test"
+                production: {
+                    productId: "prod_01HQ5JGXV2TNQN8QZXR1KQJG8P",
+                    priceId: "price_01HQ5JGXV2TNQN8QZXR1KQJG8P"
+                },
+                sandbox: {
+                    productId: "prod_01HQ5JGXV2TNQN8QZXR1KQJG8P_test",
+                    priceId: "price_01HQ5JGXV2TNQN8QZXR1KQJG8P_test"
+                }
             }
         };
         
         // Extract plan key from the productPriceId (e.g., "price_basic_monthly" -> "basic")
-        const planKey = productPriceId.split('_')[1] as keyof typeof polarPriceIds;
+        const planKey = productPriceId.split('_')[1] as keyof typeof polarProducts;
         
-        if (!planKey || !polarPriceIds[planKey]) {
+        if (!planKey || !polarProducts[planKey]) {
             throw new Error(`Invalid plan key: ${planKey}`);
         }
         
@@ -178,12 +190,12 @@ export const getOnboardingCheckoutUrl = action({
                 accessToken: accessToken,
             });
             
-            // Get the correct Polar price ID for the environment
-            const polarPriceId = polarPriceIds[planKey][environment];
+            // Get the correct Polar product and price IDs for the environment
+            const polarProduct = polarProducts[planKey][environment];
             
             // Create checkout session with the required parameters
             const checkoutData = {
-                productPriceId: polarPriceId,
+                productPriceId: polarProduct.priceId,
                 successUrl: successUrl,
                 customerEmail: customerEmail,
                 metadata: metadata
