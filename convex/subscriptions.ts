@@ -184,35 +184,57 @@ export const getOnboardingCheckoutUrl = action({
         }
         
         try {
-            // Initialize Polar SDK with the appropriate environment and token
-            const polar = new Polar({
-                server: environment as "production" | "sandbox",
-                accessToken: accessToken,
-            });
-            
             // Get the correct Polar product and price IDs for the environment
             const polarProduct = polarProducts[planKey][environment];
             
-            // Create checkout session with the required parameters
-            const checkoutData = {
-                productPriceId: polarProduct.priceId,
-                successUrl: successUrl,
-                customerEmail: customerEmail,
-                metadata: metadata
+            // Create checkout session with direct API call
+            const apiUrl = environment === "production" 
+                ? "https://api.polar.sh/v1/checkouts" 
+                : "https://api.sandbox.polar.sh/v1/checkouts";
+            
+            // Format the request body according to Polar API requirements
+            // Based on the error message, we need to structure this differently
+            const requestBody = {
+                success_url: successUrl,
+                customer_email: customerEmail,
+                metadata: metadata || {},
+                products: [
+                    {
+                        product_id: polarProduct.productId,
+                        prices: [
+                            {
+                                price_id: polarProduct.priceId
+                            }
+                        ]
+                    }
+                ]
             };
             
-            console.log("Creating checkout with params:", checkoutData);
-
-            const result = await polar.checkouts.create(checkoutData);
-
+            console.log("Creating checkout with params:", requestBody);
+            
+            const response = await fetch(apiUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${accessToken}`
+                },
+                body: JSON.stringify(requestBody)
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error(`API error response: ${response.status}`, errorData);
+                throw new Error(`API error: ${response.status} ${JSON.stringify(errorData)}`);
+            }
+            
+            const result = await response.json();
             console.log("Checkout created successfully with URL:", result.url);
             return result.url;
         } catch (error: any) {
             console.error(`${environment} Polar API error:`, error);
-            console.error("Full error details:", JSON.stringify(error, null, 2));
             
             // Check if it's an authentication error
-            if (error.statusCode === 401) {
+            if (error.message && error.message.includes("401")) {
                 console.error("Authentication error with Polar API. Token may be invalid or expired.");
                 throw new Error("Authentication error with payment provider. Please contact support.");
             }
