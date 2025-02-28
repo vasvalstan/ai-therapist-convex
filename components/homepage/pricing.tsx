@@ -14,13 +14,15 @@ import { cn } from "@/lib/utils";
 import { useUser } from "@clerk/nextjs";
 import { useAction, useQuery } from "convex/react";
 import { CheckCircle2, DollarSign, Sparkles } from "lucide-react";
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import Link from "next/link";
 
 type PricingCardProps = {
-  user: any;
+  user: {
+    emailAddresses?: Array<{ emailAddress: string }>;
+    id?: string;
+  } | null | undefined;
   planKey: string;
   title: string;
   monthlyPrice?: number;
@@ -83,7 +85,27 @@ const PricingCard = ({
 
   const getProCheckoutUrl = useAction(api.subscriptions.getProOnboardingCheckoutUrl);
   const getProCheckoutUrlTest = useAction(api.subscriptions.getProOnboardingCheckoutUrlTest);
-  const subscriptionStatus = useQuery(api.subscriptions.getUserSubscriptionStatus);
+
+  // Helper function to get checkout URL with correct parameters
+  const getCheckoutUrl = async (planKey: string) => {
+    // Get the current URL for success redirect
+    const successUrl = typeof window !== 'undefined' 
+      ? `${window.location.origin}/success?plan=${planKey}` 
+      : `https://www.sereni.day/success?plan=${planKey}`;
+    
+    // Get user email if available
+    const email = user?.emailAddresses?.[0]?.emailAddress || '';
+    
+    // Get product price ID based on plan key
+    const productPriceId = `price_${planKey}_monthly`; // Adjust this based on your actual price IDs
+    
+    return await getProCheckoutUrl({
+      customerEmail: email,
+      productPriceId,
+      successUrl,
+      metadata: { planKey }
+    });
+  };
 
   const handleCheckout = async () => {
     try {
@@ -105,10 +127,7 @@ const PricingCard = ({
       // First try the regular function
       try {
         console.log("Attempting main checkout function");
-        checkoutUrl = await getProCheckoutUrl({
-          interval: "month",
-          planKey
-        });
+        checkoutUrl = await getCheckoutUrl(planKey);
         console.log("Main checkout function succeeded with URL:", checkoutUrl);
       } catch (mainError) {
         console.error("Failed with main checkout function:", mainError);

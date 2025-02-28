@@ -12,51 +12,149 @@ import schema, { intervalValidator } from "./schema";
 import { MutationCtx } from "./_generated/server";
 import { DataModel } from "./_generated/dataModel";
 
-const createCheckout = async ({
-    customerEmail,
-    productPriceId,
-    successUrl,
-    metadata
-}: {
-    customerEmail: string;
-    productPriceId: string;
-    successUrl: string;
-    metadata?: Record<string, string>;
-}) => {
-    try {
-        // Determine environment based on NODE_ENV
-        const environment = process.env.NODE_ENV === "production" ? "production" : "sandbox";
-            
-        console.log("Initializing Polar SDK with environment:", environment);
-        console.log("Current NODE_ENV:", process.env.NODE_ENV);
+export const createCheckout = action({
+    args: {
+        customerEmail: v.string(),
+        productPriceId: v.string(),
+        successUrl: v.string(),
+        metadata: v.optional(v.record(v.string(), v.string()))
+    },
+    handler: async (ctx, args) => {
+        const { customerEmail, productPriceId, successUrl, metadata } = args;
         
-        // Select the appropriate token based on environment
-        const accessToken = environment === "production" 
-            ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN 
-            : process.env.POLAR_SANDBOX_ACCESS_TOKEN;
+        try {
+            // Determine environment based on NODE_ENV
+            const environment = process.env.NODE_ENV === "production" ? "production" : "sandbox";
+                
+            console.log("Initializing Polar SDK with environment:", environment);
+            console.log("Current NODE_ENV:", process.env.NODE_ENV);
             
-        if (!accessToken) {
-            console.error(`${environment === "production" ? "POLAR_PRODUCTION_ACCESS_TOKEN" : "POLAR_SANDBOX_ACCESS_TOKEN"} is not configured`);
-            console.error("Available POLAR environment variables:", Object.keys(process.env).filter(key => key.includes("POLAR")));
-            
-            // In production, throw an error instead of returning a mock URL
-            if (environment === "production") {
-                throw new Error("Payment provider configuration error. Please contact support.");
+            // Select the appropriate token based on environment
+            const accessToken = environment === "production" 
+                ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN 
+                : process.env.POLAR_SANDBOX_ACCESS_TOKEN;
+                
+            if (!accessToken) {
+                console.error(`${environment === "production" ? "POLAR_PRODUCTION_ACCESS_TOKEN" : "POLAR_SANDBOX_ACCESS_TOKEN"} is not configured`);
+                console.error("Available POLAR environment variables:", Object.keys(process.env).filter(key => key.includes("POLAR")));
+                
+                // In production, throw an error instead of returning a mock URL
+                if (environment === "production") {
+                    throw new Error("Payment provider configuration error. Please contact support.");
+                }
+                
+                // Only return mock URL in development
+                return { url: `${successUrl}?mock=true&error=missing_token&env=${environment}` };
             }
             
-            // Only return mock URL in development
-            return { url: `${successUrl}?mock=true&error=missing_token&env=${environment}` };
+            const polar = new Polar({
+                server: environment as "production" | "sandbox",
+                accessToken: accessToken,
+            });
+
+            console.log(`Initialized Polar SDK with ${environment} token:`, accessToken.substring(0, 8) + "...");
+            console.log(`Using server parameter:`, environment);
+            console.log(`Using success URL: ${successUrl}`);
+
+            console.log("Creating checkout with params:", {
+                productPriceId,
+                successUrl,
+                customerEmail,
+                metadataKeys: metadata ? Object.keys(metadata) : []
+            });
+
+            try {
+                const result = await polar.checkouts.create({
+                    productPriceId: productPriceId,
+                    successUrl: successUrl,
+                    customerEmail: customerEmail,
+                    metadata: metadata
+                });
+
+                console.log("Checkout created successfully with URL:", result.url);
+                return result;
+            } catch (polarError: any) {
+                console.error("Polar API error:", polarError);
+                
+                // Check if it's an authentication error
+                if (polarError.statusCode === 401) {
+                    console.error("Authentication error with Polar API. Token may be invalid or expired.");
+                    // In production, throw the error instead of returning a mock URL
+                    if (environment === "production") {
+                        throw new Error("Authentication error with payment provider. Please contact support.");
+                    }
+                    // Only fall back to test URL in development
+                    return { url: `${successUrl}?mock=true&error=auth_failed&env=${environment}` };
+                }
+                
+                throw polarError;
+            }
+        } catch (error) {
+            console.error("Error creating checkout:", error);
+            if (error instanceof Error) {
+                console.error("Error message:", error.message);
+                console.error("Error stack:", error.stack);
+            }
+            throw error;
+        }
+    }
+});
+
+export const getPlanByKey = internalQuery({
+    args: {
+        key: schema.tables.plans.validator.fields.key,
+    },
+    handler: async (ctx, args) => {
+        return ctx.db
+            .query("plans")
+            .withIndex("key", (q) => q.eq("key", args.key))
+            .unique();
+    },
+});
+
+export const getOnboardingCheckoutUrl = action({
+    args: {
+        customerEmail: v.string(),
+        productPriceId: v.string(),
+        successUrl: v.string(),
+        metadata: v.optional(v.record(v.string(), v.string()))
+    },
+    handler: async (ctx, args) => {
+        const { customerEmail, productPriceId, successUrl, metadata } = args;
+        
+        console.log("Starting getOnboardingCheckoutUrl function");
+        
+        // Determine environment based on NODE_ENV
+        const environment = process.env.NODE_ENV === "production" ? "production" : "sandbox";
+        console.log(`Environment determined from NODE_ENV (${process.env.NODE_ENV}):`, environment);
+        
+        // Get the appropriate access token based on environment
+        const accessToken = environment === "production"
+            ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN
+            : process.env.POLAR_SANDBOX_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN; // Try fallback to POLAR_ACCESS_TOKEN
+            
+        console.log(`Using ${environment} access token:`, accessToken ? `${accessToken.substring(0, 8)}...` : "undefined");
+        console.log("POLAR_ACCESS_TOKEN exists:", !!process.env.POLAR_ACCESS_TOKEN);
+        
+        if (!accessToken) {
+            console.error(`Polar ${environment} access token is not configured.`);
+            console.error("Available POLAR environment variables:", Object.keys(process.env).filter(key => key.includes("POLAR")));
+            if (environment === "production") {
+                throw new Error("Polar production access token is not configured. Please contact support.");
+            }
+            console.warn("Using mock checkout URL due to missing access token");
+            return `https://checkout-mock.polar.sh?env=${environment}`;
         }
         
+        // Initialize Polar SDK with the appropriate environment and token
         const polar = new Polar({
             server: environment as "production" | "sandbox",
             accessToken: accessToken,
         });
-
+        
         console.log(`Initialized Polar SDK with ${environment} token:`, accessToken.substring(0, 8) + "...");
         console.log(`Using server parameter:`, environment);
-        console.log(`Using success URL: ${successUrl}`);
-
+        
         console.log("Creating checkout with params:", {
             productPriceId,
             successUrl,
@@ -90,195 +188,97 @@ const createCheckout = async ({
             
             throw polarError;
         }
-    } catch (error) {
-        console.error("Error creating checkout:", error);
-        if (error instanceof Error) {
-            console.error("Error message:", error.message);
-            console.error("Error stack:", error.stack);
-        }
-        throw error;
     }
-};
-
-export const getPlanByKey = internalQuery({
-    args: {
-        key: schema.tables.plans.validator.fields.key,
-    },
-    handler: async (ctx, args) => {
-        return ctx.db
-            .query("plans")
-            .withIndex("key", (q) => q.eq("key", args.key))
-            .unique();
-    },
 });
 
-export const getOnboardingCheckoutUrl = async ({
-    customerEmail,
-    productPriceId,
-    successUrl,
-    metadata
-}: {
-    customerEmail: string;
-    productPriceId: string;
-    successUrl: string;
-    metadata?: Record<string, string>;
-}) => {
-    console.log("Starting getOnboardingCheckoutUrl function");
-    
-    // Determine environment based on NODE_ENV
-    const environment = process.env.NODE_ENV === "production" ? "production" : "sandbox";
-    console.log(`Environment determined from NODE_ENV (${process.env.NODE_ENV}):`, environment);
-    
-    // Get the appropriate access token based on environment
-    const accessToken = environment === "production"
-        ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN
-        : process.env.POLAR_SANDBOX_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN; // Try fallback to POLAR_ACCESS_TOKEN
+export const getProOnboardingCheckoutUrl = action({
+    args: {
+        customerEmail: v.string(),
+        productPriceId: v.string(),
+        successUrl: v.string(),
+        metadata: v.optional(v.record(v.string(), v.string()))
+    },
+    handler: async (ctx, args) => {
+        const { customerEmail, productPriceId, successUrl, metadata } = args;
         
-    console.log(`Using ${environment} access token:`, accessToken ? `${accessToken.substring(0, 8)}...` : "undefined");
-    console.log("POLAR_ACCESS_TOKEN exists:", !!process.env.POLAR_ACCESS_TOKEN);
-    
-    if (!accessToken) {
-        console.error(`Polar ${environment} access token is not configured.`);
-        console.error("Available POLAR environment variables:", Object.keys(process.env).filter(key => key.includes("POLAR")));
-        if (environment === "production") {
-            throw new Error("Polar production access token is not configured. Please contact support.");
-        }
-        console.warn("Using mock checkout URL due to missing access token");
-        return `https://checkout-mock.polar.sh?env=${environment}`;
-    }
-    
-    // Initialize Polar SDK with the appropriate environment and token
-    const polar = new Polar({
-        server: environment as "production" | "sandbox",
-        accessToken: accessToken,
-    });
-    
-    console.log(`Initialized Polar SDK with ${environment} token:`, accessToken.substring(0, 8) + "...");
-    console.log(`Using server parameter:`, environment);
-    
-    console.log("Creating checkout with params:", {
-        productPriceId,
-        successUrl,
-        customerEmail,
-        metadataKeys: metadata ? Object.keys(metadata) : []
-    });
-
-    try {
-        const result = await polar.checkouts.create({
-            productPriceId: productPriceId,
-            successUrl: successUrl,
-            customerEmail: customerEmail,
-            metadata: metadata
-        });
-
-        console.log("Checkout created successfully with URL:", result.url);
-        return result;
-    } catch (polarError: any) {
-        console.error("Polar API error:", polarError);
-        
-        // Check if it's an authentication error
-        if (polarError.statusCode === 401) {
-            console.error("Authentication error with Polar API. Token may be invalid or expired.");
-            // In production, throw the error instead of returning a mock URL
-            if (environment === "production") {
-                throw new Error("Authentication error with payment provider. Please contact support.");
-            }
-            // Only fall back to test URL in development
-            return { url: `${successUrl}?mock=true&error=auth_failed&env=${environment}` };
-        }
-        
-        throw polarError;
-    }
-};
-
-export const getProOnboardingCheckoutUrl = async ({
-    customerEmail,
-    productPriceId,
-    successUrl,
-    metadata
-}: {
-    customerEmail: string;
-    productPriceId: string;
-    successUrl: string;
-    metadata?: Record<string, string>;
-}) => {
-    console.log("Creating pro onboarding checkout with:", {
-        customerEmail,
-        productPriceId,
-        successUrl,
-        metadata
-    });
-    
-    try {
-        // Determine environment based on NODE_ENV
-        const environment = process.env.NODE_ENV === "production" ? "production" : "sandbox";
-        console.log("Environment:", environment);
-        console.log("NODE_ENV:", process.env.NODE_ENV);
-        
-        // Get appropriate access token
-        const accessToken = environment === "production"
-            ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN
-            : process.env.POLAR_SANDBOX_ACCESS_TOKEN;
-            
-        console.log(`${environment.toUpperCase()} token exists:`, !!accessToken);
-        console.log(`${environment.toUpperCase()} token first chars:`, accessToken ? accessToken.substring(0, 8) + "..." : "N/A");
-        console.log("All environment variables:", Object.keys(process.env));
-        
-        if (!accessToken) {
-            console.warn(`Using mock checkout URL due to missing ${environment === "production" ? "POLAR_PRODUCTION_ACCESS_TOKEN" : "POLAR_SANDBOX_ACCESS_TOKEN"}`);
-            console.warn("Available environment variables:", Object.keys(process.env).filter(key => key.includes("POLAR")));
-            
-            // In production, throw an error instead of returning a mock URL
-            if (environment === "production") {
-                throw new Error("Polar production access token is not configured. Please contact support.");
-            }
-            
-            // Only return mock URL in development
-            return `${successUrl}?mock=true&env=${environment}`;
-        }
-        
-        // Initialize Polar SDK with appropriate environment
-        const polar = new Polar({
-            server: environment as "production" | "sandbox",
-            accessToken: accessToken,
+        console.log("Creating pro onboarding checkout with:", {
+            customerEmail,
+            productPriceId,
+            successUrl,
+            metadata
         });
         
         try {
-            // Create checkout
-            const result = await polar.checkouts.create({
-                productPriceId: productPriceId,
-                successUrl: successUrl,
-                customerEmail: customerEmail,
-                metadata: metadata
-            });
+            // Determine environment based on NODE_ENV
+            const environment = process.env.NODE_ENV === "production" ? "production" : "sandbox";
+            console.log("Environment:", environment);
+            console.log("NODE_ENV:", process.env.NODE_ENV);
             
-            console.log("Checkout created successfully with URL:", result.url);
-            return result.url;
-        } catch (polarError: any) {
-            console.error("Polar API error:", polarError);
+            // Get appropriate access token
+            const accessToken = environment === "production"
+                ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN
+                : process.env.POLAR_SANDBOX_ACCESS_TOKEN;
+                
+            console.log(`${environment.toUpperCase()} token exists:`, !!accessToken);
+            console.log(`${environment.toUpperCase()} token first chars:`, accessToken ? accessToken.substring(0, 8) + "..." : "N/A");
+            console.log("All environment variables:", Object.keys(process.env));
             
-            // Check if it's an authentication error
-            if (polarError.statusCode === 401) {
-                console.error("Authentication error with Polar API. Token may be invalid or expired.");
-                // In production, throw the error instead of returning a mock URL
+            if (!accessToken) {
+                console.warn(`Using mock checkout URL due to missing ${environment === "production" ? "POLAR_PRODUCTION_ACCESS_TOKEN" : "POLAR_SANDBOX_ACCESS_TOKEN"}`);
+                console.warn("Available environment variables:", Object.keys(process.env).filter(key => key.includes("POLAR")));
+                
+                // In production, throw an error instead of returning a mock URL
                 if (environment === "production") {
-                    throw new Error("Authentication error with payment provider. Please contact support.");
+                    throw new Error("Polar production access token is not configured. Please contact support.");
                 }
-                // Only fall back to test URL in development
-                return `${successUrl}?mock=true&error=auth_failed&env=${environment}`;
+                
+                // Only return mock URL in development
+                return `${successUrl}?mock=true&env=${environment}`;
             }
             
-            throw polarError;
+            // Initialize Polar SDK with appropriate environment
+            const polar = new Polar({
+                server: environment as "production" | "sandbox",
+                accessToken: accessToken,
+            });
+            
+            try {
+                // Create checkout
+                const result = await polar.checkouts.create({
+                    productPriceId: productPriceId,
+                    successUrl: successUrl,
+                    customerEmail: customerEmail,
+                    metadata: metadata
+                });
+                
+                console.log("Checkout created successfully with URL:", result.url);
+                return result.url;
+            } catch (polarError: any) {
+                console.error("Polar API error:", polarError);
+                
+                // Check if it's an authentication error
+                if (polarError.statusCode === 401) {
+                    console.error("Authentication error with Polar API. Token may be invalid or expired.");
+                    // In production, throw the error instead of returning a mock URL
+                    if (environment === "production") {
+                        throw new Error("Authentication error with payment provider. Please contact support.");
+                    }
+                    // Only fall back to test URL in development
+                    return `${successUrl}?mock=true&error=auth_failed&env=${environment}`;
+                }
+                
+                throw polarError;
+            }
+        } catch (error) {
+            console.error("Error in getProOnboardingCheckoutUrl:", error);
+            if (error instanceof Error) {
+                console.error("Error message:", error.message);
+                console.error("Error stack:", error.stack);
+            }
+            throw error;
         }
-    } catch (error) {
-        console.error("Error in getProOnboardingCheckoutUrl:", error);
-        if (error instanceof Error) {
-            console.error("Error message:", error.message);
-            console.error("Error stack:", error.stack);
-        }
-        throw error;
     }
-};
+});
 
 export const getProOnboardingCheckoutUrlTest = action({
     args: {
