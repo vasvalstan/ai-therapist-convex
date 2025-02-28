@@ -16,7 +16,7 @@ import { useAction, useQuery } from "convex/react";
 import { CheckCircle2, DollarSign, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 type PricingCardProps = {
   user: {
@@ -82,16 +82,23 @@ const PricingCard = ({
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
 
+  // Move Convex hooks into useEffect to ensure they only run on client
   const getProCheckoutUrl = useAction(api.subscriptions.getProOnboardingCheckoutUrl);
   const getProCheckoutUrlTest = useAction(api.subscriptions.getProOnboardingCheckoutUrlTest);
 
+  // Mark component as mounted on client
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   // Helper function to get checkout URL with correct parameters
   const getCheckoutUrl = async (planKey: string) => {
+    if (!isClient) return null;
+
     // Get the current URL for success redirect
-    const successUrl = typeof window !== 'undefined' 
-      ? `${window.location.origin}/success?plan=${planKey}` 
-      : `https://www.sereni.day/success?plan=${planKey}`;
+    const successUrl = `${window.location.origin}/success?plan=${planKey}`;
     
     // Get user email if available
     const email = user?.emailAddresses?.[0]?.emailAddress || '';
@@ -108,6 +115,8 @@ const PricingCard = ({
   };
 
   const handleCheckout = async () => {
+    if (!isClient) return;
+
     try {
       setIsLoading(true);
       setError(null);
@@ -115,12 +124,11 @@ const PricingCard = ({
       console.log("Starting checkout process for plan:", planKey);
       
       // Check if we're in production
-      const isProduction = typeof window !== 'undefined' && 
-        (window.location.hostname === 'www.sereni.day' || 
-         window.location.hostname === 'sereni.day');
+      const isProduction = window.location.hostname === 'www.sereni.day' || 
+                          window.location.hostname === 'sereni.day';
       
       console.log("Is production environment:", isProduction);
-      console.log("Current hostname:", typeof window !== 'undefined' ? window.location.hostname : 'unknown');
+      console.log("Current hostname:", window.location.hostname);
       
       let checkoutUrl = null;
       
@@ -206,6 +214,13 @@ const PricingCard = ({
 
   // Determine the button action and text
   const getButtonAction = () => {
+    if (!isClient) {
+      return {
+        text: actionLabel,
+        action: () => {}
+      };
+    }
+
     if (isFree) {
       return {
         text: "Get Started Free",
