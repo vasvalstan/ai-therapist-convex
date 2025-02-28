@@ -10,8 +10,18 @@ import {
   Database, Settings,
   Users
 } from "lucide-react";
+import dynamic from 'next/dynamic';
+
+// Dynamically import the page content to avoid SSR issues with Clerk
+const FinancePageContent = dynamic(() => Promise.resolve(FinanceContent), {
+  ssr: false,
+});
 
 export default function FinancePage() {
+  return <FinancePageContent />;
+}
+
+function FinanceContent() {
   const { user } = useUser();
 
   const userData = useQuery(api.users.getUserByToken,

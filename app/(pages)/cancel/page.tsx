@@ -1,9 +1,19 @@
+"use client"
 import { Button } from '@/components/ui/button'
 import NavBar from '@/components/wrapper/navbar'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
+
+// Dynamically import the page content to avoid SSR issues with Clerk
+const CancelPageContent = dynamic(() => Promise.resolve(CancelContent), {
+  ssr: false,
+});
 
 export default function Cancel() {
+  return <CancelPageContent />;
+}
 
+function CancelContent() {
   return (
     <main className="flex min-w-screen flex-col items-center justify-between">
       <NavBar />

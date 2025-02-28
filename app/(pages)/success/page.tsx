@@ -1,3 +1,5 @@
+'use server';
+
 import { Button } from '@/components/ui/button';
 import NavBar from '@/components/wrapper/navbar';
 import { api } from '@/convex/_generated/api';

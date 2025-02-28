@@ -1,6 +1,6 @@
 "use client";
 
-import { VoiceProvider, useVoice } from "@humeai/voice-react";
+import { VoiceProvider, useVoice, type JSONMessage } from "@humeai/voice-react";
 import { Messages } from "./messages";
 import { Controls } from "./controls";
 import { StartCall } from "./start-call";
@@ -248,18 +248,7 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
     }
   }, [error]);
 
-  const handleMessage = async (message: { 
-    type: string; 
-    message?: { 
-      content?: string;
-      emotions?: Record<string, unknown>;
-    };
-    models?: {
-      prosody?: {
-        scores?: Record<string, unknown>;
-      };
-    };
-  }) => {
+  const handleMessage = async (message: JSONMessage) => {
     if (timeout.current) {
       window.clearTimeout(timeout.current);
     }
@@ -269,7 +258,7 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
       const messageData = {
         role: (message.type === "user_message" ? "user" : "assistant") as MessageRole,
         content: message.message?.content || "",
-        emotions: message.message?.emotions,
+        emotions: message.models?.prosody?.scores || {},
       };
       
       // Update the messages state with the new message
@@ -279,11 +268,11 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
           role: message.type === "user_message" ? "user" : "assistant",
           content: message.message?.content || "",
           timestamp: Date.now(),
-          emotions: message.message?.emotions,
+          emotions: message.models?.prosody?.scores || {},
           data: {
             role: message.type === "user_message" ? "user" : "assistant",
             content: message.message?.content || "",
-            emotions: message.message?.emotions,
+            emotions: message.models?.prosody?.scores || {},
           },
           saved: false,
         },

@@ -6,8 +6,10 @@ import PageWrapper from "@/components/wrapper/page-wrapper";
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
 import Link from "next/link";
+import dynamic from 'next/dynamic';
 
-export default function NotSubscriber() {
+// Create a dynamic version of the page content to avoid SSR issues
+function NotSubscriberContent() {
   return (
     <PageWrapper>
       <section className="relative flex flex-col items-center justify-center py-20" aria-label="Not Subscriber Hero">
@@ -120,6 +122,15 @@ export default function NotSubscriber() {
       </section>
     </PageWrapper>
   );
+}
+
+// Use dynamic import with SSR disabled
+const DynamicNotSubscriber = dynamic(() => Promise.resolve(NotSubscriberContent), {
+  ssr: false,
+});
+
+export default function NotSubscriber() {
+  return <DynamicNotSubscriber />;
 }
 
 const features = [

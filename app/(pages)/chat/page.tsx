@@ -1,16 +1,26 @@
 "use client";
 
-import HumeChat from "@/components/hume/chat";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
+import dynamic from 'next/dynamic';
 import { api } from "@/convex/_generated/api";
 import { useQuery } from "convex/react";
 import { UpgradePrompt } from "@/components/hume/upgrade-prompt";
 import { useAuth } from "@clerk/nextjs";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import HumeChat from "@/components/hume/chat";
+
+// Dynamically import the chat page content to avoid SSR issues with Clerk
+const ChatPageContent = dynamic(() => Promise.resolve(ChatContent), {
+  ssr: false,
+});
 
 export default function ChatPage() {
+  return <ChatPageContent />;
+}
+
+function ChatContent() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [accessStatus, setAccessStatus] = useState<{
