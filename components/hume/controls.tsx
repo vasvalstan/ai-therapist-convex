@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Toggle } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
 import { api } from "@/convex/_generated/api";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 
 export function Controls() {
@@ -16,8 +16,19 @@ export function Controls() {
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timeWarningRef = useRef<NodeJS.Timeout | null>(null);
   
   const updateUserMinutes = useMutation(api.chat.updateUserRemainingMinutes);
+  
+  // Get user's plan to check if they're on the free plan
+  const userInfo = useQuery(api.users.getUser);
+  const userDetails = useQuery(
+    api.users.getUserByToken, 
+    userInfo && userInfo !== "Not authenticated" ? { tokenIdentifier: userInfo.subject } : "skip"
+  );
+  
+  const isFreePlan = userDetails?.currentPlanKey === "free";
+  const FREE_PLAN_LIMIT_SECONDS = 120; // 2 minutes in seconds
   
   // Start tracking time when call is connected
   useEffect(() => {
@@ -39,8 +50,26 @@ export function Controls() {
         const durationMs = currentTime - startTime;
         const durationSeconds = Math.floor(durationMs / 1000);
         
-        console.log(`Timer update: ${durationSeconds} seconds elapsed`);
         setElapsedSeconds(durationSeconds);
+        
+        // For free plan users, check if they've reached the 2-minute limit
+        if (isFreePlan && durationSeconds >= FREE_PLAN_LIMIT_SECONDS) {
+          console.log("Free plan user reached 2-minute limit");
+          // End the call with timeExpired=true to show the upgrade prompt
+          handleEndCall(true);
+        }
+        // Show a warning when approaching the limit (10 seconds before)
+        else if (isFreePlan && durationSeconds === FREE_PLAN_LIMIT_SECONDS - 10) {
+          const warningMessage = document.createElement('div');
+          warningMessage.className = 'fixed top-4 right-4 bg-yellow-100 text-yellow-800 p-3 rounded shadow-md z-50';
+          warningMessage.textContent = 'Your free session will end in 10 seconds. Upgrade for more time!';
+          document.body.appendChild(warningMessage);
+          
+          // Remove the warning after 5 seconds
+          timeWarningRef.current = setTimeout(() => {
+            warningMessage.remove();
+          }, 5000);
+        }
       }, 1000); // Check every second
     }
     
@@ -49,8 +78,12 @@ export function Controls() {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      if (timeWarningRef.current) {
+        clearTimeout(timeWarningRef.current);
+        timeWarningRef.current = null;
+      }
     };
-  }, [status, sessionStartTime]);
+  }, [status, sessionStartTime, isFreePlan]);
 
   // Handle call end and update user minutes
   const handleEndCall = async (timeExpired = false) => {
@@ -58,6 +91,10 @@ export function Controls() {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
+    }
+    if (timeWarningRef.current) {
+      clearTimeout(timeWarningRef.current);
+      timeWarningRef.current = null;
     }
     
     // Show a brief message to the user that their chat is being saved
@@ -74,6 +111,12 @@ export function Controls() {
       console.log(`Call ended. Duration: ${sessionDurationMinutes} minutes (${Math.floor(sessionDurationMs / 1000)} seconds)`);
       
       try {
+        // Trigger a save chat event before updating minutes
+        const saveEvent = new CustomEvent('saveChat', {
+          detail: { reason: timeExpired ? "timeExpired" : "userEnded" }
+        });
+        window.dispatchEvent(saveEvent);
+        
         // Update user's remaining minutes
         const result = await updateUserMinutes({
           sessionDurationMinutes,
@@ -103,21 +146,17 @@ export function Controls() {
             </div>
           `;
           
-          // Only show the upgrade prompt if the user actually ran out of minutes
-          if (result.newMinutesRemaining <= 0 && timeExpired) {
+          // If time expired or the user ran out of minutes, show the upgrade prompt
+          if ((timeExpired && isFreePlan) || result.newMinutesRemaining <= 0) {
             // We'll use a custom event to communicate with the parent component
             const timeExpiredEvent = new CustomEvent('timeExpired', {
               detail: {
-                message: "You have used all your available minutes. Please upgrade your plan to continue."
+                message: timeExpired && isFreePlan 
+                  ? "You've reached the 2-minute limit on your free plan. Please upgrade to continue."
+                  : "You have used all your available minutes. Please upgrade your plan to continue."
               }
             });
             window.dispatchEvent(timeExpiredEvent);
-            
-            // Force disconnect the call
-            if (disconnect) {
-              console.log("Forcing call disconnect due to time expiration");
-              disconnect();
-            }
           }
         } else {
           saveMessage.textContent = 'Your chat has been saved!';
@@ -158,6 +197,39 @@ export function Controls() {
     const elapsedMinutes = Math.floor(elapsedSeconds / 60);
     const secondsInCurrentMinute = elapsedSeconds % 60;
     
+    // For free plan users, show time remaining until limit
+    if (isFreePlan) {
+      const remainingSeconds = Math.max(0, FREE_PLAN_LIMIT_SECONDS - elapsedSeconds);
+      const formattedRemaining = formatTime(remainingSeconds);
+      
+      return (
+        <div className="text-xs space-y-1">
+          <div className="flex items-center justify-center gap-2">
+            <span className={remainingSeconds < 30 ? "text-destructive font-medium" : "text-muted-foreground"}>
+              Free plan time remaining: {formattedRemaining}
+            </span>
+          </div>
+          
+          <div className="flex items-center justify-center gap-1">
+            {remainingSeconds < 30 ? (
+              <span className="text-destructive font-medium">
+                Your session will end soon!
+              </span>
+            ) : (
+              <span className="text-muted-foreground">
+                Free plan limited to 2 minutes
+              </span>
+            )}
+          </div>
+          
+          <div className="text-blue-500 font-medium text-center">
+            <a href="/pricing" className="hover:underline">Upgrade for more time</a>
+          </div>
+        </div>
+      );
+    }
+    
+    // For paid plans, show the regular time display
     return (
       <div className="text-xs space-y-1">
         <div className="flex items-center justify-center gap-2">

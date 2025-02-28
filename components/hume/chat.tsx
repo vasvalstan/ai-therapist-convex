@@ -84,6 +84,7 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageType[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [timeExpired, setTimeExpired] = useState(false);
 
   const createSession = useMutation(api.chat.createChatSession);
   const addMessage = useMutation(api.chat.addMessageToSession);
@@ -100,6 +101,7 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
     const handleTimeExpired = (event: TimeExpiredEvent) => {
       console.log("Time expired event received:", event.detail);
       setError(event.detail.message);
+      setTimeExpired(true);
     };
 
     window.addEventListener('timeExpired', handleTimeExpired as EventListener);
@@ -137,7 +139,7 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
   useEffect(() => {
     const handleSaveChat = async (event: Event) => {
       // Cast to CustomEvent to access detail property
-      const customEvent = event as CustomEvent<{ sessionId?: string }>;
+      const customEvent = event as CustomEvent<{ sessionId?: string; reason?: string }>;
       console.log("Save chat event received:", customEvent.detail);
       
       if (messages.length > 0 && currentSessionId) {
@@ -168,6 +170,12 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
           } else {
             console.log("No pending messages to save");
           }
+          
+          // If the reason was timeExpired, we need to show the upgrade prompt
+          if (customEvent.detail?.reason === "timeExpired" && !timeExpired) {
+            setTimeExpired(true);
+            setError("You've reached the 2-minute limit on your free plan. Please upgrade to continue.");
+          }
         } catch (err) {
           console.error("Failed to save messages on disconnect:", err);
         } finally {
@@ -181,7 +189,7 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
     return () => {
       window.removeEventListener('saveChat', handleSaveChat);
     };
-  }, [messages, currentSessionId, addMessage]);
+  }, [messages, currentSessionId, addMessage, timeExpired]);
 
   // Handle page unload or visibility change to save messages
   useEffect(() => {
@@ -287,16 +295,24 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
           if (result?.sessionId) {
             setCurrentSessionId(result.sessionId);
           }
-          // Mark message as saved
-          messages[messages.length - 1].saved = true;
+          // Mark message as saved using state update function
+          setMessages(prevMessages => 
+            prevMessages.map((msg, index) => 
+              index === prevMessages.length - 1 ? { ...msg, saved: true } : msg
+            )
+          );
         } else {
           // Add message to existing session
           await addMessage({
             sessionId: currentSessionId,
             message: messageData,
           });
-          // Mark message as saved
-          messages[messages.length - 1].saved = true;
+          // Mark message as saved using state update function
+          setMessages(prevMessages => 
+            prevMessages.map((msg, index) => 
+              index === prevMessages.length - 1 ? { ...msg, saved: true } : msg
+            )
+          );
         }
         // Clear any previous errors
         setError(null);
@@ -323,12 +339,12 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
     return <div>Loading...</div>;
   }
 
-  // If there's an error related to plan limits, show the upgrade prompt
-  if (error && (error.includes("session limit") || error.includes("minutes") || error.includes("upgrade"))) {
+  // If there's an error related to plan limits or time expired, show the upgrade prompt
+  if (timeExpired || (error && (error.includes("session limit") || error.includes("minutes") || error.includes("upgrade") || error.includes("limit")))) {
     console.log("Showing upgrade prompt due to error:", error);
     return (
       <div className="relative flex-1 flex flex-col mx-auto w-full h-full">
-        <UpgradePrompt reason={error} />
+        <UpgradePrompt reason={error || "You've reached the time limit on your free plan. Please upgrade to continue."} />
       </div>
     );
   }
@@ -377,6 +393,12 @@ function VoiceController() {
       saveMessage.className = 'fixed top-4 right-4 bg-green-100 text-green-800 p-3 rounded shadow-md z-50';
       saveMessage.textContent = 'Saving your chat before disconnecting...';
       document.body.appendChild(saveMessage);
+      
+      // Dispatch a custom event to trigger message saving
+      const saveEvent = new CustomEvent('saveChat', {
+        detail: { reason: "timeExpired" }
+      });
+      window.dispatchEvent(saveEvent);
       
       // Give a small delay to allow any pending messages to be saved
       setTimeout(() => {

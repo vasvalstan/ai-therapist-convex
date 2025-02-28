@@ -6,7 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import dynamic from 'next/dynamic';
 import { api } from "@/convex/_generated/api";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { UpgradePrompt } from "@/components/hume/upgrade-prompt";
 import { useAuth } from "@clerk/nextjs";
 import HumeChat from "@/components/hume/chat";
@@ -43,6 +43,26 @@ function ChatContent() {
   
   // Get plan details
   const plans = useQuery(api.plans.getAllPlans);
+  
+  // Store user mutation
+  const storeUser = useMutation(api.users.store);
+  
+  // Automatically create user if not found
+  useEffect(() => {
+    if (userId && user === null) {
+      // User is authenticated but not in database, create them
+      const createUser = async () => {
+        try {
+          await storeUser();
+          // No need to reload, Convex will update the queries automatically
+        } catch (err) {
+          console.error("Error creating user:", err);
+        }
+      };
+      
+      createUser();
+    }
+  }, [userId, user, storeUser]);
   
   useEffect(() => {
     // Check if user has access based on plan limits
@@ -110,11 +130,14 @@ function ChatContent() {
     }
   }, [user, accessStatus.hasAccess]);
 
-  // If user is loading, show loading state
+  // If user is loading, show a clean loading state
   if ((!user || !plans || !chatSessions) && !error) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div>Loading user information...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div>Loading...</div>
+        </div>
       </div>
     );
   }
@@ -161,7 +184,10 @@ function ChatContent() {
   if (!accessToken) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div>Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div>Preparing your chat...</div>
+        </div>
       </div>
     );
   }

@@ -60,15 +60,15 @@ export default function HeroSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="flex flex-wrap justify-center items-center gap-4 pt-4"
+          className="flex flex-col justify-center items-center gap-4 pt-4 w-full max-w-xs mx-auto"
         >
-          <Link href="/chat">
+          <Link href="/chat" className="w-full">
             <Button
               size="lg"
-              className="bg-blue-600 hover:bg-blue-500 text-white rounded-full px-8 h-12"
+              className="bg-blue-600 hover:bg-blue-500 text-white rounded-full px-8 h-14 text-lg font-medium w-full"
             >
-              Start Your Journey
-              <ArrowRight className="ml-2 h-4 w-4" />
+              Start a Conversation
+              <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </Link>
 
@@ -76,7 +76,7 @@ export default function HeroSection() {
             onClick={scrollToFeatures}
             variant="outline"
             size="lg"
-            className="rounded-full px-8 h-12 border-2"
+            className="rounded-full px-8 h-12 border-2 w-full"
           >
             Learn More
             <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
