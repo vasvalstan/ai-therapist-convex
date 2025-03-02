@@ -199,3 +199,68 @@ export const resetAllUserMinutes = mutation({
     };
   }
 });
+
+export const setAllUsersTo5Minutes = mutation({
+  handler: async (ctx) => {
+    // Get all users
+    const users = await ctx.db.query("users").collect();
+    
+    // Update each user to have exactly 5 minutes
+    const updatedUsers = [];
+    
+    for (const user of users) {
+      await ctx.db.patch(user._id, {
+        minutesRemaining: 5,
+      });
+      
+      updatedUsers.push({
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        plan: user.currentPlanKey || "free",
+        minutesSet: 5
+      });
+    }
+    
+    return {
+      success: true,
+      message: `Set minutes to 5 for ${users.length} users`,
+      updatedUsers
+    };
+  }
+});
+
+export const setFreePlanUsersTo5Minutes = mutation({
+  handler: async (ctx) => {
+    // Get all users
+    const users = await ctx.db.query("users").collect();
+    
+    // Update only free plan users to have exactly 5 minutes
+    const updatedUsers = [];
+    
+    for (const user of users) {
+      const planKey = user.currentPlanKey || "free";
+      
+      // Only update users on the free plan
+      if (planKey === "free") {
+        await ctx.db.patch(user._id, {
+          minutesRemaining: 5,
+        });
+        
+        updatedUsers.push({
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          plan: "free",
+          minutesSet: 5
+        });
+      }
+    }
+    
+    return {
+      success: true,
+      message: `Set minutes to 5 for ${updatedUsers.length} free plan users`,
+      updatedUsers
+    };
+  }
+});
