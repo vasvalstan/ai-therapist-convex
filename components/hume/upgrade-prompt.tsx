@@ -42,7 +42,7 @@ export function UpgradePrompt({ reason, sessionId }: UpgradePromptProps) {
               <div className="space-y-3 mt-6">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-blue-500" />
-                  <span>Free plan: <strong>2 minutes</strong> per conversation</span>
+                  <span>Free plan: <strong>5 minutes</strong> per conversation</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-yellow-500" />

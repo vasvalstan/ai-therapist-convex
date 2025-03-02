@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import { v } from "convex/values";
 
 export const getPlans = query({
     handler: async (ctx) => {
@@ -163,5 +164,102 @@ export const getAllPlans = query({
     const plans = await ctx.db.query("plans").collect();
     return plans;
   },
+});
+
+export const updatePlan = mutation({
+  args: {
+    key: v.string(),
+    updates: v.object({
+      maxSessionDurationMinutes: v.optional(v.number()),
+      totalMinutes: v.optional(v.number()),
+      features: v.optional(v.array(v.string())),
+      description: v.optional(v.string()),
+      name: v.optional(v.string()),
+      maxSessions: v.optional(v.number()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    // Find the plan by key
+    const plan = await ctx.db
+      .query("plans")
+      .withIndex("key", (q) => q.eq("key", args.key))
+      .unique();
+    
+    if (!plan) {
+      throw new Error(`Plan with key '${args.key}' not found`);
+    }
+    
+    // Update the plan with the provided updates
+    await ctx.db.patch(plan._id, args.updates);
+    
+    // If updating the free plan's total minutes, also update existing free plan users
+    if (args.key === "free" && args.updates.totalMinutes !== undefined) {
+      const freeUsers = await ctx.db
+        .query("users")
+        .filter((q) => q.eq(q.field("currentPlanKey"), "free"))
+        .collect();
+        
+      for (const user of freeUsers) {
+        await ctx.db.patch(user._id, {
+          minutesRemaining: args.updates.totalMinutes,
+          totalMinutesAllowed: args.updates.totalMinutes
+        });
+      }
+    }
+    
+    return { 
+      success: true, 
+      message: `Plan '${args.key}' updated successfully`,
+      updates: args.updates
+    };
+  }
+});
+
+export const updateUserPlanByEmail = mutation({
+    args: { 
+        email: v.string(),
+        planKey: v.string()
+    },
+    handler: async (ctx, args) => {
+        // Find the user by email
+        const user = await ctx.db
+            .query("users")
+            .filter((q) => q.eq(q.field("email"), args.email))
+            .unique();
+        
+        if (!user) {
+            return { success: false, error: "User not found" };
+        }
+        
+        // Get the plan details
+        const plan = await ctx.db
+            .query("plans")
+            .withIndex("key", (q) => q.eq("key", args.planKey))
+            .unique();
+        
+        if (!plan) {
+            return { success: false, error: "Plan not found" };
+        }
+        
+        // Calculate renewal date (1 month from now)
+        const now = new Date();
+        const renewalDate = new Date(now.setMonth(now.getMonth() + 1)).getTime();
+        
+        // Update the user with the new plan details
+        await ctx.db.patch(user._id, {
+            currentPlanKey: args.planKey,
+            minutesRemaining: plan.totalMinutes || 0,
+            totalMinutesAllowed: plan.totalMinutes || 0,
+            planRenewalDate: renewalDate
+        });
+        
+        return { 
+            success: true, 
+            message: "User plan updated successfully",
+            plan: plan.key,
+            minutes: plan.totalMinutes,
+            maxSessionDuration: plan.maxSessionDurationMinutes
+        };
+    }
 });
 

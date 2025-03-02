@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 
 export const getUser = query({
     args: {},
@@ -30,6 +31,78 @@ export const getUserByToken = query({
                 q.eq("tokenIdentifier", args.tokenIdentifier)
             )
             .unique();
+    },
+});
+
+export const getUserById = query({
+    args: { userId: v.string() },
+    handler: async (ctx, args) => {
+        // First try to find by _id (document ID)
+        try {
+            // Check if the userId is a valid document ID
+            if (args.userId.startsWith("users:")) {
+                const user = await ctx.db.get(args.userId as Id<"users">);
+                if (user) return user;
+            }
+        } catch (e) {
+            // If not a valid document ID, continue to search by userId field
+        }
+        
+        // If not found or not a valid document ID, try to find by userId field
+        return await ctx.db
+            .query("users")
+            .filter((q) => q.eq(q.field("userId"), args.userId))
+            .unique();
+    },
+});
+
+export const updateUserMinutes = mutation({
+    args: { 
+        userId: v.string(),
+        minutesRemaining: v.number(),
+        totalMinutesAllowed: v.optional(v.number())
+    },
+    handler: async (ctx, args) => {
+        // First try to find by _id (document ID)
+        let user;
+        try {
+            // Check if the userId is a valid document ID
+            if (args.userId.startsWith("users:")) {
+                user = await ctx.db.get(args.userId as Id<"users">);
+            }
+        } catch (e) {
+            // If not a valid document ID, continue to search by userId field
+        }
+        
+        // If not found or not a valid document ID, try to find by userId field
+        if (!user) {
+            user = await ctx.db
+                .query("users")
+                .filter((q) => q.eq(q.field("userId"), args.userId))
+                .unique();
+        }
+        
+        if (!user) {
+            throw new Error(`User with ID ${args.userId} not found`);
+        }
+        
+        // Update the user with new minutes
+        const updateData: any = {
+            minutesRemaining: args.minutesRemaining
+        };
+        
+        // Only update totalMinutesAllowed if provided
+        if (args.totalMinutesAllowed !== undefined) {
+            updateData.totalMinutesAllowed = args.totalMinutesAllowed;
+        }
+        
+        await ctx.db.patch(user._id, updateData);
+        
+        // Return the updated user
+        return {
+            ...user,
+            ...updateData
+        };
     },
 });
 
@@ -80,4 +153,49 @@ export const store = mutation({
         
         return { success: true, userId };
     },
+});
+
+export const resetAllUserMinutes = mutation({
+  handler: async (ctx) => {
+    // Get all users
+    const users = await ctx.db.query("users").collect();
+    const updatedUsers = [];
+    
+    for (const user of users) {
+      // Get the user's plan
+      const planKey = user.currentPlanKey || "free";
+      const plan = await ctx.db
+        .query("plans")
+        .withIndex("key", (q) => q.eq("key", planKey))
+        .unique();
+      
+      if (!plan) {
+        console.error(`Plan ${planKey} not found for user ${user._id}`);
+        continue;
+      }
+      
+      // Reset minutes based on plan's totalMinutes
+      const totalMinutes = plan.totalMinutes || 0;
+      
+      // Update the user
+      await ctx.db.patch(user._id, {
+        minutesRemaining: totalMinutes,
+        totalMinutesAllowed: totalMinutes
+      });
+      
+      updatedUsers.push({
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        plan: planKey,
+        minutesReset: totalMinutes
+      });
+    }
+    
+    return {
+      success: true,
+      message: `Reset minutes for ${updatedUsers.length} users`,
+      updatedUsers
+    };
+  }
 });

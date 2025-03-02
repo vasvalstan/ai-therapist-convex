@@ -27,8 +27,18 @@ export function Controls() {
     userInfo && userInfo !== "Not authenticated" ? { tokenIdentifier: userInfo.subject } : "skip"
   );
   
+  // Get all plans to find the user's plan details
+  const allPlans = useQuery(api.plans.getPlans);
+  
+  // Find the user's plan
+  const userPlan = allPlans?.find(plan => plan.key === userDetails?.currentPlanKey) || 
+                   allPlans?.find(plan => plan.key === "free");
+  
   const isFreePlan = userDetails?.currentPlanKey === "free";
-  const FREE_PLAN_LIMIT_SECONDS = 120; // 2 minutes in seconds
+  
+  // Get the session duration limit based on the user's plan
+  const planSessionDurationMinutes = userPlan?.maxSessionDurationMinutes || 5;
+  const PLAN_LIMIT_SECONDS = planSessionDurationMinutes * 60;
   
   // Start tracking time when call is connected
   useEffect(() => {
@@ -52,17 +62,17 @@ export function Controls() {
         
         setElapsedSeconds(durationSeconds);
         
-        // For free plan users, check if they've reached the 2-minute limit
-        if (isFreePlan && durationSeconds >= FREE_PLAN_LIMIT_SECONDS) {
-          console.log("Free plan user reached 2-minute limit");
+        // Check if user has reached their plan's session duration limit
+        if (durationSeconds >= PLAN_LIMIT_SECONDS) {
+          console.log(`User reached ${planSessionDurationMinutes}-minute limit for their ${userDetails?.currentPlanKey || 'free'} plan`);
           // End the call with timeExpired=true to show the upgrade prompt
           handleEndCall(true);
         }
         // Show a warning when approaching the limit (10 seconds before)
-        else if (isFreePlan && durationSeconds === FREE_PLAN_LIMIT_SECONDS - 10) {
+        else if (durationSeconds === PLAN_LIMIT_SECONDS - 10) {
           const warningMessage = document.createElement('div');
           warningMessage.className = 'fixed top-4 right-4 bg-yellow-100 text-yellow-800 p-3 rounded shadow-md z-50';
-          warningMessage.textContent = 'Your free session will end in 10 seconds. Upgrade for more time!';
+          warningMessage.textContent = `Your session will end in 10 seconds. ${isFreePlan ? 'Upgrade for more time!' : ''}`;
           document.body.appendChild(warningMessage);
           
           // Remove the warning after 5 seconds
@@ -151,8 +161,8 @@ export function Controls() {
             // We'll use a custom event to communicate with the parent component
             const timeExpiredEvent = new CustomEvent('timeExpired', {
               detail: {
-                message: timeExpired && isFreePlan 
-                  ? "You've reached the 2-minute limit on your free plan. Please upgrade to continue."
+                message: timeExpired 
+                  ? `You've reached the ${planSessionDurationMinutes}-minute limit on your ${userDetails?.currentPlanKey || 'free'} plan. ${isFreePlan ? 'Please upgrade to continue.' : ''}`
                   : "You have used all your available minutes. Please upgrade your plan to continue."
               }
             });
@@ -197,62 +207,36 @@ export function Controls() {
     const elapsedMinutes = Math.floor(elapsedSeconds / 60);
     const secondsInCurrentMinute = elapsedSeconds % 60;
     
-    // For free plan users, show time remaining until limit
-    if (isFreePlan) {
-      const remainingSeconds = Math.max(0, FREE_PLAN_LIMIT_SECONDS - elapsedSeconds);
-      const formattedRemaining = formatTime(remainingSeconds);
-      
-      return (
-        <div className="text-xs space-y-1">
-          <div className="flex items-center justify-center gap-2">
-            <span className={remainingSeconds < 30 ? "text-destructive font-medium" : "text-muted-foreground"}>
-              Free plan time remaining: {formattedRemaining}
-            </span>
-          </div>
-          
-          <div className="flex items-center justify-center gap-1">
-            {remainingSeconds < 30 ? (
-              <span className="text-destructive font-medium">
-                Your session will end soon!
-              </span>
-            ) : (
-              <span className="text-muted-foreground">
-                Free plan limited to 2 minutes
-              </span>
-            )}
-          </div>
-          
-          <div className="text-blue-500 font-medium text-center">
-            <a href="/pricing" className="hover:underline">Upgrade for more time</a>
-          </div>
-        </div>
-      );
-    }
+    // Calculate remaining time based on plan limit
+    const remainingSeconds = Math.max(0, PLAN_LIMIT_SECONDS - elapsedSeconds);
+    const formattedRemaining = formatTime(remainingSeconds);
+    const planName = userDetails?.currentPlanKey ? 
+      userDetails.currentPlanKey.charAt(0).toUpperCase() + userDetails.currentPlanKey.slice(1) : 
+      "Free";
     
-    // For paid plans, show the regular time display
     return (
       <div className="text-xs space-y-1">
         <div className="flex items-center justify-center gap-2">
-          <span className={elapsedMinutes >= 1 ? "text-destructive font-medium" : "text-muted-foreground"}>
-            Session time: {formattedTime}
+          <span className={remainingSeconds < 30 ? "text-destructive font-medium" : "text-muted-foreground"}>
+            {planName} plan time remaining: {formattedRemaining}
           </span>
         </div>
         
         <div className="flex items-center justify-center gap-1">
-          {elapsedMinutes >= 1 ? (
+          {remainingSeconds < 30 ? (
             <span className="text-destructive font-medium">
-              {elapsedMinutes} minute{elapsedMinutes > 1 ? 's' : ''} will be deducted
+              Your session will end soon!
             </span>
           ) : (
             <span className="text-muted-foreground">
-              {60 - secondsInCurrentMinute} seconds until 1 minute is deducted
+              {planName} plan limited to {planSessionDurationMinutes} minutes
             </span>
           )}
         </div>
         
-        {elapsedMinutes >= 1 && (
-          <div className="text-destructive font-medium text-center">
-            End call now to save minutes!
+        {isFreePlan && (
+          <div className="text-blue-500 font-medium text-center">
+            <a href="/pricing" className="hover:underline">Upgrade for more time</a>
           </div>
         )}
       </div>
