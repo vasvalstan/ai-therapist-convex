@@ -751,3 +751,30 @@ export const debugEnvironmentVariables = action({
     return envVars;
   }
 });
+
+// Debug function to get all subscriptions - for admin use only
+export const getAllSubscriptions = query({
+    handler: async (ctx) => {
+        return await ctx.db
+            .query("subscriptions")
+            .collect();
+    },
+});
+
+export const deleteSubscription = mutation({
+    args: { id: v.id("subscriptions") },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const subscription = await ctx.db.get(args.id);
+        if (!subscription) {
+            throw new Error("Subscription not found");
+        }
+
+        await ctx.db.delete(args.id);
+        return true;
+    },
+});

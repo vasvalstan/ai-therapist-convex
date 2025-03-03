@@ -66,4 +66,22 @@ export const getUserFeedback = query({
       .order("desc")
       .collect();
   },
+});
+
+export const deleteFeedback = mutation({
+    args: { id: v.id("feedback") },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const feedback = await ctx.db.get(args.id);
+        if (!feedback) {
+            throw new Error("Feedback not found");
+        }
+
+        await ctx.db.delete(args.id);
+        return true;
+    },
 }); 

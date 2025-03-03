@@ -433,15 +433,14 @@ export default function Pricing() {
     );
   }
   
-  // Sort plans by price (free first, then by price)
-  const sortedPlans = [...plans].sort((a, b) => {
-    if (a.key === "free") return -1;
-    if (b.key === "free") return 1;
-    
-    const aPrice = a.prices.month?.usd?.amount || 0;
-    const bPrice = b.prices.month?.usd?.amount || 0;
-    return aPrice - bPrice;
-  });
+  // Filter out the free plan and sort remaining plans by price
+  const sortedPlans = [...plans]
+    .filter(plan => plan.key !== "free")
+    .sort((a, b) => {
+      const aPrice = a.prices.month?.usd?.amount || 0;
+      const bPrice = b.prices.month?.usd?.amount || 0;
+      return aPrice - bPrice;
+    });
 
   return (
     <section className="px-4 py-24">
@@ -476,7 +475,6 @@ export default function Pricing() {
                 actionLabel={`Upgrade to ${plan.key}`}
                 popular={plan.key === "basic"}
                 exclusive={plan.key === "premium"}
-                isFree={plan.key === "free"}
                 currentPlan={isCurrentPlan}
                 totalMinutes={plan.totalMinutes}
                 maxSessionDurationMinutes={plan.maxSessionDurationMinutes}

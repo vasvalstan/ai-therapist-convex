@@ -84,32 +84,25 @@ export const initializePlans = mutation({
         await ctx.db.insert("plans", {
             key: "free",
             name: "Free Plan",
-            description: "try us out with a limited free plan.",
-            polarProductId: "free-plan-id", // This should be replaced with actual ID
-            prices: {
-                month: {
-                    usd: {
-                        amount: 0, // $0.00
-                        polarId: "free-price-id" // This should be replaced with actual ID
-                    }
-                }
-            },
+            description: "Try us out with one free session",
+            polarProductId: "free",
+            prices: {},
             features: [
-                "2 sessions total",
-                "5min session duration",
+                "1 free session",
+                "10min session duration",
                 "basic ai voice model",
                 "limited session history"
             ],
-            maxSessionDurationMinutes: 5,
+            maxSessionDurationMinutes: 10,
             totalMinutes: 10,
-            maxSessions: 2
+            maxSessions: 1
         });
 
         // Insert the basic plan
         await ctx.db.insert("plans", {
             key: "basic",
             name: "Basic Plan",
-            description: "all the yapping you need, but on a student budget.",
+            description: "30 minutes of chat time per month",
             polarProductId: "95f4b508-c66a-40f6-85c8-33400fe7e8da",
             prices: {
                 month: {
@@ -120,21 +113,20 @@ export const initializePlans = mutation({
                 }
             },
             features: [
-                "6 sessions/month",
-                "10min session duration",
-                "super empathetic ai voice model",
-                "extended session history",
-                "sneak peek at beta features"
+                "Full AI therapy access",
+                "30 minutes of chat time",
+                "Unlimited sessions until time runs out"
             ],
             maxSessionDurationMinutes: 10,
-            totalMinutes: 60
+            maxSessions: 3,
+            totalMinutes: 30
         });
 
         // Insert the premium plan
         await ctx.db.insert("plans", {
             key: "premium",
             name: "Premium Plan",
-            description: "for when you've got a lot more on your mind.",
+            description: "60 minutes of chat time per month",
             polarProductId: "a810e909-62ee-4dd9-ba30-e36489d780f2",
             prices: {
                 month: {
@@ -145,13 +137,14 @@ export const initializePlans = mutation({
                 }
             },
             features: [
-                "all in basic, plus...",
-                "20 sessions/month",
-                "30min session duration",
-                "direct support straight from the soul devs team"
+                "Priority AI therapy access",
+                "60 minutes of chat time",
+                "Unlimited sessions until time runs out",
+                "20min session duration"
             ],
-            maxSessionDurationMinutes: 30,
-            totalMinutes: 600
+            maxSessionDurationMinutes: 20,
+            maxSessions: 6,
+            totalMinutes: 60
         });
 
         console.log("Plans initialized successfully");
@@ -167,52 +160,49 @@ export const getAllPlans = query({
 });
 
 export const updatePlan = mutation({
-  args: {
-    key: v.string(),
-    updates: v.object({
-      maxSessionDurationMinutes: v.optional(v.number()),
-      totalMinutes: v.optional(v.number()),
-      features: v.optional(v.array(v.string())),
-      description: v.optional(v.string()),
-      name: v.optional(v.string()),
-      maxSessions: v.optional(v.number()),
-    }),
-  },
-  handler: async (ctx, args) => {
-    // Find the plan by key
-    const plan = await ctx.db
-      .query("plans")
-      .withIndex("key", (q) => q.eq("key", args.key))
-      .unique();
-    
-    if (!plan) {
-      throw new Error(`Plan with key '${args.key}' not found`);
-    }
-    
-    // Update the plan with the provided updates
-    await ctx.db.patch(plan._id, args.updates);
-    
-    // If updating the free plan's total minutes, also update existing free plan users
-    if (args.key === "free" && args.updates.totalMinutes !== undefined) {
-      const freeUsers = await ctx.db
-        .query("users")
-        .filter((q) => q.eq(q.field("currentPlanKey"), "free"))
-        .collect();
+    args: {
+        key: v.string(),
+        updates: v.object({
+            description: v.optional(v.string()),
+            features: v.optional(v.array(v.string())),
+            maxSessionDurationMinutes: v.optional(v.number()),
+            totalMinutes: v.optional(v.number()),
+            maxSessions: v.optional(v.number())
+        })
+    },
+    handler: async (ctx, args) => {
+        const { key, updates } = args;
         
-      for (const user of freeUsers) {
-        await ctx.db.patch(user._id, {
-          minutesRemaining: args.updates.totalMinutes,
-          totalMinutesAllowed: args.updates.totalMinutes
-        });
-      }
+        // Find the plan by key
+        const plan = await ctx.db
+            .query("plans")
+            .withIndex("key", (q) => q.eq("key", key))
+            .unique();
+            
+        if (!plan) {
+            throw new Error(`Plan with key '${key}' not found`);
+        }
+        
+        // Update the plan
+        await ctx.db.patch(plan._id, updates);
+        
+        // If updating the free plan's total minutes, also update existing free plan users
+        if (key === "free" && updates.totalMinutes !== undefined) {
+            const freeUsers = await ctx.db
+                .query("users")
+                .filter((q) => q.eq(q.field("currentPlanKey"), "free"))
+                .collect();
+                
+            for (const user of freeUsers) {
+                await ctx.db.patch(user._id, {
+                    minutesRemaining: updates.totalMinutes,
+                    totalMinutesAllowed: updates.totalMinutes
+                });
+            }
+        }
+        
+        return { success: true };
     }
-    
-    return { 
-      success: true, 
-      message: `Plan '${args.key}' updated successfully`,
-      updates: args.updates
-    };
-  }
 });
 
 export const updateUserPlanByEmail = mutation({

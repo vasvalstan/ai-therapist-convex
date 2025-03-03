@@ -174,7 +174,7 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
           // If the reason was timeExpired, we need to show the upgrade prompt
           if (customEvent.detail?.reason === "timeExpired" && !timeExpired) {
             setTimeExpired(true);
-            setError("You've reached the 5-minute limit on your free plan. Please upgrade to continue.");
+            setError("You've reached the 10-minute limit on your free plan. Please upgrade to continue.");
           }
         } catch (err) {
           console.error("Failed to save messages on disconnect:", err);
@@ -345,7 +345,7 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
     return (
       <div className="flex flex-col min-h-screen">
         <UpgradePrompt 
-          reason={error || "You've reached the 5-minute limit on your free plan. Please upgrade to continue."} 
+          reason={error || "You've reached the 10-minute limit on your free plan. Please upgrade to continue."} 
           sessionId={currentSessionId || undefined}
         />
       </div>

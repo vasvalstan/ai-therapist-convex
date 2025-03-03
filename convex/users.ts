@@ -56,6 +56,18 @@ export const getUserById = query({
     },
 });
 
+export const getUserByEmail = query({
+    args: { email: v.string() },
+    handler: async (ctx, args) => {
+        const user = await ctx.db
+            .query("users")
+            .filter((q) => q.eq(q.field("email"), args.email))
+            .unique();
+            
+        return user;
+    },
+});
+
 export const updateUserMinutes = mutation({
     args: { 
         userId: v.string(),
@@ -230,12 +242,12 @@ export const setAllUsersTo5Minutes = mutation({
   }
 });
 
-export const setFreePlanUsersTo5Minutes = mutation({
+export const setFreePlanUsersTo10Minutes = mutation({
   handler: async (ctx) => {
     // Get all users
     const users = await ctx.db.query("users").collect();
     
-    // Update only free plan users to have exactly 5 minutes
+    // Update only free plan users to have exactly 10 minutes
     const updatedUsers = [];
     
     for (const user of users) {
@@ -244,7 +256,8 @@ export const setFreePlanUsersTo5Minutes = mutation({
       // Only update users on the free plan
       if (planKey === "free") {
         await ctx.db.patch(user._id, {
-          minutesRemaining: 5,
+          minutesRemaining: 10,
+          totalMinutesAllowed: 10
         });
         
         updatedUsers.push({
@@ -252,15 +265,33 @@ export const setFreePlanUsersTo5Minutes = mutation({
           name: user.name,
           email: user.email,
           plan: "free",
-          minutesSet: 5
+          minutesSet: 10
         });
       }
     }
     
     return {
       success: true,
-      message: `Set minutes to 5 for ${updatedUsers.length} free plan users`,
+      message: `Set minutes to 10 for ${updatedUsers.length} free plan users`,
       updatedUsers
     };
   }
+});
+
+export const deleteUser = mutation({
+    args: { id: v.id("users") },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const user = await ctx.db.get(args.id);
+        if (!user) {
+            throw new Error("User not found");
+        }
+
+        await ctx.db.delete(args.id);
+        return true;
+    },
 });
