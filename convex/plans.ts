@@ -42,13 +42,13 @@ export const updateFreePlanForTesting = mutation({
             throw new Error("Free plan not found");
         }
         
-        // Update the free plan to have a 1-minute limit
+        // Update the free plan to have no limits
         await ctx.db.patch(freePlan._id, {
-            maxSessionDurationMinutes: 1,
-            totalMinutes: 2,
+            maxSessionDurationMinutes: 999999, // Effectively unlimited
+            totalMinutes: 999999, // Effectively unlimited
             features: [
-                "2 sessions total",
-                "1min session duration",
+                "Unlimited sessions",
+                "Unlimited session duration",
                 "basic ai voice model",
                 "limited session history"
             ]
@@ -62,12 +62,12 @@ export const updateFreePlanForTesting = mutation({
             
         for (const user of freeUsers) {
             await ctx.db.patch(user._id, {
-                minutesRemaining: 2,
-                totalMinutesAllowed: 2
+                minutesRemaining: 999999,
+                totalMinutesAllowed: 999999
             });
         }
         
-        return { success: true, message: "Free plan updated for testing" };
+        return { success: true, message: "Free plan updated for unlimited access" };
     }
 });
 
@@ -84,18 +84,18 @@ export const initializePlans = mutation({
         await ctx.db.insert("plans", {
             key: "free",
             name: "Free Plan",
-            description: "Try us out with one free session",
+            description: "Try us out with unlimited time",
             polarProductId: "free",
             prices: {},
             features: [
-                "1 free session",
-                "10min session duration",
+                "Unlimited time",
+                "Unlimited session duration",
                 "basic ai voice model",
                 "limited session history"
             ],
-            maxSessionDurationMinutes: 10,
-            totalMinutes: 10,
-            maxSessions: 1
+            maxSessionDurationMinutes: undefined, // Remove time limit
+            totalMinutes: undefined, // Remove total minutes limit
+            maxSessions: undefined // Remove session limit
         });
 
         // Insert the basic plan

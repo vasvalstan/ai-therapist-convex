@@ -43,6 +43,11 @@ type MessageType = {
 
 // Component to display minutes remaining
 function MinutesRemainingDisplay({ initialMinutes, planKey }: { initialMinutes: number, planKey?: string }) {
+  // Don't show anything for free plan
+  if (planKey === "free") {
+    return null;
+  }
+
   const [minutesRemaining, setMinutesRemaining] = useState(initialMinutes);
   
   useEffect(() => {
@@ -65,14 +70,12 @@ function MinutesRemainingDisplay({ initialMinutes, planKey }: { initialMinutes: 
       <div className="flex items-center gap-2 text-sm">
         <Clock className="h-4 w-4 text-blue-500" />
         <span>
-          <strong>{minutesRemaining}</strong> minutes remaining on your {planKey || "free"} plan
+          <strong>{minutesRemaining}</strong> minutes remaining on your {planKey} plan
         </span>
       </div>
-      {planKey !== "premium" && (
-        <a href="/pricing" className="text-xs text-blue-500 hover:underline">
-          Upgrade for more time
-        </a>
-      )}
+      <a href="/pricing" className="text-xs text-blue-500 hover:underline">
+        Upgrade for more time
+      </a>
     </div>
   );
 }

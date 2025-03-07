@@ -62,23 +62,26 @@ export function Controls() {
         
         setElapsedSeconds(durationSeconds);
         
-        // Check if user has reached their plan's session duration limit
-        if (durationSeconds >= PLAN_LIMIT_SECONDS) {
-          console.log(`User reached ${planSessionDurationMinutes}-minute limit for their ${userDetails?.currentPlanKey || 'free'} plan`);
-          // End the call with timeExpired=true to show the upgrade prompt
-          handleEndCall(true);
-        }
-        // Show a warning when approaching the limit (10 seconds before)
-        else if (durationSeconds === PLAN_LIMIT_SECONDS - 10) {
-          const warningMessage = document.createElement('div');
-          warningMessage.className = 'fixed top-4 right-4 bg-yellow-100 text-yellow-800 p-3 rounded shadow-md z-50';
-          warningMessage.textContent = `Your session will end in 10 seconds. ${isFreePlan ? 'Upgrade for more time!' : ''}`;
-          document.body.appendChild(warningMessage);
-          
-          // Remove the warning after 5 seconds
-          timeWarningRef.current = setTimeout(() => {
-            warningMessage.remove();
-          }, 5000);
+        // Skip time limit check for free plan users
+        if (!isFreePlan) {
+          // Check if user has reached their plan's session duration limit
+          if (durationSeconds >= PLAN_LIMIT_SECONDS) {
+            console.log(`User reached ${planSessionDurationMinutes}-minute limit for their ${userDetails?.currentPlanKey || 'free'} plan`);
+            // End the call with timeExpired=true to show the upgrade prompt
+            handleEndCall(true);
+          }
+          // Show a warning when approaching the limit (10 seconds before)
+          else if (durationSeconds === PLAN_LIMIT_SECONDS - 10) {
+            const warningMessage = document.createElement('div');
+            warningMessage.className = 'fixed top-4 right-4 bg-yellow-100 text-yellow-800 p-3 rounded shadow-md z-50';
+            warningMessage.textContent = `Your session will end in 10 seconds. ${isFreePlan ? 'Upgrade for more time!' : ''}`;
+            document.body.appendChild(warningMessage);
+            
+            // Remove the warning after 5 seconds
+            timeWarningRef.current = setTimeout(() => {
+              warningMessage.remove();
+            }, 5000);
+          }
         }
       }, 1000); // Check every second
     }
@@ -127,54 +130,71 @@ export function Controls() {
         });
         window.dispatchEvent(saveEvent);
         
-        // Update user's remaining minutes
-        const result = await updateUserMinutes({
-          sessionDurationMinutes,
-        });
-        console.log("Updated user minutes:", result);
-        
-        // Dispatch an event to update the minutes display
-        if (result.success) {
-          const minutesUpdatedEvent = new CustomEvent('minutesUpdated', {
-            detail: {
-              previousMinutesRemaining: result.previousMinutesRemaining,
-              newMinutesRemaining: result.newMinutesRemaining,
-              minutesUsed: result.minutesUsed,
-              planKey: result.planKey
-            }
-          });
-          window.dispatchEvent(minutesUpdatedEvent);
-          
-          // Update the message to confirm chat was saved and show minutes remaining
+        // For free plan users, we don't need to update minutes since they have unlimited time
+        if (isFreePlan) {
           saveMessage.innerHTML = `
             <div>
               <p>Your chat has been saved!</p>
               <p class="text-xs mt-1">
                 <span class="font-medium">${sessionDurationMinutes} minute${sessionDurationMinutes > 1 ? 's' : ''}</span> used.
-                <span class="font-medium">${result.newMinutesRemaining} minute${result.newMinutesRemaining !== 1 ? 's' : ''}</span> remaining.
+                <span class="font-medium">Unlimited</span> time remaining.
               </p>
             </div>
           `;
           
-          // If time expired or the user ran out of minutes, show the upgrade prompt
-          if ((timeExpired && isFreePlan) || result.newMinutesRemaining <= 0) {
-            // We'll use a custom event to communicate with the parent component
-            const timeExpiredEvent = new CustomEvent('timeExpired', {
+          setTimeout(() => {
+            saveMessage.remove();
+          }, 5000);
+        } else {
+          // Update paid plan user's remaining minutes
+          const result = await updateUserMinutes({
+            sessionDurationMinutes,
+          });
+          console.log("Updated user minutes:", result);
+          
+          // Dispatch an event to update the minutes display
+          if (result.success) {
+            const minutesUpdatedEvent = new CustomEvent('minutesUpdated', {
               detail: {
-                message: timeExpired 
-                  ? `You've reached the ${planSessionDurationMinutes}-minute limit on your ${userDetails?.currentPlanKey || 'free'} plan. ${isFreePlan ? 'Please upgrade to continue.' : ''}`
-                  : "You have used all your available minutes. Please upgrade your plan to continue."
+                previousMinutesRemaining: result.previousMinutesRemaining,
+                newMinutesRemaining: result.newMinutesRemaining,
+                minutesUsed: result.minutesUsed,
+                planKey: result.planKey
               }
             });
-            window.dispatchEvent(timeExpiredEvent);
+            window.dispatchEvent(minutesUpdatedEvent);
+            
+            // Update the message to confirm chat was saved and show minutes remaining
+            saveMessage.innerHTML = `
+              <div>
+                <p>Your chat has been saved!</p>
+                <p class="text-xs mt-1">
+                  <span class="font-medium">${sessionDurationMinutes} minute${sessionDurationMinutes > 1 ? 's' : ''}</span> used.
+                  <span class="font-medium">${result.newMinutesRemaining} minute${result.newMinutesRemaining !== 1 ? 's' : ''}</span> remaining.
+                </p>
+              </div>
+            `;
+            
+            // If time expired or the user ran out of minutes, show the upgrade prompt
+            if (timeExpired || result.newMinutesRemaining <= 0) {
+              // We'll use a custom event to communicate with the parent component
+              const timeExpiredEvent = new CustomEvent('timeExpired', {
+                detail: {
+                  message: timeExpired 
+                    ? `You've reached the ${planSessionDurationMinutes}-minute limit on your ${userDetails?.currentPlanKey} plan.`
+                    : "You have used all your available minutes. Please upgrade your plan to continue."
+                }
+              });
+              window.dispatchEvent(timeExpiredEvent);
+            }
+          } else {
+            saveMessage.textContent = 'Your chat has been saved!';
           }
-        } else {
-          saveMessage.textContent = 'Your chat has been saved!';
+          
+          setTimeout(() => {
+            saveMessage.remove();
+          }, 5000);
         }
-        
-        setTimeout(() => {
-          saveMessage.remove();
-        }, 5000);
       } catch (err) {
         console.error("Failed to update user minutes:", err);
         saveMessage.textContent = 'Error saving chat';
@@ -206,14 +226,31 @@ export function Controls() {
     const formattedTime = formatTime(elapsedSeconds);
     const elapsedMinutes = Math.floor(elapsedSeconds / 60);
     const secondsInCurrentMinute = elapsedSeconds % 60;
-    
-    // Calculate remaining time based on plan limit
     const remainingSeconds = Math.max(0, PLAN_LIMIT_SECONDS - elapsedSeconds);
     const formattedRemaining = formatTime(remainingSeconds);
     const planName = userDetails?.currentPlanKey ? 
       userDetails.currentPlanKey.charAt(0).toUpperCase() + userDetails.currentPlanKey.slice(1) : 
       "Free";
     
+    // If it's a free plan, show elapsed time and unlimited message
+    if (isFreePlan) {
+      return (
+        <div className="text-xs space-y-1">
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-muted-foreground">
+              Session time: {formattedTime}
+            </span>
+          </div>
+          <div className="flex items-center justify-center gap-1">
+            <span className="text-green-600 font-medium">
+              Unlimited time available
+            </span>
+          </div>
+        </div>
+      );
+    }
+    
+    // For paid plans, show remaining time
     return (
       <div className="text-xs space-y-1">
         <div className="flex items-center justify-center gap-2">
@@ -233,12 +270,6 @@ export function Controls() {
             </span>
           )}
         </div>
-        
-        {isFreePlan && (
-          <div className="text-blue-500 font-medium text-center">
-            <a href="/pricing" className="hover:underline">Upgrade for more time</a>
-          </div>
-        )}
       </div>
     );
   };

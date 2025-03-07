@@ -62,7 +62,7 @@ export default function HeroSection() {
           transition={{ duration: 0.5, delay: 0.3 }}
           className="flex flex-col justify-center items-center gap-4 pt-4 w-full max-w-xs mx-auto"
         >
-          <Link href="/chat" className="w-full">
+          <Link href="/chat/history" className="w-full">
             <Button
               size="lg"
               className="bg-blue-600 hover:bg-blue-500 text-white rounded-full px-8 h-14 text-lg font-medium w-full"

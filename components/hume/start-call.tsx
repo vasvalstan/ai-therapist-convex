@@ -3,11 +3,16 @@
 import { useVoice } from "@humeai/voice-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { History, MessageCircle } from "lucide-react";
-import Link from "next/link";
+import { History, MessageCircle, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 
 export function StartCall() {
   const { status, connect } = useVoice();
+  const router = useRouter();
+  const pathname = usePathname();
+  
+  // Check if we're already on the chat history page
+  const isOnChatHistory = pathname === "/chat/history";
 
   return (
     <AnimatePresence>
@@ -50,8 +55,35 @@ export function StartCall() {
               <span>Start conversation</span>
             </Button>
 
-            <Link href="/chat/history">
-              <Button variant="outline" className="flex items-center gap-1.5">
+            {isOnChatHistory ? (
+              // If already on chat history, show a close button
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-1.5"
+                onClick={() => {
+                  // Simulate a connect action to close the overlay
+                  connect()
+                    .then(() => {})
+                    .catch(() => {})
+                    .finally(() => {});
+                }}
+              >
+                <span>
+                  <X
+                    className="size-4 opacity-50"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                  />
+                </span>
+                <span>Close</span>
+              </Button>
+            ) : (
+              // If not on chat history, show the go to chat history button
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-1.5"
+                onClick={() => router.push("/chat/history")}
+              >
                 <span>
                   <History
                     className="size-4 opacity-50"
@@ -61,7 +93,7 @@ export function StartCall() {
                 </span>
                 <span>Go to chat history</span>
               </Button>
-            </Link>
+            )}
           </motion.div>
         </motion.div>
       ) : null}

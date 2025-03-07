@@ -28,24 +28,16 @@ async function checkUserChatAccess(ctx: QueryCtx, userId: string) {
         throw new Error("Plan not found");
     }
     
-    // For free plan, check session count limit
-    if (planKey === "free" && plan.maxSessions) {
-        const sessions = await ctx.db
-            .query("chatHistory")
-            .filter((q) => q.eq(q.field("userId"), userId))
-            .collect();
-        
-        if (sessions.length >= plan.maxSessions) {
-            return {
-                hasAccess: false,
-                reason: `You have reached your limit of ${plan.maxSessions} sessions. Please upgrade your plan to continue.`,
-                upgradeRequired: true,
-                limitType: "sessions"
-            };
-        }
+    // For free plan, no limits
+    if (planKey === "free") {
+        return {
+            hasAccess: true,
+            maxSessionDurationMinutes: undefined, // No time limit
+            minutesRemaining: undefined // No minutes limit
+        };
     }
     
-    // Check if user has minutes remaining
+    // For paid plans, check if user has minutes remaining
     if (user.minutesRemaining !== undefined && user.minutesRemaining <= 0) {
         return {
             hasAccess: false,
@@ -57,7 +49,7 @@ async function checkUserChatAccess(ctx: QueryCtx, userId: string) {
     
     return {
         hasAccess: true,
-        maxSessionDurationMinutes: plan.maxSessionDurationMinutes || 5,
+        maxSessionDurationMinutes: plan.maxSessionDurationMinutes,
         minutesRemaining: user.minutesRemaining
     };
 }
@@ -338,5 +330,51 @@ export const getAllChatHistory = query({
         return await ctx.db
             .query("chatHistory")
             .collect();
+    },
+});
+
+export const cleanupEmptySessions = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const userId = identity.subject;
+        const emptySessions = await ctx.db
+            .query("chatHistory")
+            .filter(q => q.eq(q.field("userId"), userId))
+            .collect();
+            
+        let deletedCount = 0;
+        for (const session of emptySessions) {
+            if (!session.messages || session.messages.length === 0) {
+                await ctx.db.delete(session._id);
+                deletedCount++;
+            }
+        }
+        
+        return `Deleted ${deletedCount} empty sessions`;
+    },
+});
+
+export const adminCleanupEmptySessions = mutation({
+    args: { userId: v.string() },
+    handler: async (ctx, args) => {
+        const emptySessions = await ctx.db
+            .query("chatHistory")
+            .filter(q => q.eq(q.field("userId"), args.userId))
+            .collect();
+            
+        let deletedCount = 0;
+        for (const session of emptySessions) {
+            if (!session.messages || session.messages.length === 0) {
+                await ctx.db.delete(session._id);
+                deletedCount++;
+            }
+        }
+        
+        return `Deleted ${deletedCount} empty sessions`;
     },
 }); 

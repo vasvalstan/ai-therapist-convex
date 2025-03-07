@@ -45,7 +45,7 @@ export function ChatHistory() {
 
         await deleteChat({ id: chatToDelete.id });
         if (params?.sessionId === chatToDelete.id) {
-            router.push("/chat");
+            router.push("/chat/history");
         }
         setChatToDelete(null);
     };
@@ -69,12 +69,6 @@ export function ChatHistory() {
                         <Home className="w-5 h-5" />
                     </Link>
                     <h2 className="font-semibold">Chat History</h2>
-                    <Link href="/chat">
-                        <Button size="icon" variant="ghost" className="flex gap-1 items-center">
-                            <Plus className="w-5 h-5" />
-                            <MessageCircle className="w-4 h-4" />
-                        </Button>
-                    </Link>
                 </div>
                 <div className="flex-1 overflow-auto p-2 space-y-2">
                     {sessions?.map((session) => {

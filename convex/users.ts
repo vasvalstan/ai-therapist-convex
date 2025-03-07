@@ -148,8 +148,8 @@ export const store = mutation({
             .withIndex("key", (q) => q.eq("key", "free"))
             .unique();
 
-        // Default values if plan not found
-        const totalMinutes = freePlan?.totalMinutes || 10;
+        // For free plan, use unlimited minutes
+        const totalMinutes = 999999; // Effectively unlimited
         
         // If it's a new identity, create a new User with the free plan
         const userId = await ctx.db.insert("users", {
@@ -159,7 +159,7 @@ export const store = mutation({
             tokenIdentifier: identity.subject,
             createdAt: new Date().toISOString(),
             currentPlanKey: "free", // Assign free plan by default
-            minutesRemaining: totalMinutes, // Set initial minutes based on free plan
+            minutesRemaining: totalMinutes, // Set unlimited minutes
             totalMinutesAllowed: totalMinutes
         });
         
@@ -293,5 +293,16 @@ export const deleteUser = mutation({
 
         await ctx.db.delete(args.id);
         return true;
+    },
+});
+
+export const deleteAllUsers = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const users = await ctx.db.query("users").collect();
+        for (const user of users) {
+            await ctx.db.delete(user._id);
+        }
+        return `Deleted ${users.length} users`;
     },
 });

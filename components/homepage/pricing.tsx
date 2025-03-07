@@ -315,7 +315,7 @@ const PricingCard = ({
                 <p className={cn("text-base", {
                   "text-gray-300": exclusive,
                 })}>
-                  {totalMinutes} minutes total
+                  {isFree ? "Unlimited" : totalMinutes} minutes total
                 </p>
               </div>
             )}
@@ -328,7 +328,7 @@ const PricingCard = ({
                 <p className={cn("text-base", {
                   "text-gray-300": exclusive,
                 })}>
-                  {maxSessionDurationMinutes} min per session
+                  {isFree ? "Unlimited" : maxSessionDurationMinutes} min per session
                 </p>
               </div>
             )}
@@ -341,7 +341,7 @@ const PricingCard = ({
                 <p className={cn("text-base", {
                   "text-gray-300": exclusive,
                 })}>
-                  {maxSessions} sessions total
+                  {isFree ? "Unlimited" : maxSessions} sessions total
                 </p>
               </div>
             )}
@@ -433,10 +433,14 @@ export default function Pricing() {
     );
   }
   
-  // Filter out the free plan and sort remaining plans by price
+  // Include all plans and sort them by price (free plan first, then by price)
   const sortedPlans = [...plans]
-    .filter(plan => plan.key !== "free")
     .sort((a, b) => {
+      // Free plan should always be first
+      if (a.key === "free") return -1;
+      if (b.key === "free") return 1;
+      
+      // Otherwise sort by price
       const aPrice = a.prices.month?.usd?.amount || 0;
       const bPrice = b.prices.month?.usd?.amount || 0;
       return aPrice - bPrice;
@@ -463,6 +467,10 @@ export default function Pricing() {
             // Check if this is the user's current plan
             const isCurrentPlan = currentUser?.currentPlanKey === plan.key;
             
+            // For free plan, use very large numbers to represent "unlimited"
+            const isFree = plan.key === "free";
+            const unlimitedValue = 999999; // Very large number to represent "unlimited"
+            
             return (
               <PricingCard
                 key={plan.key}
@@ -472,13 +480,14 @@ export default function Pricing() {
                 description={plan.description}
                 monthlyPrice={monthlyPrice}
                 features={plan.features || []}
-                actionLabel={`Upgrade to ${plan.key}`}
+                actionLabel={isFree ? "Get Started Free" : `Upgrade to ${plan.key}`}
                 popular={plan.key === "basic"}
                 exclusive={plan.key === "premium"}
                 currentPlan={isCurrentPlan}
-                totalMinutes={plan.totalMinutes}
-                maxSessionDurationMinutes={plan.maxSessionDurationMinutes}
-                maxSessions={plan.maxSessions}
+                totalMinutes={isFree ? unlimitedValue : plan.totalMinutes}
+                maxSessionDurationMinutes={isFree ? unlimitedValue : plan.maxSessionDurationMinutes}
+                maxSessions={isFree ? unlimitedValue : plan.maxSessions}
+                isFree={isFree}
               />
             );
           })}
