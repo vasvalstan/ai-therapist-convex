@@ -62,7 +62,7 @@ export function FeedbackForm({ sessionId, source = 'trial_end' }: FeedbackFormPr
       <div className="space-y-2">
         <h3 className="font-medium">Share your thoughts</h3>
         <p className="text-sm text-muted-foreground">
-          We'd love to hear what you think about your experience so far.
+          We&apos;d love to hear what you think about your experience so far.
         </p>
       </div>
       

@@ -3,7 +3,7 @@
 import { api } from "@/convex/_generated/api";
 import { useQuery, useMutation } from "convex/react";
 import { formatDistanceToNow } from "date-fns";
-import { MessageCircle, Plus, Trash2, Pencil, Home } from "lucide-react";
+import { MessageCircle, Trash2, Pencil, Home } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "../ui/button";

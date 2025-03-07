@@ -2,10 +2,8 @@
 
 export const dynamic = 'force-dynamic';
 
-import { getHumeAccessToken } from "@/lib/hume";
 import { ChatHistory } from "@/components/hume/chat-history";
 import { Suspense, useEffect, useState } from "react";
-import HumeChat from "@/components/hume/chat";
 import { useAuth } from "@clerk/nextjs";
 import { api } from "@/convex/_generated/api";
 import { useQuery } from "convex/react";

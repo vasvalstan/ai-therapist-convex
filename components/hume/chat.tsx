@@ -43,11 +43,6 @@ type MessageType = {
 
 // Component to display minutes remaining
 function MinutesRemainingDisplay({ initialMinutes, planKey }: { initialMinutes: number, planKey?: string }) {
-  // Don't show anything for free plan
-  if (planKey === "free") {
-    return null;
-  }
-
   const [minutesRemaining, setMinutesRemaining] = useState(initialMinutes);
   
   useEffect(() => {
@@ -64,7 +59,12 @@ function MinutesRemainingDisplay({ initialMinutes, planKey }: { initialMinutes: 
       window.removeEventListener('updateMinutesDisplay', handleUpdateMinutes as EventListener);
     };
   }, []);
-  
+
+  // Don't show anything for free plan
+  if (planKey === "free") {
+    return null;
+  }
+
   return (
     <div className="sticky top-0 w-full bg-card/80 backdrop-blur-sm border-b border-border z-10 p-3 flex justify-between items-center">
       <div className="flex items-center gap-2 text-sm">

@@ -13,7 +13,6 @@ import { useRef } from "react";
 
 export function StartConversationPanel() {
   const { status, connect } = useVoice();
-  const { userId } = useAuth();
   const messagesRef = useRef(null);
   
   // Get user details to show plan information

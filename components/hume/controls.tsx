@@ -13,10 +13,13 @@ import { useEffect, useRef, useState } from "react";
 export function Controls() {
   const voice = useVoice();
   const { disconnect, status, isMuted, unmute, mute } = voice || {};
-  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const timeWarningRef = useRef<NodeJS.Timeout | null>(null);
+  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [timeDisplay, setTimeDisplay] = useState("00:00");
+  const [showTimeWarning, setShowTimeWarning] = useState(false);
+  const [isTimerActive, setIsTimerActive] = useState(false);
   
   const updateUserMinutes = useMutation(api.chat.updateUserRemainingMinutes);
   
@@ -40,64 +43,6 @@ export function Controls() {
   const planSessionDurationMinutes = userPlan?.maxSessionDurationMinutes || 5;
   const PLAN_LIMIT_SECONDS = planSessionDurationMinutes * 60;
   
-  // Start tracking time when call is connected
-  useEffect(() => {
-    if (status && status.value === "connected") {
-      // Only set the start time if it's not already set
-      if (!sessionStartTime) {
-        console.log("Call connected, tracking time from:", new Date().toISOString());
-        setSessionStartTime(Date.now());
-      }
-      
-      // Start a timer to check elapsed time every second
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      
-      timerRef.current = setInterval(() => {
-        const currentTime = Date.now();
-        const startTime = sessionStartTime || currentTime;
-        const durationMs = currentTime - startTime;
-        const durationSeconds = Math.floor(durationMs / 1000);
-        
-        setElapsedSeconds(durationSeconds);
-        
-        // Skip time limit check for free plan users
-        if (!isFreePlan) {
-          // Check if user has reached their plan's session duration limit
-          if (durationSeconds >= PLAN_LIMIT_SECONDS) {
-            console.log(`User reached ${planSessionDurationMinutes}-minute limit for their ${userDetails?.currentPlanKey || 'free'} plan`);
-            // End the call with timeExpired=true to show the upgrade prompt
-            handleEndCall(true);
-          }
-          // Show a warning when approaching the limit (10 seconds before)
-          else if (durationSeconds === PLAN_LIMIT_SECONDS - 10) {
-            const warningMessage = document.createElement('div');
-            warningMessage.className = 'fixed top-4 right-4 bg-yellow-100 text-yellow-800 p-3 rounded shadow-md z-50';
-            warningMessage.textContent = `Your session will end in 10 seconds. ${isFreePlan ? 'Upgrade for more time!' : ''}`;
-            document.body.appendChild(warningMessage);
-            
-            // Remove the warning after 5 seconds
-            timeWarningRef.current = setTimeout(() => {
-              warningMessage.remove();
-            }, 5000);
-          }
-        }
-      }, 1000); // Check every second
-    }
-    
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      if (timeWarningRef.current) {
-        clearTimeout(timeWarningRef.current);
-        timeWarningRef.current = null;
-      }
-    };
-  }, [status, sessionStartTime, isFreePlan]);
-
   // Handle call end and update user minutes
   const handleEndCall = async (timeExpired = false) => {
     // Clear the timer
@@ -214,6 +159,65 @@ export function Controls() {
     }
   };
 
+  // Set up timer when connected
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (status && status.value === "connected") {
+      // Only set the start time if it's not already set
+      if (!sessionStartTime) {
+        console.log("Call connected, tracking time from:", new Date().toISOString());
+        setSessionStartTime(Date.now());
+      }
+      
+      // Start a timer to check elapsed time every second
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      
+      timerRef.current = setInterval(() => {
+        const currentTime = Date.now();
+        const startTime = sessionStartTime || currentTime;
+        const durationMs = currentTime - startTime;
+        const durationSeconds = Math.floor(durationMs / 1000);
+        
+        setElapsedSeconds(durationSeconds);
+        
+        // Skip time limit check for free plan users
+        if (!isFreePlan) {
+          // Check if user has reached their plan's session duration limit
+          if (durationSeconds >= PLAN_LIMIT_SECONDS) {
+            console.log(`User reached ${planSessionDurationMinutes}-minute limit for their ${userDetails?.currentPlanKey || 'free'} plan`);
+            // End the call with timeExpired=true to show the upgrade prompt
+            handleEndCall(true);
+          }
+          // Show a warning when approaching the limit (10 seconds before)
+          else if (durationSeconds === PLAN_LIMIT_SECONDS - 10) {
+            const warningMessage = document.createElement('div');
+            warningMessage.className = 'fixed top-4 right-4 bg-yellow-100 text-yellow-800 p-3 rounded shadow-md z-50';
+            warningMessage.textContent = `Your session will end in 10 seconds. ${isFreePlan ? 'Upgrade for more time!' : ''}`;
+            document.body.appendChild(warningMessage);
+            
+            // Remove the warning after 5 seconds
+            timeWarningRef.current = setTimeout(() => {
+              warningMessage.remove();
+            }, 5000);
+          }
+        }
+      }, 1000); // Check every second
+    }
+    
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      if (timeWarningRef.current) {
+        clearTimeout(timeWarningRef.current);
+        timeWarningRef.current = null;
+      }
+    };
+  }, [status, sessionStartTime, isFreePlan, PLAN_LIMIT_SECONDS, planSessionDurationMinutes, userDetails?.currentPlanKey]);
+
   // Format time as MM:SS
   const formatTime = (totalSeconds: number) => {
     const minutes = Math.floor(totalSeconds / 60);
@@ -224,8 +228,6 @@ export function Controls() {
   // Display elapsed time
   const getTimeDisplay = () => {
     const formattedTime = formatTime(elapsedSeconds);
-    const elapsedMinutes = Math.floor(elapsedSeconds / 60);
-    const secondsInCurrentMinute = elapsedSeconds % 60;
     const remainingSeconds = Math.max(0, PLAN_LIMIT_SECONDS - elapsedSeconds);
     const formattedRemaining = formatTime(remainingSeconds);
     const planName = userDetails?.currentPlanKey ? 
