@@ -1,9 +1,6 @@
-"use client";
-
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
 
-function NotFoundContent() {
+export default function NotFound() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-4 text-center">
       <h1 className="text-6xl font-bold">404</h1>
@@ -19,13 +16,4 @@ function NotFoundContent() {
       </Link>
     </div>
   );
-}
-
-// Use dynamic import with SSR disabled
-const DynamicNotFound = dynamic(() => Promise.resolve(NotFoundContent), {
-  ssr: false,
-});
-
-export default function NotFound() {
-  return <DynamicNotFound />;
 } 
