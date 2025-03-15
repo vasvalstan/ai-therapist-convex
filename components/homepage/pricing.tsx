@@ -17,6 +17,7 @@ import { CheckCircle2, DollarSign, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 
 type PricingCardProps = {
   user: {
@@ -401,98 +402,73 @@ const PricingCard = ({
   );
 };
 
-export default function Pricing() {
+// Create a dynamic version of the Pricing component
+function PricingContent() {
   const { user } = useUser();
-  
-  // Fetch plans from the database
-  const plans = useQuery(api.plans.getAllPlans);
-  
-  // Fetch current user's plan if logged in
-  const currentUser = useQuery(
-    api.users.getUserByToken,
-    user?.id ? { tokenIdentifier: user.id } : "skip"
-  );
-  
-  // If plans are still loading, show a loading state
-  if (!plans) {
-    return (
-      <section className="px-4 py-24">
-        <div className="max-w-7xl mx-auto">
-          <PricingHeader
-            title="choose your plan"
-            subtitle="find the perfect plan for your needs"
-          />
-          <div className="flex justify-center items-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-              <p className="mt-4 text-gray-600 dark:text-gray-400">Loading plans...</p>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
-  
-  // Include all plans and sort them by price (free plan first, then by price)
-  const sortedPlans = [...plans]
-    .sort((a, b) => {
-      // Free plan should always be first
-      if (a.key === "free") return -1;
-      if (b.key === "free") return 1;
-      
-      // Otherwise sort by price
-      const aPrice = a.prices.month?.usd?.amount || 0;
-      const bPrice = b.prices.month?.usd?.amount || 0;
-      return aPrice - bPrice;
-    });
+  const router = useRouter();
 
   return (
-    <section className="px-4 py-24">
-      <div className="max-w-7xl mx-auto">
-        <PricingHeader
-          title="choose your plan"
-          subtitle="find the perfect plan for your needs"
+    <div className="mx-auto max-w-7xl px-6 lg:px-8">
+      <PricingHeader
+        title="Simple, transparent pricing"
+        subtitle="Choose the plan that best fits your needs."
+      />
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="mx-auto mt-16 grid max-w-lg grid-cols-1 items-center gap-y-6 sm:mt-20 sm:gap-y-0 lg:max-w-4xl lg:grid-cols-2"
+      >
+        {/* Free Plan */}
+        <PricingCard
+          user={user}
+          planKey="free"
+          title="Free"
+          description="Perfect for trying out our service"
+          features={[
+            "5 minutes per session",
+            "1 session per day",
+            "Basic emotion analysis",
+            "Text chat only",
+          ]}
+          actionLabel="Get Started Free"
+          isFree={true}
+          totalMinutes={5}
+          maxSessionDurationMinutes={5}
+          maxSessions={1}
         />
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          viewport={{ once: true }}
-          className="flex flex-col md:flex-row justify-center gap-8 mt-10"
-        >
-          {sortedPlans.map((plan) => {
-            // Calculate price in dollars
-            const monthlyPrice = plan.prices.month?.usd?.amount ? plan.prices.month.usd.amount / 100 : 0;
-            
-            // Check if this is the user's current plan
-            const isCurrentPlan = currentUser?.currentPlanKey === plan.key;
-            
-            // For free plan, use very large numbers to represent "unlimited"
-            const isFree = plan.key === "free";
-            const unlimitedValue = 999999; // Very large number to represent "unlimited"
-            
-            return (
-              <PricingCard
-                key={plan.key}
-                user={user}
-                planKey={plan.key}
-                title={plan.name}
-                description={plan.description}
-                monthlyPrice={monthlyPrice}
-                features={plan.features || []}
-                actionLabel={isFree ? "Get Started Free" : `Upgrade to ${plan.key}`}
-                popular={plan.key === "basic"}
-                exclusive={plan.key === "premium"}
-                currentPlan={isCurrentPlan}
-                totalMinutes={isFree ? unlimitedValue : plan.totalMinutes}
-                maxSessionDurationMinutes={isFree ? unlimitedValue : plan.maxSessionDurationMinutes}
-                maxSessions={isFree ? unlimitedValue : plan.maxSessions}
-                isFree={isFree}
-              />
-            );
-          })}
-        </motion.div>
-      </div>
-    </section>
+
+        {/* Pro Plan */}
+        <PricingCard
+          user={user}
+          planKey="pro"
+          title="Pro"
+          monthlyPrice={9.99}
+          description="For users who want the full experience"
+          features={[
+            "60 minutes per session",
+            "Unlimited sessions",
+            "Advanced emotion analysis",
+            "Voice chat",
+            "Priority support",
+          ]}
+          actionLabel="Get Pro"
+          popular={true}
+          totalMinutes={60}
+          maxSessionDurationMinutes={60}
+          maxSessions={-1}
+        />
+      </motion.div>
+    </div>
   );
+}
+
+// Use dynamic import with SSR disabled
+const DynamicPricing = dynamic(() => Promise.resolve(PricingContent), {
+  ssr: false,
+});
+
+export default function Pricing() {
+  return <DynamicPricing />;
 }

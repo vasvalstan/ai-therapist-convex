@@ -5,6 +5,7 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.sereni.day"),

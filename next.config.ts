@@ -44,6 +44,8 @@ const nextConfig: NextConfig = {
   // This prevents Edge Runtime compatibility warnings
   serverExternalPackages: ['@clerk/nextjs', '@clerk/shared'],
   pageExtensions: ["ts", "tsx", "mdx"],
+  // Disable static generation for all pages
+  output: 'standalone',
 };
 
 const withMDX = createMDX({});

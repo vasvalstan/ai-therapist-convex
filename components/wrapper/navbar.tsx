@@ -7,8 +7,10 @@ import * as React from "react";
 import ModeToggle from "../mode-toggle";
 import { Button } from "../ui/button";
 import { UserProfile } from "../user-profile";
+import dynamic from "next/dynamic";
 
-export default function NavBar() {
+// Create a client-only version of the NavBar
+function NavBarContent() {
   const { userId } = useAuth();
 
   return (
@@ -53,4 +55,13 @@ export default function NavBar() {
       </div>
     </motion.div>
   );
+}
+
+// Use dynamic import to avoid SSR for the NavBar
+const DynamicNavBar = dynamic(() => Promise.resolve(NavBarContent), {
+  ssr: false,
+});
+
+export default function NavBar() {
+  return <DynamicNavBar />;
 }

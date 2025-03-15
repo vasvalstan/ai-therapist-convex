@@ -10,7 +10,16 @@ import { ConvexReactClient } from "convex/react";
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 
-const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+// Move client initialization to a client component
+function ConvexClientProvider({ children }: { children: React.ReactNode }) {
+  const [client] = useState(() => new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!));
+
+  return (
+    <ConvexProviderWithClerk client={client} useAuth={useAuth}>
+      {children}
+    </ConvexProviderWithClerk>
+  );
+}
 
 function VoiceWrapper({ children }: { children: React.ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -49,7 +58,7 @@ function VoiceWrapper({ children }: { children: React.ReactNode }) {
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
-      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+      <ConvexClientProvider>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -62,7 +71,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           <Toaster />
           <Analytics />
         </ThemeProvider>
-      </ConvexProviderWithClerk>
+      </ConvexClientProvider>
     </ClerkProvider>
   );
 } 
