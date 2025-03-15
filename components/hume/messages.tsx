@@ -6,6 +6,10 @@ import { Expressions } from "./expressions";
 import { AnimatePresence, motion } from "framer-motion";
 import { ComponentRef, forwardRef } from "react";
 
+interface EmotionScores {
+  [key: string]: number;
+}
+
 export const Messages = forwardRef<
   ComponentRef<typeof motion.div>,
   Record<never, never>
@@ -53,7 +57,7 @@ export const Messages = forwardRef<
                     {msg.message.role}
                   </div>
                   <div className="pb-3 px-3">{msg.message.content}</div>
-                  <Expressions values={msg.models.prosody?.scores} />
+                  <Expressions values={msg.models.prosody?.scores as Record<string, number> | undefined} />
                 </motion.div>
               );
             }

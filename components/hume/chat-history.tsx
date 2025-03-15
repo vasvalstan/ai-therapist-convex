@@ -94,7 +94,7 @@ export function ChatHistory() {
                                     <div className="text-xs text-muted-foreground">
                                         {formatDistanceToNow(session.updatedAt, { addSuffix: true })}
                                     </div>
-                                    {session.messages?.length > 0 && (
+                                    {session.messages && session.messages.length > 0 && (
                                         <div className="text-xs text-muted-foreground mt-1">
                                             {session.messages.length} messages
                                         </div>
