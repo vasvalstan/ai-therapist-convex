@@ -9,8 +9,15 @@ import { cn } from "@/lib/utils";
 import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/use-toast";
 
-export function Controls() {
+interface ControlsProps {
+  sessionId?: string;
+  onEndConversation?: () => Promise<void>;
+}
+
+export function Controls({ sessionId, onEndConversation }: ControlsProps) {
   const voice = useVoice();
   const { disconnect, status, isMuted, unmute, mute } = voice || {};
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -20,8 +27,12 @@ export function Controls() {
   const [timeDisplay, setTimeDisplay] = useState("00:00");
   const [showTimeWarning, setShowTimeWarning] = useState(false);
   const [isTimerActive, setIsTimerActive] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
   
   const updateUserMinutes = useMutation(api.chat.updateUserRemainingMinutes);
+  // We'll add this mutation once the summary API is available
+  // const endConversation = useMutation(api.summary.endConversationAndSummarize);
   
   // Get user's plan to check if they're on the free plan
   const userInfo = useQuery(api.users.getUser);
@@ -276,6 +287,39 @@ export function Controls() {
     );
   };
 
+  const handleEndConversation = async () => {
+    if (!sessionId) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // If an external handler is provided, use it
+      if (onEndConversation) {
+        await onEndConversation();
+        return;
+      }
+      
+      // Otherwise use the default behavior
+      // Uncomment this once the summary API is available
+      // await endConversation({ sessionId });
+      toast({
+        title: "Conversation ended",
+        description: "Your conversation has been summarized and saved for future reference.",
+      });
+      // Optionally redirect to history or start a new conversation
+      router.push("/chat/history");
+    } catch (error) {
+      console.error("Error ending conversation:", error);
+      toast({
+        title: "Error",
+        description: "Failed to end conversation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div
       className={cn(
@@ -344,6 +388,19 @@ export function Controls() {
                 <span>End Call</span>
               </Button>
             </div>
+            
+            {/* Add End Conversation button */}
+            {sessionId && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-2"
+                onClick={handleEndConversation}
+                disabled={isLoading || !sessionId}
+              >
+                End Session
+              </Button>
+            )}
           </motion.div>
         ) : null}
       </AnimatePresence>

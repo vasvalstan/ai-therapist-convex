@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { History, MessageCircle, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { toast } from "@/components/ui/use-toast";
 
 export function StartCall() {
   const { status, connect } = useVoice();
@@ -38,11 +39,21 @@ export function StartCall() {
           >
             <Button
               className="flex items-center gap-1.5"
-              onClick={() => {
-                connect()
-                  .then(() => {})
-                  .catch(() => {})
-                  .finally(() => {});
+              onClick={async () => {
+                try {
+                  console.log("Starting voice connection...");
+                  await connect();
+                  console.log("Voice connection established");
+                } catch (error) {
+                  console.error("Failed to connect:", error);
+                  // Show error toast
+                  const errorMessage = error instanceof Error ? error.message : "Failed to connect";
+                  toast({
+                    title: "Connection Error",
+                    description: errorMessage,
+                    variant: "destructive",
+                  });
+                }
               }}
             >
               <span>

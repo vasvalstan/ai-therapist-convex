@@ -1,24 +1,145 @@
 "use client";
 
 import { api } from "@/convex/_generated/api";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { formatDistanceToNow } from "date-fns";
 import { Bot, User } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Controls } from "./controls";
+import { toast } from "@/components/ui/use-toast";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import HumeChat from "./chat";
+import { ChatNav } from "./chat-nav";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { StartConversationPanel } from "./start-conversation-panel";
+import { TherapyProgress } from "./therapy-progress";
+import { VoiceController } from "./voice-controller";
 
 interface ChatViewProps {
-    sessionId: string;
+    sessionId: string;  // This will be renamed to chatId in a future update
+    accessToken?: string;
 }
 
-export function ChatView({ sessionId }: ChatViewProps) {
+export function ChatView({ sessionId, accessToken }: ChatViewProps) {
+    // Use the provided sessionId parameter, but log it for debugging
+    console.log("ChatView received sessionId:", sessionId);
+    
     const session = useQuery(api.chat.getChatSession, { sessionId });
     const containerRef = useRef<HTMLDivElement>(null);
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
+    const [isEndingConversation, setIsEndingConversation] = useState(false);
+    const [isSendingTestMessages, setIsSendingTestMessages] = useState(false);
+    
+    // Add the mutation for ending conversation and generating summary
+    const endConversationAndSummarize = useMutation(api.summary.endConversationAndSummarize);
+    const addMessage = useMutation(api.chat.addMessageToSession);
+
+    // Convert messages for display
+    const messages = session?.messages?.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+        emotions: msg.emotions,
+        timestamp: msg.timestamp,
+    })) || [];
 
     useEffect(() => {
         if (containerRef.current) {
             containerRef.current.scrollTop = containerRef.current.scrollHeight;
         }
-    }, [session?.messages]);
+    }, [messages]);
+    
+    // Ensure we default to the chat tab when viewing a specific chat
+    useEffect(() => {
+        // Only redirect if no tab is specified - don't override an explicit tab=chat
+        if (!searchParams?.get("tab")) {
+            router.push(`${pathname}?tab=chat`);
+        }
+    }, [pathname, router, searchParams]);
+
+    const handleEndConversation = async () => {
+        if (!sessionId) return;
+        
+        try {
+            setIsEndingConversation(true);
+            
+            // Call the mutation to end conversation and generate summary
+            await endConversationAndSummarize({ sessionId });
+            
+            toast({
+                title: "Conversation ended",
+                description: "Your conversation is being summarized. View your progress in the Therapy Progress tab.",
+            });
+            
+            // Redirect to chat history and select the progress tab
+            router.push("/chat/history?tab=progress");
+        } catch (error) {
+            console.error("Error ending conversation:", error);
+            toast({
+                title: "Error",
+                description: "Failed to end conversation. Please try again.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsEndingConversation(false);
+        }
+    };
+
+    // Add a function to handle sending test messages
+    const handleSendTestMessages = async () => {
+        if (!sessionId) return;
+        
+        try {
+            setIsSendingTestMessages(true);
+            console.log("Sending test messages to session:", sessionId);
+            
+            // Test user message
+            const userMessage = {
+                role: "user" as "user" | "assistant",
+                content: "This is a test user message",
+                emotions: { happiness: 0.8, neutral: 0.2 }
+            };
+            
+            console.log("Sending test user message:", JSON.stringify(userMessage, null, 2));
+            await addMessage({
+                sessionId: sessionId,
+                chatId: sessionId,
+                message: userMessage
+            });
+            
+            // Test assistant message
+            const assistantMessage = {
+                role: "assistant" as "user" | "assistant",
+                content: "This is a test assistant response",
+                emotions: undefined
+            };
+            
+            console.log("Sending test assistant message:", JSON.stringify(assistantMessage, null, 2));
+            await addMessage({
+                sessionId: sessionId,
+                chatId: sessionId,
+                message: assistantMessage
+            });
+            
+            toast({
+                title: "Success",
+                description: "Test messages sent. Refresh the page to see them.",
+            });
+            
+            // Refresh the page to show the new messages
+            router.refresh();
+        } catch (error) {
+            console.error("Error sending test messages:", error);
+            toast({
+                title: "Error",
+                description: "Failed to send test messages",
+                variant: "destructive"
+            });
+        } finally {
+            setIsSendingTestMessages(false);
+        }
+    };
 
     if (!session) {
         return (
@@ -28,55 +149,105 @@ export function ChatView({ sessionId }: ChatViewProps) {
         );
     }
 
+    // Always default to chat tab instead of start
+    const currentTab = searchParams?.get("tab") || "chat";
+
     return (
-        <div className="flex-1 flex flex-col">
-            <div className="border-b border-border p-4">
-                <h2 className="font-semibold">
-                    {session.title || "Chat Session"}
-                </h2>
-                <div className="text-sm text-muted-foreground">
-                    Started {formatDistanceToNow(session.createdAt, { addSuffix: true })}
-                </div>
-            </div>
+        <div className="flex-1 flex flex-col relative h-full">
+            {/* Background */}
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-indigo-50/30 dark:from-blue-950/10 dark:to-indigo-950/10" />
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]" />
             
-            <div ref={containerRef} className="flex-1 overflow-auto p-4 space-y-4">
-                {session.messages.map((message, index) => (
-                    <div
-                        key={index}
-                        className={`flex gap-3 ${
-                            message.role === "assistant" ? "flex-row" : "flex-row-reverse"
-                        }`}
-                    >
-                        <div className={`flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-md border ${
-                            message.role === "assistant" ? "bg-primary/10" : "bg-muted"
-                        }`}>
-                            {message.role === "assistant" ? (
-                                <Bot className="h-4 w-4" />
-                            ) : (
-                                <User className="h-4 w-4" />
-                            )}
+            {/* Content */}
+            <div className="relative z-10 flex-1 flex flex-col">
+                <Tabs defaultValue={currentTab} className="flex-1">
+                    <ChatNav />
+                    
+                    <TabsContent value="start" className="mt-0 h-[calc(100%-48px)]">
+                        <VoiceController />
+                        <StartConversationPanel />
+                    </TabsContent>
+                    
+                    <TabsContent value="progress" className="mt-0 h-[calc(100%-48px)] overflow-auto">
+                        <TherapyProgress />
+                    </TabsContent>
+                    
+                    <TabsContent value="chat" className="mt-0 h-[calc(100%-48px)] flex flex-col">
+                        {/* Header */}
+                        <div className="p-4 bg-gradient-to-r from-blue-50/30 to-indigo-50/30 dark:from-blue-950/10 dark:to-indigo-950/10 border-b flex justify-between items-center">
+                            <h1 className="text-lg font-medium">Chat with Sereni</h1>
+                            
+                            {/* Test Messages Button */}
+                            <button
+                                onClick={handleSendTestMessages}
+                                disabled={isSendingTestMessages}
+                                className="py-1 px-3 bg-red-500 hover:bg-red-600 text-white text-sm rounded-md disabled:opacity-50 transition-colors"
+                            >
+                                {isSendingTestMessages ? "Sending..." : "Test Messages"}
+                            </button>
                         </div>
-                        <div className={`flex flex-col gap-1 ${
-                            message.role === "assistant" ? "" : "items-end"
-                        }`}>
-                            <div className="rounded-lg bg-muted p-3 text-sm">
-                                {message.content}
+                        
+                        {accessToken ? (
+                            <div className="flex-1 flex flex-col">
+                                <HumeChat accessToken={accessToken} sessionId={sessionId} />
                             </div>
-                            {message.emotions && (
-                                <div className="text-xs text-muted-foreground px-1">
-                                    {Object.entries(message.emotions as Record<string, number>)
-                                        .sort(([, a], [, b]) => (b as number) - (a as number))
-                                        .slice(0, 3)
-                                        .map(([emotion, score]) => (
-                                            <span key={emotion} className="mr-2">
-                                                {emotion}: {((score as number) * 100).toFixed(0)}%
-                                            </span>
-                                        ))}
+                        ) : (
+                            <>
+                                {/* Messages */}
+                                <div ref={containerRef} className="flex-1 overflow-y-auto p-4">
+                                    {session?.messages?.map((msg, index) => {
+                                        return (
+                                            <div
+                                                key={index}
+                                                className={`mb-4 max-w-[80%] rounded-lg p-4 ${
+                                                    msg.role === "assistant" ? "ml-auto bg-blue-50 dark:bg-blue-950/50" : 
+                                                    "mr-auto bg-white dark:bg-gray-900/50"
+                                                }`}
+                                            >
+                                                <div className="flex items-start gap-2">
+                                                    {msg.role === "assistant" ? (
+                                                        <Bot className="mt-1 size-4 text-blue-500" />
+                                                    ) : (
+                                                        <User className="mt-1 size-4 text-gray-500" />
+                                                    )}
+                                                    <div>
+                                                        <p>{msg.content}</p>
+                                                        {msg.emotions && (
+                                                            <div className="mt-2 flex flex-wrap gap-1">
+                                                                {Object.entries(msg.emotions)
+                                                                    .sort(([, a], [, b]) => (b as number) - (a as number))
+                                                                    .slice(0, 3)
+                                                                    .map(([emotion, score]) => (
+                                                                        <span
+                                                                            key={emotion}
+                                                                            className="inline-flex items-center rounded-full bg-blue-50/50 dark:bg-blue-950/50 px-2 py-0.5 text-xs text-blue-600 dark:text-blue-400"
+                                                                        >
+                                                                            {emotion} ({Math.round((score as number) * 100)}%)
+                                                                        </span>
+                                                                    ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            )}
-                        </div>
-                    </div>
-                ))}
+                                
+                                {/* Controls */}
+                                <div className="p-4 bg-gradient-to-t from-card via-card/90 to-card/0">
+                                    <button
+                                        onClick={handleEndConversation}
+                                        disabled={isEndingConversation}
+                                        className="w-full py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-md disabled:opacity-50 transition-colors"
+                                    >
+                                        {isEndingConversation ? "Ending conversation..." : "End Conversation"}
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </TabsContent>
+                </Tabs>
             </div>
         </div>
     );

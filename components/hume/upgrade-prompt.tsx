@@ -1,18 +1,44 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sparkles, Clock, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { FeedbackForm } from './feedback-form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useRouter } from 'next/navigation';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import { cn } from '@/lib/utils';
+import { Check, Loader2 } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
 
 interface UpgradePromptProps {
   reason: string;
-  sessionId?: string;
+  chatId?: string;
 }
 
-export function UpgradePrompt({ reason, sessionId }: UpgradePromptProps) {
-  const [activeTab, setActiveTab] = useState<string>('upgrade');
+export function UpgradePrompt({ reason, chatId }: UpgradePromptProps) {
+  const router = useRouter();
+  const plans = useQuery(api.plans.getPlans);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('upgrade');
+  
+  const handleUpgrade = async () => {
+    setIsLoading(true);
+    try {
+      // Navigate to pricing page with chat ID in query params
+      router.push(`/pricing${chatId ? `?chatId=${chatId}` : ''}`);
+    } catch (error) {
+      console.error("Error navigating to pricing:", error);
+      toast({
+        title: "Error",
+        description: "Failed to navigate to pricing page. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   return (
     <div className="flex items-center justify-center w-full h-full min-h-[80vh]">
@@ -56,14 +82,23 @@ export function UpgradePrompt({ reason, sessionId }: UpgradePromptProps) {
             </CardContent>
             <CardFooter className="flex justify-center">
               <Link href="/pricing" className="w-full max-w-xs">
-                <Button className="w-full">View Pricing Plans</Button>
+                <Button className="w-full" onClick={handleUpgrade} disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Upgrading...
+                    </>
+                  ) : (
+                    "Upgrade Now"
+                  )}
+                </Button>
               </Link>
             </CardFooter>
           </TabsContent>
           
           <TabsContent value="feedback">
             <CardContent>
-              <FeedbackForm sessionId={sessionId} source="trial_end" />
+              <FeedbackForm sessionId={chatId} source="trial_end" />
             </CardContent>
           </TabsContent>
         </Tabs>

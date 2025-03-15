@@ -90,19 +90,37 @@ export default defineSchema({
         .index("polarEventId", ["polarEventId"]),
     chatHistory: defineTable({
         userId: v.string(),
-        sessionId: v.string(),
-        messages: v.array(v.object({
+        sessionId: v.optional(v.string()),
+        messages: v.optional(v.array(v.object({
             role: v.union(v.literal("user"), v.literal("assistant")),
             content: v.string(),
             timestamp: v.number(),
             emotions: v.optional(v.any()),
-        })),
+        }))),
+        events: v.optional(v.array(v.object({
+            type: v.string(),
+            role: v.string(),
+            messageText: v.string(),
+            timestamp: v.number(),
+            emotionFeatures: v.optional(v.string()),
+            chatId: v.string(),
+            chatGroupId: v.string(),
+        }))),
+        chatId: v.optional(v.string()),
+        chatGroupId: v.optional(v.string()),
         createdAt: v.number(),
         updatedAt: v.number(),
         title: v.optional(v.string()),
     })
         .index("by_user", ["userId"])
         .index("by_user_and_time", ["userId", "createdAt"]),
+    conversationSummaries: defineTable({
+        userId: v.string(),
+        summary: v.string(),
+        lastUpdated: v.number(),
+        sessionIds: v.array(v.string()),
+    })
+        .index("by_user", ["userId"]),
     feedback: defineTable({
         userId: v.optional(v.string()),
         tokenIdentifier: v.optional(v.string()),

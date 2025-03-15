@@ -1,13 +1,12 @@
 "use client";
 
-import { Hume } from "hume";
 import { expressionColors, isExpressionColor } from "@/lib/expression-colors";
 import { motion } from "framer-motion";
 import { CSSProperties } from "react";
 import * as R from "remeda";
 
 interface ExpressionsProps {
-  values: Hume.empathicVoice.EmotionScores | undefined;
+  values: Record<string, number> | undefined;
 }
 
 export function Expressions({ values }: ExpressionsProps) {

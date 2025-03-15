@@ -6,6 +6,9 @@ node_modules
 # Testing
 /coverage
 
+# Browser tools mcp
+/browser-tools-mcp
+
 # Next.js
 /.next/
 /out/

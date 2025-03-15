@@ -73,7 +73,7 @@ export function ChatHistory() {
                 <div className="flex-1 overflow-auto p-2 space-y-2">
                     {sessions?.map((session) => {
                         // Find the first user or assistant message to use as title
-                        const firstMessage = session.messages.find(
+                        const firstMessage = session.messages?.find(
                             msg => msg.role === "user" || msg.role === "assistant"
                         );
                         const title = session.title || 
@@ -83,7 +83,7 @@ export function ChatHistory() {
                         return (
                             <Link
                                 key={session._id}
-                                href={`/chat/${session.sessionId}`}
+                                href={`/chat/${session.sessionId}?tab=chat`}
                                 className={`group flex items-center gap-2 p-2 rounded-lg hover:bg-muted transition-colors ${
                                     params?.sessionId === session.sessionId ? "bg-muted" : ""
                                 }`}
@@ -94,7 +94,7 @@ export function ChatHistory() {
                                     <div className="text-xs text-muted-foreground">
                                         {formatDistanceToNow(session.updatedAt, { addSuffix: true })}
                                     </div>
-                                    {session.messages.length > 0 && (
+                                    {session.messages?.length > 0 && (
                                         <div className="text-xs text-muted-foreground mt-1">
                                             {session.messages.length} messages
                                         </div>

@@ -9,8 +9,13 @@ import { api } from "@/convex/_generated/api";
 import { useQuery } from "convex/react";
 import { UpgradePrompt } from "@/components/hume/upgrade-prompt";
 import { StartConversationPanel } from "@/components/hume/start-conversation-panel";
-import { VoiceProvider } from "@humeai/voice-react";
 import { VoiceController } from "@/components/hume/voice-controller";
+import { TherapyProgress } from "@/components/hume/therapy-progress";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { useSearchParams, useRouter } from "next/navigation";
+import { toast } from "@/components/ui/use-toast";
+import { ChatNav } from "@/components/hume/chat-nav";
+import type { ChatSession } from "@/lib/types";
 
 export default function ChatHistoryPage() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -20,8 +25,11 @@ export default function ChatHistoryPage() {
     reason?: string;
     limitType?: string;
   }>({ hasAccess: true });
+  const [isStarting, setIsStarting] = useState(false);
 
   const { userId } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   
   // Get the current user's plan status
   const user = useQuery(api.users.getUserByToken, 
@@ -36,6 +44,29 @@ export default function ChatHistoryPage() {
   
   // Get plan details
   const plans = useQuery(api.plans.getAllPlans);
+
+  const handleStartChat = async (session: ChatSession) => {
+    try {
+      setIsStarting(true);
+      
+      // Get a new access token
+      const response = await fetch("/api/hume/token");
+      const { accessToken } = await response.json();
+      setAccessToken(accessToken);
+      
+      // Navigate to the chat page
+      router.push(`/chat/${session.chatId}`);
+    } catch (error) {
+      console.error("Error starting chat:", error);
+      toast({
+        title: "Error",
+        description: "Failed to start chat. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsStarting(false);
+    }
+  };
 
   useEffect(() => {
     // Check if user has access based on plan limits
@@ -117,7 +148,7 @@ export default function ChatHistoryPage() {
         <div className="flex-1 flex items-center justify-center">
           <UpgradePrompt 
             reason={accessStatus.reason} 
-            sessionId={chatSessions && chatSessions.length > 0 ? chatSessions[0].sessionId : undefined} 
+            chatId={chatSessions && chatSessions.length > 0 ? chatSessions[0].chatId : undefined} 
           />
         </div>
       </div>
@@ -161,17 +192,20 @@ export default function ChatHistoryPage() {
         <ChatHistory />
       </Suspense>
       
-      {/* Wrap the StartConversationPanel in VoiceProvider */}
-      <VoiceProvider
-        auth={{ type: "accessToken", value: accessToken }}
-        configId={process.env.NEXT_PUBLIC_HUME_CONFIG_ID}
-        onMessage={(message) => {
-          console.log("Message received:", message);
-        }}
-      >
-        <VoiceController />
-        <StartConversationPanel />
-      </VoiceProvider>
+      <div className="flex-1 flex flex-col">
+        <Tabs defaultValue={searchParams?.get("tab") || "start"} className="flex-1">
+          <ChatNav />
+          
+          <TabsContent value="start" className="mt-0 h-[calc(100%-48px)]">
+            <VoiceController />
+            <StartConversationPanel />
+          </TabsContent>
+          
+          <TabsContent value="progress" className="mt-0 h-[calc(100%-48px)] overflow-auto">
+            <TherapyProgress />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 } 

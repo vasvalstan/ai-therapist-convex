@@ -5,14 +5,14 @@ import { Suspense } from "react";
 
 interface ChatPageProps {
   params: Promise<{
-    sessionId: string;
+    sessionId: string;  // This will be renamed to chatId in a future update
   }>;
 }
 
 export const dynamic = 'force-dynamic';
 
 export default async function ChatPage({ params }: ChatPageProps) {
-  const { sessionId } = await params;
+  const { sessionId } = await params;  // This is actually the chatId
   const accessToken = await getHumeAccessToken();
 
   if (!accessToken) {
@@ -27,7 +27,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
           Loading conversation...
         </div>
       }>
-        <ChatView sessionId={sessionId} />
+        <ChatView sessionId={sessionId} accessToken={accessToken} />
       </Suspense>
     </div>
   );

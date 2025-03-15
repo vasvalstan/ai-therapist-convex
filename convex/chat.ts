@@ -112,6 +112,51 @@ export const updateUserRemainingMinutes = mutation({
     },
 });
 
+// Add Message type definition
+interface Message {
+  role: "user" | "assistant" | "system";
+  content: string;
+  timestamp?: number;
+  emotions?: Record<string, unknown>;
+}
+
+// Add ChatEvent type to match Hume.ai's EVI
+export type ChatEvent = {
+  type: "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE";
+  role: "USER" | "ASSISTANT" | "SYSTEM";
+  messageText: string;
+  timestamp: number;
+  emotionFeatures?: string; // JSON stringified EmotionScores
+  chatId: string;
+  chatGroupId: string;
+};
+
+// Update the chat history table schema
+export interface ChatSession {
+  userId: string;
+  chatId: string;  // Previously sessionId
+  chatGroupId: string;  // New field to link related sessions
+  events: ChatEvent[];  // Store standardized events instead of custom messages
+  createdAt: number;
+  updatedAt: number;
+  title?: string;
+}
+
+// Helper to convert our Message type to ChatEvent
+function messageToEvent(message: Message, chatId: string, chatGroupId: string): ChatEvent {
+  return {
+    type: message.role.toUpperCase() === "USER" ? "USER_MESSAGE" : 
+          message.role.toUpperCase() === "ASSISTANT" ? "AGENT_MESSAGE" : "SYSTEM_MESSAGE",
+    role: message.role.toUpperCase() as "USER" | "ASSISTANT" | "SYSTEM",
+    messageText: message.content,
+    timestamp: message.timestamp || Date.now(),
+    emotionFeatures: message.emotions ? JSON.stringify(message.emotions) : undefined,
+    chatId,
+    chatGroupId
+  };
+}
+
+// Update createChatSession to handle chat groups
 export const createChatSession = mutation({
     args: {
         sessionId: v.optional(v.string()),
@@ -124,18 +169,10 @@ export const createChatSession = mutation({
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Authentication required");
+            throw new Error("Not authenticated");
         }
 
         const userId = identity.subject;
-        
-        // Check if user has access to chat
-        const accessCheck = await checkUserChatAccess(ctx, userId);
-        if (!accessCheck.hasAccess) {
-            console.log(`Access denied for user ${userId}: ${accessCheck.reason}`);
-            throw new Error(accessCheck.reason);
-        }
-        
         const newSessionId = args.sessionId ?? crypto.randomUUID();
 
         // Check if a session with this sessionId already exists
@@ -149,6 +186,8 @@ export const createChatSession = mutation({
             return {
                 id: existingSession._id,
                 sessionId: existingSession.sessionId,
+                // Also return chatId for backward compatibility
+                chatId: existingSession.sessionId,
             };
         }
 
@@ -164,20 +203,20 @@ export const createChatSession = mutation({
             updatedAt: Date.now(),
         });
 
-        console.log(`New chat session created for user ${userId}: ${newSessionId}`);
-        
         return {
             id,
             sessionId: newSessionId,
-            minutesRemaining: accessCheck.minutesRemaining,
-            maxSessionDurationMinutes: accessCheck.maxSessionDurationMinutes
+            // Also return chatId for backward compatibility
+            chatId: newSessionId,
         };
     },
 });
 
+// Update addMessageToSession to use events
 export const addMessageToSession = mutation({
     args: {
         sessionId: v.string(),
+        chatId: v.optional(v.string()), // Add optional chatId for backward compatibility
         message: v.object({
             role: v.union(v.literal("user"), v.literal("assistant")),
             content: v.string(),
@@ -187,23 +226,19 @@ export const addMessageToSession = mutation({
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            throw new Error("Authentication required");
+            throw new Error("Not authenticated");
         }
 
         const userId = identity.subject;
         
-        // Check if user has access to chat
-        const accessCheck = await checkUserChatAccess(ctx, userId);
-        if (!accessCheck.hasAccess) {
-            console.log(`Message denied for user ${userId}: ${accessCheck.reason}`);
-            throw new Error(accessCheck.reason);
-        }
+        // Use either chatId or sessionId (for backward compatibility)
+        const sessionIdentifier = args.chatId || args.sessionId;
 
         // Find the chat session
         const session = await ctx.db
             .query("chatHistory")
             .filter((q) => q.eq(q.field("userId"), userId))
-            .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
+            .filter((q) => q.eq(q.field("sessionId"), sessionIdentifier))
             .first();
 
         if (!session) {
@@ -211,7 +246,7 @@ export const addMessageToSession = mutation({
         }
 
         // Add the new message
-        const updatedMessages = [...session.messages, {
+        const updatedMessages = [...(session.messages || []), {
             ...args.message,
             timestamp: Date.now(),
         }];
@@ -222,13 +257,7 @@ export const addMessageToSession = mutation({
             updatedAt: Date.now(),
         });
 
-        console.log(`Message added to session ${args.sessionId} for user ${userId}`);
-        
-        return {
-            sessionId: session._id,
-            minutesRemaining: accessCheck.minutesRemaining,
-            maxSessionDurationMinutes: accessCheck.maxSessionDurationMinutes
-        };
+        return session._id;
     },
 });
 
@@ -241,16 +270,21 @@ export const getChatSessions = query({
 
         const userId = identity.subject;
 
-        return await ctx.db
+        const sessions = await ctx.db
             .query("chatHistory")
             .filter((q) => q.eq(q.field("userId"), userId))
             .order("desc")
             .collect();
+
+        return sessions;
     },
 });
 
 export const getChatSession = query({
-    args: { sessionId: v.string() },
+    args: { 
+        sessionId: v.string(),
+        chatId: v.optional(v.string()) // Add optional chatId for backward compatibility
+    },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
@@ -258,12 +292,21 @@ export const getChatSession = query({
         }
 
         const userId = identity.subject;
+        
+        // Use either chatId or sessionId (for backward compatibility)
+        const sessionIdentifier = args.chatId || args.sessionId;
 
-        return await ctx.db
+        const session = await ctx.db
             .query("chatHistory")
             .filter((q) => q.eq(q.field("userId"), userId))
-            .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
+            .filter((q) => q.eq(q.field("sessionId"), sessionIdentifier))
             .first();
+
+        if (!session) {
+            throw new Error("Chat session not found");
+        }
+
+        return session;
     },
 });
 
@@ -276,16 +319,19 @@ export const deleteChat = mutation({
         }
 
         const userId = identity.subject;
-        const chat = await ctx.db.get(args.id);
 
+        // Get the chat to verify ownership
+        const chat = await ctx.db.get(args.id);
         if (!chat) {
             throw new Error("Chat not found");
         }
 
+        // Verify the user owns this chat
         if (chat.userId !== userId) {
-            throw new Error("Not authorized");
+            throw new Error("Not authorized to delete this chat");
         }
 
+        // Delete the chat
         await ctx.db.delete(args.id);
         return true;
     },
@@ -303,20 +349,23 @@ export const renameChat = mutation({
         }
 
         const userId = identity.subject;
-        const chat = await ctx.db.get(args.id);
 
+        // Get the chat to verify ownership
+        const chat = await ctx.db.get(args.id);
         if (!chat) {
             throw new Error("Chat not found");
         }
 
+        // Verify the user owns this chat
         if (chat.userId !== userId) {
-            throw new Error("Not authorized");
+            throw new Error("Not authorized to rename this chat");
         }
 
+        // Update the chat title
         await ctx.db.patch(args.id, {
             title: args.title
         });
-
+        
         return true;
     },
 });
@@ -377,4 +426,46 @@ export const adminCleanupEmptySessions = mutation({
         
         return `Deleted ${deletedCount} empty sessions`;
     },
+});
+
+export const updateHumeChatIds = mutation({
+  args: { 
+    chatId: v.string(), 
+    humeChatId: v.string(), 
+    humeGroupChatId: v.string() 
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userId = identity.subject;
+
+    // Find the chat session - use sessionId instead of chatId to match the database schema
+    const chatSession = await ctx.db
+      .query("chatHistory")
+      .filter((q) => q.eq(q.field("userId"), userId))
+      .filter((q) => q.eq(q.field("sessionId"), args.chatId))
+      .first();
+
+    if (!chatSession) {
+      throw new Error("Chat session not found");
+    }
+
+    // Update the chat session with Hume's IDs
+    // Store these as custom fields since they're not in the schema
+    const metadata = {
+      humeChatId: args.humeChatId,
+      humeGroupChatId: args.humeGroupChatId
+    };
+    
+    await ctx.db.patch(chatSession._id, {
+      // Store metadata in the title field temporarily
+      title: JSON.stringify(metadata),
+      updatedAt: Date.now(),
+    });
+
+    return { success: true };
+  },
 }); 

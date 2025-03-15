@@ -1,0 +1,27 @@
+{
+  "id": "f677a372-f465-4db6-a09d-3fb1a9509ff2",
+  "first_start_timestamp": 1741805246568,
+  "most_recent_start_timestamp": 1741805246568,
+  "is_active": false,
+  "num_chats": 1,
+  "page_number": 0,
+  "page_size": 10,
+  "total_pages": 1,
+  "pagination_direction": "ASC",
+  "chats_page": [
+    {
+      "id": "cba0b61a-b6d9-40b5-a403-49a50ec84b9e",
+      "chat_group_id": "f677a372-f465-4db6-a09d-3fb1a9509ff2",
+      "tag": null,
+      "status": "USER_ENDED",
+      "start_timestamp": 1741805246568,
+      "end_timestamp": 1741805309238,
+      "event_count": 9,
+      "metadata": null,
+      "config": {
+        "id": "3c38e3e5-3b4c-4e9e-80e8-e849f65408c1",
+        "version": 30
+      }
+    }
+  ]
+}

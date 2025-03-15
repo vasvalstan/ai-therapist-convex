@@ -2,18 +2,50 @@
 
 import { useVoice } from "@humeai/voice-react";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Sparkles, Clock, Shield } from "lucide-react";
+import { MessageCircle, Sparkles, Clock, Shield, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@clerk/nextjs";
-import { Messages } from "./messages";
 import { Controls } from "./controls";
-import { useRef } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { toast } from "@/components/ui/use-toast";
+import { useState, useEffect } from "react";
 
 export function StartConversationPanel() {
   const { status, connect } = useVoice();
-  const messagesRef = useRef(null);
+  const router = useRouter();
+  const createSession = useMutation(api.chat.createChatSession);
+  const [isStarting, setIsStarting] = useState(false);
+  const { isSignedIn } = useAuth();
+  const [pendingChatId, setPendingChatId] = useState<string | null>(null);
+  const pathname = usePathname();
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
+  
+  // Check if we're already on a specific chat page
+  const isOnSpecificChatPage = pathname && pathname !== "/chat/history" && pathname.startsWith("/chat/");
+  
+  // Watch for voice connection status changes
+  useEffect(() => {
+    if (status.value === "connected" && pendingChatId) {
+      // Wait a bit to ensure connection is stable
+      const timer = setTimeout(() => {
+        console.log("Voice connection stable, navigating to chat:", pendingChatId);
+        // Navigate directly to the chat tab to avoid intermediate screens
+        router.push(`/chat/${pendingChatId}?tab=chat`);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+    
+    // Reset states if connection is lost
+    if (status.value === "disconnected") {
+      console.log("Voice connection lost, resetting state");
+      setPendingChatId(null);
+      setIsStarting(false);
+    }
+  }, [status.value, pendingChatId, router]);
   
   // Get user details to show plan information
   const userInfo = useQuery(api.users.getUser);
@@ -29,124 +61,173 @@ export function StartConversationPanel() {
   const userPlan = allPlans?.find(plan => plan.key === userDetails?.currentPlanKey) || 
                    allPlans?.find(plan => plan.key === "free");
   
-  const isFreePlan = userDetails?.currentPlanKey === "free";
-  
-  // If already connected, show the chat interface
-  if (status.value === "connected") {
-    return (
-      <div className="flex-1 flex flex-col relative h-full">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-indigo-50/30 dark:from-blue-950/10 dark:to-indigo-950/10" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]" />
+  const handleStartConversation = async () => {
+    if (!isSignedIn) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to start a conversation.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // If we're already on a specific chat page, don't create a new session
+    if (isOnSpecificChatPage) {
+      toast({
+        title: "Chat already in progress",
+        description: "You already have an active chat session.",
+      });
+      return;
+    }
+    
+    try {
+      setIsStarting(true);
+      
+      // First create the chat session with initial greeting
+      console.log("Creating new chat session...");
+      const result = await createSession({
+        initialMessage: {
+          role: "assistant",
+          content: "Hi, I'm Sereni, your AI therapist. I'm here to listen and help you process your thoughts and feelings. What's on your mind today?",
+        }
+      });
+      
+      console.log("Create session result:", result);
+      
+      if (!result) {
+        throw new Error("Failed to create chat session: No result returned");
+      }
+      
+      // Handle both sessionId and chatId for backward compatibility
+      // Use type assertion to avoid TypeScript errors
+      const anyResult = result as any;
+      const sessionIdentifier = anyResult.sessionId || anyResult.chatId;
+      
+      if (!sessionIdentifier) {
+        console.error("Session creation response:", JSON.stringify(result));
+        throw new Error("Failed to create chat session: No session identifier in response");
+      }
+      
+      // Reset retry count on success
+      setRetryCount(0);
+      
+      console.log("Chat session created:", sessionIdentifier);
+      setPendingChatId(sessionIdentifier);
+      
+      // Then connect to voice
+      console.log("Connecting to voice service...");
+      if (connect) {
+        await connect();
+        console.log("Voice connection initiated");
         
-        <div className="relative z-10 flex-1 flex flex-col">
-          <Messages ref={messagesRef} />
-          <div className="p-4">
-            <Controls />
-          </div>
+        // Navigate directly to the chat page with the chat tab selected
+        // This bypasses the intermediate screen
+        console.log("Navigating directly to chat page:", sessionIdentifier);
+        router.push(`/chat/${sessionIdentifier}?tab=chat`);
+      } else {
+        throw new Error("Voice service not available");
+      }
+    } catch (error) {
+      console.error("Failed to start conversation:", error);
+      // Provide more detailed error information
+      let errorMessage = "Failed to start conversation";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        console.error("Error stack:", error.stack);
+      }
+      
+      // Implement retry logic
+      if (retryCount < MAX_RETRIES) {
+        setRetryCount(prev => prev + 1);
+        console.log(`Retrying... Attempt ${retryCount + 1} of ${MAX_RETRIES}`);
+        
+        // Wait a moment before retrying
+        setTimeout(() => {
+          handleStartConversation();
+        }, 1000);
+        
+        toast({
+          title: "Retrying...",
+          description: `Connection attempt ${retryCount + 1} of ${MAX_RETRIES}`,
+        });
+        return;
+      }
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      setIsStarting(false);
+      setPendingChatId(null);
+      setRetryCount(0);
+    }
+  };
+  
+  return (
+    <div className="flex flex-col items-center justify-center gap-8 p-8">
+      {/* Plan information */}
+      <div className="text-center space-y-4">
+        <h1 className="text-4xl font-bold tracking-tight">
+          Welcome to Sereni
+        </h1>
+        <p className="text-xl text-muted-foreground max-w-[600px] mx-auto">
+          Your AI therapist, ready to listen and help you process your thoughts and feelings.
+        </p>
+      </div>
+      
+      {/* Plan features */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-[900px] w-full">
+        <div className="flex flex-col items-center gap-2 p-6 rounded-lg border bg-card text-card-foreground">
+          <MessageCircle className="size-8 text-blue-500" />
+          <h3 className="font-medium">Natural Conversation</h3>
+          <p className="text-sm text-center text-muted-foreground">
+            Have a natural voice conversation with an empathetic AI therapist
+          </p>
+        </div>
+        
+        <div className="flex flex-col items-center gap-2 p-6 rounded-lg border bg-card text-card-foreground">
+          <Sparkles className="size-8 text-blue-500" />
+          <h3 className="font-medium">Emotion Analysis</h3>
+          <p className="text-sm text-center text-muted-foreground">
+            Get insights into your emotional state during conversations
+          </p>
+        </div>
+        
+        <div className="flex flex-col items-center gap-2 p-6 rounded-lg border bg-card text-card-foreground">
+          <Shield className="size-8 text-blue-500" />
+          <h3 className="font-medium">Private & Secure</h3>
+          <p className="text-sm text-center text-muted-foreground">
+            Your conversations are private and encrypted
+          </p>
         </div>
       </div>
-    );
-  }
-
-  return (
-    <div className="flex-1 flex items-center justify-center relative overflow-hidden">
-      {/* Background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20" />
       
-      {/* Background pattern */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]" />
-      
-      {/* Animated gradient orb */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-64 h-64 rounded-full bg-blue-400/10 dark:bg-blue-400/5 blur-3xl animate-pulse" />
-      
-      <motion.div
-        className="flex flex-col gap-8 items-center max-w-md p-8 rounded-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border border-border shadow-sm z-10"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <motion.div 
-          className="text-center space-y-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
+      {/* Start conversation button */}
+      <div className="flex flex-col items-center gap-4">
+        <Button
+          size="lg"
+          onClick={handleStartConversation}
+          disabled={isStarting || !isSignedIn || status.value === "connecting"}
+          className="min-w-[200px]"
         >
-          <h2 className="text-2xl font-semibold">Start a New Conversation</h2>
-          <p className="text-muted-foreground">
-            Begin a new therapy session with our AI assistant
+          {isStarting ? (
+            <>
+              <Loader2 className="mr-2 size-4 animate-spin" />
+              {status.value === "connecting" ? "Connecting..." : "Starting..."}
+            </>
+          ) : (
+            "Start a conversation"
+          )}
+        </Button>
+        
+        {userDetails?.currentPlanKey === "free" && (
+          <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+            <Clock className="size-4" />
+            {userPlan?.maxSessionDurationMinutes} minutes per session on Free plan
           </p>
-        </motion.div>
-        
-        {/* Plan information */}
-        {userPlan && (
-          <motion.div 
-            className="w-full p-4 rounded-lg bg-white dark:bg-gray-800 border border-border"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="h-4 w-4 text-blue-500" />
-              <span className="font-medium">{userPlan.name}</span>
-            </div>
-            
-            <div className="space-y-2 text-sm text-muted-foreground">
-              {isFreePlan ? (
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-green-500" />
-                  <span>Unlimited time available</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-blue-500" />
-                  <span>{userDetails?.minutesRemaining || 0} minutes remaining</span>
-                </div>
-              )}
-              
-              {userPlan.maxSessionDurationMinutes && !isFreePlan && (
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-blue-500" />
-                  <span>Up to {userPlan.maxSessionDurationMinutes} min per session</span>
-                </div>
-              )}
-            </div>
-          </motion.div>
         )}
-        
-        <motion.div 
-          className="w-full max-w-xs"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.5 }}
-        >
-          <Button
-            className="w-full flex items-center gap-2 py-6 bg-blue-600 hover:bg-blue-500"
-            size="lg"
-            onClick={() => {
-              connect()
-                .then(() => {})
-                .catch(() => {})
-                .finally(() => {});
-            }}
-          >
-            <MessageCircle className="size-5" />
-            <span className="text-base">Start conversation</span>
-          </Button>
-        </motion.div>
-        
-        <motion.div 
-          className="text-sm text-muted-foreground text-center space-y-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5, duration: 0.5 }}
-        >
-          <div className="flex items-center justify-center gap-1">
-            <Shield className="h-3 w-3" />
-            <p>Your conversations are private and secure</p>
-          </div>
-          <p>Sessions are saved automatically to your history</p>
-        </motion.div>
-      </motion.div>
+      </div>
     </div>
   );
 } 
