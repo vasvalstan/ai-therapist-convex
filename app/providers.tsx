@@ -12,7 +12,20 @@ import { useEffect, useState } from "react";
 
 // Move client initialization to a client component
 function ConvexClientProvider({ children }: { children: React.ReactNode }) {
-  const [client] = useState(() => new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!));
+  const [client] = useState(() => {
+    // Make sure we have a valid URL
+    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL || "https://vivid-warthog-65.convex.cloud";
+    
+    // Validate URL format
+    try {
+      new URL(convexUrl); // This will throw if invalid
+      return new ConvexReactClient(convexUrl);
+    } catch (error) {
+      console.error("Invalid Convex URL:", error);
+      // Fallback to hardcoded URL
+      return new ConvexReactClient("https://vivid-warthog-65.convex.cloud");
+    }
+  });
 
   return (
     <ConvexProviderWithClerk client={client} useAuth={useAuth}>
@@ -45,10 +58,13 @@ function VoiceWrapper({ children }: { children: React.ReactNode }) {
     return children;
   }
 
+  // Ensure the configId is properly set
+  const configId = process.env.NEXT_PUBLIC_HUME_CONFIG_ID || "3c38e3e5-3b4c-4e9e-80e8-e849f65408c1";
+
   return (
     <VoiceProvider
       auth={{ type: "accessToken", value: accessToken }}
-      configId={process.env.NEXT_PUBLIC_HUME_CONFIG_ID}
+      configId={configId}
     >
       {children}
     </VoiceProvider>
@@ -56,8 +72,11 @@ function VoiceWrapper({ children }: { children: React.ReactNode }) {
 }
 
 export default function Providers({ children }: { children: React.ReactNode }) {
+  // Ensure the publishable key is properly set
+  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "pk_test_YWxlcnQta2FuZ2Fyb28tMjEuY2xlcmsuYWNjb3VudHMuZGV2JA";
+  
   return (
-    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+    <ClerkProvider publishableKey={publishableKey}>
       <ConvexClientProvider>
         <ThemeProvider
           attribute="class"
