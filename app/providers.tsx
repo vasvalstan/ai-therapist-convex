@@ -13,17 +13,34 @@ import { useEffect, useState } from "react";
 // Move client initialization to a client component
 function ConvexClientProvider({ children }: { children: React.ReactNode }) {
   const [client] = useState(() => {
-    // Make sure we have a valid URL
-    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL || "https://vivid-warthog-65.convex.cloud";
+    // Hardcoded fallback URL - this is guaranteed to be valid
+    const fallbackUrl = "https://vivid-warthog-65.convex.cloud";
     
-    // Validate URL format
+    // Try to get the URL from environment variables
+    let convexUrl = typeof process !== 'undefined' && 
+                   process.env && 
+                   process.env.NEXT_PUBLIC_CONVEX_URL;
+    
+    // If the URL is not defined or empty, use the fallback
+    if (!convexUrl || convexUrl.trim() === '') {
+      console.warn("NEXT_PUBLIC_CONVEX_URL is not defined, using fallback URL");
+      convexUrl = fallbackUrl;
+    }
+    
+    // Ensure the URL has a protocol
+    if (!convexUrl.startsWith('http://') && !convexUrl.startsWith('https://')) {
+      console.warn("NEXT_PUBLIC_CONVEX_URL does not have a protocol, adding https://");
+      convexUrl = 'https://' + convexUrl;
+    }
+    
     try {
-      new URL(convexUrl); // This will throw if invalid
+      // Final validation
+      new URL(convexUrl);
       return new ConvexReactClient(convexUrl);
     } catch (error) {
       console.error("Invalid Convex URL:", error);
-      // Fallback to hardcoded URL
-      return new ConvexReactClient("https://vivid-warthog-65.convex.cloud");
+      // If all else fails, use the hardcoded fallback
+      return new ConvexReactClient(fallbackUrl);
     }
   });
 
@@ -59,7 +76,18 @@ function VoiceWrapper({ children }: { children: React.ReactNode }) {
   }
 
   // Ensure the configId is properly set
-  const configId = process.env.NEXT_PUBLIC_HUME_CONFIG_ID || "3c38e3e5-3b4c-4e9e-80e8-e849f65408c1";
+  const fallbackConfigId = "3c38e3e5-3b4c-4e9e-80e8-e849f65408c1";
+  
+  // Try to get the config ID from environment variables
+  let configId = typeof process !== 'undefined' && 
+                process.env && 
+                process.env.NEXT_PUBLIC_HUME_CONFIG_ID;
+  
+  // If the config ID is not defined or empty, use the fallback
+  if (!configId || configId.trim() === '') {
+    console.warn("NEXT_PUBLIC_HUME_CONFIG_ID is not defined, using fallback config ID");
+    configId = fallbackConfigId;
+  }
 
   return (
     <VoiceProvider
@@ -73,7 +101,18 @@ function VoiceWrapper({ children }: { children: React.ReactNode }) {
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   // Ensure the publishable key is properly set
-  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "pk_test_YWxlcnQta2FuZ2Fyb28tMjEuY2xlcmsuYWNjb3VudHMuZGV2JA";
+  const fallbackKey = "pk_test_YWxlcnQta2FuZ2Fyb28tMjEuY2xlcmsuYWNjb3VudHMuZGV2JA";
+  
+  // Try to get the key from environment variables
+  let publishableKey = typeof process !== 'undefined' && 
+                      process.env && 
+                      process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  
+  // If the key is not defined or empty, use the fallback
+  if (!publishableKey || publishableKey.trim() === '') {
+    console.warn("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is not defined, using fallback key");
+    publishableKey = fallbackKey;
+  }
   
   return (
     <ClerkProvider publishableKey={publishableKey}>
