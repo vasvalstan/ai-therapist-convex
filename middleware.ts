@@ -37,9 +37,30 @@ export default clerkMiddleware(async (auth, req) => {
   // For all other routes, require authentication
   const { userId } = await auth();
   if (!userId) {
-    const signInUrl = new URL('/sign-in', req.nextUrl.origin);
-    signInUrl.searchParams.set('redirect_url', path);
-    return NextResponse.redirect(signInUrl);
+    try {
+      // Get the base URL from environment variables or request
+      const baseUrl = process.env.FRONTEND_URL || process.env.FRONTEND_URL_DEV || req.nextUrl.origin;
+      
+      // Ensure we have a valid base URL
+      if (!baseUrl) {
+        throw new Error('No valid base URL found');
+      }
+      
+      // Create the sign-in URL using the base URL
+      const signInUrl = new URL('/sign-in', baseUrl);
+      
+      // Add the current path as a redirect URL
+      if (path) {
+        signInUrl.searchParams.set('redirect_url', path);
+      }
+      
+      // Create the response with the absolute URL
+      return NextResponse.redirect(signInUrl.toString());
+    } catch (error) {
+      console.error('Error creating redirect URL:', error);
+      // Fallback to a simple redirect if URL construction fails
+      return NextResponse.redirect('/sign-in');
+    }
   }
 
   return NextResponse.next();
