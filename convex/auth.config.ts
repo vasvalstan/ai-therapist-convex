@@ -1,7 +1,7 @@
 export default {
   providers: [
     {
-      domain: process.env.CLERK_SIGNING_KEY,
+      domain: "https://alert-kangaroo-21.clerk.accounts.dev",
       applicationID: "convex",
     },
   ]

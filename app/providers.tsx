@@ -17,9 +17,7 @@ function ConvexClientProvider({ children }: { children: React.ReactNode }) {
     const fallbackUrl = "https://vivid-warthog-65.convex.cloud";
     
     // Try to get the URL from environment variables
-    let convexUrl = typeof process !== 'undefined' && 
-                   process.env && 
-                   process.env.NEXT_PUBLIC_CONVEX_URL;
+    let convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL || '';
     
     // If the URL is not defined or empty, use the fallback
     if (!convexUrl || convexUrl.trim() === '') {
@@ -36,10 +34,12 @@ function ConvexClientProvider({ children }: { children: React.ReactNode }) {
     try {
       // Final validation
       new URL(convexUrl);
+      console.log("Using Convex URL:", convexUrl);
       return new ConvexReactClient(convexUrl);
     } catch (error) {
       console.error("Invalid Convex URL:", error);
       // If all else fails, use the hardcoded fallback
+      console.log("Falling back to hardcoded URL:", fallbackUrl);
       return new ConvexReactClient(fallbackUrl);
     }
   });

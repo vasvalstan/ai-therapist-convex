@@ -7,6 +7,7 @@ const publicRoutes = createRouteMatcher([
   '/sign-up(.*)',
   '/api/webhooks(.*)', // Allow webhook endpoints
   '/api/hume/token(.*)', // Allow Hume token endpoint
+  '/_vercel/insights/script.js', // Allow Vercel Analytics script
   '/blog(.*)', // If you have a public blog
   '/privacy(.*)', // Privacy policy
   '/terms(.*)', // Terms of service
@@ -15,6 +16,11 @@ const publicRoutes = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
+  // Always allow Vercel Analytics
+  if (req.nextUrl.pathname.startsWith('/_vercel/insights')) {
+    return NextResponse.next();
+  }
+
   if (publicRoutes(req)) {
     return NextResponse.next();
   }
