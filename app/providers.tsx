@@ -114,6 +114,24 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     publishableKey = fallbackKey;
   }
   
+  // Ensure we have a valid publishable key
+  if (!publishableKey) {
+    console.error("No valid Clerk publishable key available");
+    // Provide a fallback UI when no key is available
+    return (
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+      >
+        {children}
+        <Toaster />
+        <Analytics />
+      </ThemeProvider>
+    );
+  }
+  
   return (
     <ClerkProvider publishableKey={publishableKey}>
       <ConvexClientProvider>

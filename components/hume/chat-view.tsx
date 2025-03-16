@@ -26,9 +26,20 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
     
     const session = useQuery(api.chat.getChatSession, { sessionId });
     const containerRef = useRef<HTMLDivElement>(null);
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const pathname = usePathname();
+    
+    // Safely initialize router hooks with error handling
+    let router: ReturnType<typeof useRouter> | undefined;
+    let searchParams: ReturnType<typeof useSearchParams> | undefined;
+    let pathname: string | undefined;
+    try {
+        router = useRouter();
+        searchParams = useSearchParams();
+        pathname = usePathname();
+    } catch (error) {
+        console.error("Error initializing Next.js navigation hooks:", error);
+        // Continue without router functionality
+    }
+    
     const [isEndingConversation, setIsEndingConversation] = useState(false);
     const [isSendingTestMessages, setIsSendingTestMessages] = useState(false);
     
@@ -54,33 +65,22 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
     useEffect(() => {
         // Only redirect if no tab is specified - don't override an explicit tab=chat
         if (!searchParams?.get("tab")) {
-            router.push(`${pathname}?tab=chat`);
+            router?.push(`${pathname}?tab=chat`);
         }
     }, [pathname, router, searchParams]);
 
     const handleEndConversation = async () => {
         if (!sessionId) return;
         
+        setIsEndingConversation(true);
         try {
-            setIsEndingConversation(true);
-            
-            // Call the mutation to end conversation and generate summary
-            await endConversationAndSummarize({ sessionId });
-            
-            toast({
-                title: "Conversation ended",
-                description: "Your conversation is being summarized. View your progress in the Therapy Progress tab.",
-            });
-            
-            // Redirect to chat history and select the progress tab
-            router.push("/chat/history?tab=progress");
+            const result = await endConversationAndSummarize({ sessionId });
+            if (result?.success) {
+                // Use optional chaining for router
+                router?.push('/chat/history');
+            }
         } catch (error) {
             console.error("Error ending conversation:", error);
-            toast({
-                title: "Error",
-                description: "Failed to end conversation. Please try again.",
-                variant: "destructive",
-            });
         } finally {
             setIsEndingConversation(false);
         }
@@ -128,7 +128,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
             });
             
             // Refresh the page to show the new messages
-            router.refresh();
+            router?.refresh();
         } catch (error) {
             console.error("Error sending test messages:", error);
             toast({
