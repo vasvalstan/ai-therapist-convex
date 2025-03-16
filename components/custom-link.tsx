@@ -1,6 +1,6 @@
 "use client";
 
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 interface CustomLinkProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -14,9 +14,11 @@ export default function CustomLink({
   className,
   ...props
 }: CustomLinkProps) {
+  const router = useRouter();
+  
   return (
     <div
-      onMouseDown={() => redirect(href)}
+      onMouseDown={() => router.push(href)}
       className={cn("hover:cursor-pointer", className)}
       {...props}
     >
