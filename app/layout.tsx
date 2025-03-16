@@ -1,7 +1,7 @@
 import { Analytics } from "@vercel/analytics/react";
 import { GeistSans } from "geist/font/sans";
 import type { Metadata } from "next";
-import Providers from "./providers";
+import ClientProviders from "./client-providers";
 import "./globals.css";
 
 export const runtime = 'nodejs';
@@ -41,9 +41,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={GeistSans.className}>
-      <body suppressHydrationWarning>
-        <Providers>{children}</Providers>
+    <html lang="en" suppressHydrationWarning>
+      <body className={GeistSans.className}>
+        <ClientProviders>{children}</ClientProviders>
         <Analytics />
       </body>
     </html>
