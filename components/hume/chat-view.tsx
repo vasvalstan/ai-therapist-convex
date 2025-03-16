@@ -27,21 +27,14 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
     const session = useQuery(api.chat.getChatSession, { sessionId });
     const containerRef = useRef<HTMLDivElement>(null);
     
-    // Safely initialize router hooks with error handling
-    let router: ReturnType<typeof useRouter> | undefined;
-    let searchParams: ReturnType<typeof useSearchParams> | undefined;
-    let pathname: string | undefined;
-    try {
-        router = useRouter();
-        searchParams = useSearchParams();
-        pathname = usePathname();
-    } catch (error) {
-        console.error("Error initializing Next.js navigation hooks:", error);
-        // Continue without router functionality
-    }
+    // Always initialize hooks at the top level, even if we might not use them
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
     
     const [isEndingConversation, setIsEndingConversation] = useState(false);
     const [isSendingTestMessages, setIsSendingTestMessages] = useState(false);
+    const [routerError, setRouterError] = useState(false);
     
     // Add the mutation for ending conversation and generating summary
     const endConversationAndSummarize = useMutation(api.summary.endConversationAndSummarize);
@@ -55,20 +48,33 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
         timestamp: msg.timestamp,
     })) || [];
 
+    // Safe navigation function that handles potential router errors
+    const safeNavigate = (path: string) => {
+        try {
+            router.push(path);
+        } catch (error) {
+            console.error("Navigation error:", error);
+            setRouterError(true);
+        }
+    };
+
     useEffect(() => {
         if (containerRef.current) {
             containerRef.current.scrollTop = containerRef.current.scrollHeight;
         }
-    }, [messages]);
-    
-    // Ensure we default to the chat tab when viewing a specific chat
-    useEffect(() => {
+        
         // Only redirect if no tab is specified - don't override an explicit tab=chat
-        if (!searchParams?.get("tab")) {
-            router?.push(`${pathname}?tab=chat`);
+        try {
+            if (!searchParams.get("tab")) {
+                router.push(`${pathname}?tab=chat`);
+            }
+        } catch (error) {
+            console.error("Error during navigation:", error);
+            setRouterError(true);
         }
     }, [pathname, router, searchParams]);
 
+    // Handle ending the conversation
     const handleEndConversation = async () => {
         if (!sessionId) return;
         
@@ -76,8 +82,12 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
         try {
             const result = await endConversationAndSummarize({ sessionId });
             if (result?.success) {
-                // Use optional chaining for router
-                router?.push('/chat/history');
+                try {
+                    router.push('/chat/history');
+                } catch (error) {
+                    console.error("Navigation error:", error);
+                    setRouterError(true);
+                }
             }
         } catch (error) {
             console.error("Error ending conversation:", error);
@@ -128,7 +138,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
             });
             
             // Refresh the page to show the new messages
-            router?.refresh();
+            router.refresh();
         } catch (error) {
             console.error("Error sending test messages:", error);
             toast({
