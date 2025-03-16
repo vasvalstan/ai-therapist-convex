@@ -1,5 +1,6 @@
 import { clerkMiddleware } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
 // Set runtime to nodejs
 export const runtime = 'nodejs';
@@ -26,8 +27,8 @@ const isPublic = (path: string) => {
 // This example protects all routes including api/trpc routes
 // Please edit this to allow other routes to be public as needed.
 // See https://clerk.com/docs/references/nextjs/auth-middleware for more information about configuring your middleware
-export default clerkMiddleware(async (auth, req) => {
-  const path = req.nextUrl.pathname;
+export default clerkMiddleware(async (auth, request: NextRequest) => {
+  const path = request.nextUrl.pathname;
   
   // If the path is public, let the request through
   if (isPublic(path)) {
@@ -38,28 +39,18 @@ export default clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();
   if (!userId) {
     try {
-      // Get the base URL from environment variables or request
-      const baseUrl = process.env.FRONTEND_URL || process.env.FRONTEND_URL_DEV || req.nextUrl.origin;
+      // Clone the URL and modify it for the redirect
+      const signInUrl = request.nextUrl.clone();
+      signInUrl.pathname = '/sign-in';
+      signInUrl.searchParams.set('redirect_url', path);
       
-      // Ensure we have a valid base URL
-      if (!baseUrl) {
-        throw new Error('No valid base URL found');
-      }
-      
-      // Create the sign-in URL using the base URL
-      const signInUrl = new URL('/sign-in', baseUrl);
-      
-      // Add the current path as a redirect URL
-      if (path) {
-        signInUrl.searchParams.set('redirect_url', path);
-      }
-      
-      // Create the response with the absolute URL
-      return NextResponse.redirect(signInUrl.toString());
+      // Return the redirect response with the absolute URL
+      return NextResponse.redirect(signInUrl);
     } catch (error) {
       console.error('Error creating redirect URL:', error);
-      // Fallback to a simple redirect if URL construction fails
-      return NextResponse.redirect('/sign-in');
+      // Fallback to a simple redirect using the original URL as base
+      const fallbackUrl = new URL('/sign-in', request.url);
+      return NextResponse.redirect(fallbackUrl);
     }
   }
 
