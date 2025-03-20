@@ -47,9 +47,11 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     
     // If not authenticated, redirect to sign-in
     if (!session) {
-      const signInUrl = new URL('/sign-in', req.url);
-      signInUrl.searchParams.set('redirect_url', path);
-      return NextResponse.redirect(signInUrl);
+      // Use FRONTEND_URL for production or fallback to request origin
+      const baseUrl = process.env.FRONTEND_URL || req.nextUrl.origin;
+      const signInUrl = new URL('/sign-in', baseUrl);
+      signInUrl.searchParams.set('redirect_url', req.nextUrl.href); // Use full URL for redirect
+      return NextResponse.redirect(signInUrl.href);
     }
 
     try {
@@ -66,9 +68,10 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
                                  path.startsWith('/playground');
       
       if (requiresSubscription && !hasActiveSubscription) {
-        // Redirect to pricing page if no active subscription
-        const pricingUrl = new URL('/pricing', req.nextUrl.origin);
-        return NextResponse.redirect(pricingUrl);
+        // Use FRONTEND_URL for production or fallback to request origin
+        const baseUrl = process.env.FRONTEND_URL || req.nextUrl.origin;
+        const pricingUrl = new URL('/pricing', baseUrl);
+        return NextResponse.redirect(pricingUrl.href);
       }
     } catch (error) {
       console.error('Error checking subscription:', error);
