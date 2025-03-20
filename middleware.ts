@@ -1,21 +1,30 @@
-import { clerkMiddleware } from '@clerk/nextjs/server';
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { fetchQuery } from 'convex/nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { api } from './convex/_generated/api';
 
-// Set runtime to nodejs
-export const runtime = 'nodejs';
+// Define protected routes that require authentication and subscription
+const isProtectedRoute = createRouteMatcher([
+  '/dashboard(.*)',
+  '/chat(.*)',
+  '/playground(.*)',
+  '/api/hume/:path*', // Protect all Hume API routes
+]);
 
+// Define public routes that don't require authentication
 const publicPaths = [
   '/',
   '/sign-in*',
   '/sign-up*',
-  '/api/webhooks*', // Allow webhook endpoints
-  '/api/hume/token*', // Allow Hume token endpoint
-  '/blog*', // If you have a public blog
-  '/privacy*', // Privacy policy
+  '/api/webhooks*',
+  '/api/hume/token*', // This will take precedence for the token endpoint
+  '/blog*',
+  '/privacy*',
   '/terms*',
-  '/about*', // About page
-  '/contact*', // Contact page
+  '/about*',
+  '/contact*',
+  '/pricing*'
 ];
 
 const isPublic = (path: string) => {
@@ -24,49 +33,60 @@ const isPublic = (path: string) => {
   );
 };
 
-// This example protects all routes including api/trpc routes
-// Please edit this to allow other routes to be public as needed.
-// See https://clerk.com/docs/references/nextjs/auth-middleware for more information about configuring your middleware
-export default clerkMiddleware(async (auth, request: NextRequest) => {
-  const path = request.nextUrl.pathname;
-  
-  // If the path is public, let the request through
+export default clerkMiddleware(async (auth, req: NextRequest) => {
+  const path = req.nextUrl.pathname;
+
+  // Check public paths first to ensure token endpoint remains accessible
   if (isPublic(path)) {
     return NextResponse.next();
   }
 
-  // For all other routes, require authentication
-  const { userId } = await auth();
-  if (!userId) {
-    try {
-      // Clone the URL and modify it for the redirect
-      const signInUrl = request.nextUrl.clone();
-      signInUrl.pathname = '/sign-in';
+  // For protected routes, check authentication and subscription
+  if (isProtectedRoute(req)) {
+    const session = await auth();
+    
+    // If not authenticated, redirect to sign-in
+    if (!session) {
+      const signInUrl = new URL('/sign-in', req.url);
       signInUrl.searchParams.set('redirect_url', path);
-      
-      // Return the redirect response with the absolute URL
       return NextResponse.redirect(signInUrl);
+    }
+
+    try {
+      // Get Convex token for subscription check
+      const token = await session.getToken({ template: "convex" });
+      
+      // Check subscription status
+      const { hasActiveSubscription } = await fetchQuery(api.subscriptions.getUserSubscriptionStatus, {}, {
+        token: token!,
+      });
+
+      // For dashboard and other premium features, check subscription
+      const requiresSubscription = path.startsWith('/dashboard') || 
+                                 path.startsWith('/playground');
+      
+      if (requiresSubscription && !hasActiveSubscription) {
+        // Redirect to pricing page if no active subscription
+        const pricingUrl = new URL('/pricing', req.nextUrl.origin);
+        return NextResponse.redirect(pricingUrl);
+      }
     } catch (error) {
-      console.error('Error creating redirect URL:', error);
-      // Fallback to a simple redirect using the original URL as base
-      const fallbackUrl = new URL('/sign-in', request.url);
-      return NextResponse.redirect(fallbackUrl);
+      console.error('Error checking subscription:', error);
+      // On error, fail safe by allowing access
+      // You might want to change this behavior based on your security requirements
+      return NextResponse.next();
     }
   }
 
   return NextResponse.next();
 });
 
+// Export the config with improved matcher
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api/webhooks (webhook endpoints)
-     * - api/hume/token (Hume token endpoint)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!api/webhooks|api/hume/token|_next/static|_next/image|favicon.ico).*)'
-  ]
+    // Skip Next.js internals and static files
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+    // Always run for API routes
+    '/api/(.*)',
+  ],
 };
