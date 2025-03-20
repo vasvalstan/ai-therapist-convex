@@ -73,7 +73,7 @@ export function ChatHistory() {
                 <div className="flex-1 overflow-auto p-2 space-y-2">
                     {sessions?.map((session) => {
                         // Find the first user or assistant message to use as title
-                        const firstMessage = session.messages?.find(
+                        const firstMessage = session.messages && session.messages.find(
                             msg => msg.role === "user" || msg.role === "assistant"
                         );
                         const title = session.title || 
