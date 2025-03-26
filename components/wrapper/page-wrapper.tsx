@@ -10,14 +10,13 @@ import dynamic from 'next/dynamic';
 // Create a client-only wrapper for authentication-dependent code
 function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { isSignedIn } = useAuth();
-  const user = useQuery(api.users.getUser);
   const storeUser = useMutation(api.users.store);
 
   useEffect(() => {
-    if (user && isSignedIn) {
+    if (isSignedIn) {
       storeUser();
     }
-  }, [user, isSignedIn, storeUser]);
+  }, [isSignedIn, storeUser]);
 
   return <>{children}</>;
 }
