@@ -83,9 +83,9 @@ export function ChatHistory() {
                         return (
                             <Link
                                 key={session._id}
-                                href={`/chat/${session.sessionId}?tab=chat`}
+                                href={`/chat/${session.chatId}?tab=chat`}
                                 className={`group flex items-center gap-2 p-2 rounded-lg hover:bg-muted transition-colors ${
-                                    params?.sessionId === session.sessionId ? "bg-muted" : ""
+                                    params?.sessionId === session.chatId ? "bg-muted" : ""
                                 }`}
                             >
                                 <MessageCircle className="w-4 h-4 opacity-50" />

@@ -3,7 +3,7 @@ export interface ChatSession {
   chatId: string;
   chatGroupId: string;
   events: Array<{
-    type: "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE";
+    type: "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE" | "TOOL_CALL_MESSAGE" | "TOOL_RESPONSE_MESSAGE" | string;
     role: "USER" | "ASSISTANT" | "SYSTEM";
     messageText: string;
     timestamp: number;

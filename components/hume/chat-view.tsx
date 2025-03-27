@@ -15,19 +15,17 @@ import { StartConversationPanel } from "./start-conversation-panel";
 import { TherapyProgress } from "./therapy-progress";
 import { VoiceController } from "./voice-controller";
 
-interface ChatViewProps {
-    sessionId: string;  // This will be renamed to chatId in a future update
+export interface ChatViewProps {
+    sessionId: string;  // This is actually the chatId from the URL
     accessToken?: string;
 }
 
 export function ChatView({ sessionId, accessToken }: ChatViewProps) {
-    // Use the provided sessionId parameter, but log it for debugging
-    console.log("ChatView received sessionId:", sessionId);
-    
-    const session = useQuery(api.chat.getChatSession, { sessionId });
+    // Use getActiveConversation with the sessionId as chatId
+    const conversation = useQuery(api.chat.getActiveConversation, { chatId: sessionId });
     const containerRef = useRef<HTMLDivElement>(null);
     
-    // Always initialize hooks at the top level, even if we might not use them
+    // Always initialize hooks at the top level
     const router = useRouter();
     const searchParams = useSearchParams();
     const pathname = usePathname();
@@ -41,7 +39,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
     const addMessage = useMutation(api.chat.addMessageToSession);
 
     // Convert messages for display
-    const messages = session?.messages?.map(msg => ({
+    const messages = conversation?.messages?.map(msg => ({
         role: msg.role,
         content: msg.content,
         emotions: msg.emotions,
@@ -102,7 +100,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
         
         try {
             setIsSendingTestMessages(true);
-            console.log("Sending test messages to session:", sessionId);
+            console.log("Sending test messages to chat:", sessionId);
             
             // Test user message
             const userMessage = {
@@ -113,8 +111,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
             
             console.log("Sending test user message:", JSON.stringify(userMessage, null, 2));
             await addMessage({
-                sessionId: sessionId,
-                chatId: sessionId,
+                sessionId,
                 message: userMessage
             });
             
@@ -127,8 +124,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
             
             console.log("Sending test assistant message:", JSON.stringify(assistantMessage, null, 2));
             await addMessage({
-                sessionId: sessionId,
-                chatId: sessionId,
+                sessionId,
                 message: assistantMessage
             });
             
@@ -151,7 +147,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
         }
     };
 
-    if (!session) {
+    if (!conversation) {
         return (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
                 Loading conversation...
@@ -205,7 +201,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                             <>
                                 {/* Messages */}
                                 <div ref={containerRef} className="flex-1 overflow-y-auto p-4">
-                                    {session?.messages?.map((msg, index) => {
+                                    {conversation?.messages?.map((msg, index) => {
                                         return (
                                             <div
                                                 key={index}

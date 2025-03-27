@@ -57,10 +57,14 @@ export const generateSummary = action({
     }
 
     const userId = session.userId;
-    const messages = session.messages;
-
-    if (!messages || messages.length === 0) {
-      console.log("No messages to summarize");
+    
+    // Check if we have events - prefer using events over messages
+    const events = session.events || [];
+    const messages = session.messages || [];
+    
+    // If we have no events or messages, nothing to summarize
+    if (events.length === 0 && messages.length === 0) {
+      console.log("No messages or events to summarize");
       return null;
     }
 
@@ -80,12 +84,72 @@ export const generateSummary = action({
 
     prompt += "Conversation to summarize:\n";
 
-    // Format the conversation for the prompt
-    const conversationText = messages
-      .map((message) => `${message.role === "user" ? "User" : "Therapist"}: ${message.content}`)
-      .join("\n");
+    // Format the conversation for the prompt - prefer using events if available
+    let conversationText;
+    
+    if (events.length > 0) {
+      // Filter events to only include user and assistant messages
+      const relevantEvents = events.filter(event => 
+        event.type === "USER_MESSAGE" || event.type === "AGENT_MESSAGE"
+      );
+
+      conversationText = relevantEvents.map((event) => {
+        const role = event.role === "USER" ? "User" : "Therapist";
+        return `${role}: ${event.messageText}`;
+      }).join("\n");
+    } else {
+      // Fall back to using messages array if no events
+      conversationText = messages
+        .map((message) => `${message.role === "user" ? "User" : "Therapist"}: ${message.content}`)
+        .join("\n");
+    }
 
     prompt += conversationText;
+
+    // Extract emotion data from user messages if available
+    let emotionSummary = "";
+    const userEvents = events.filter(event => event.type === "USER_MESSAGE" && event.emotionFeatures);
+    
+    if (userEvents.length > 0) {
+      // Track emotion scores across all user messages
+      const emotionScores: Record<string, number> = {};
+      let totalUserMessages = 0;
+      
+      // Process each user message with emotion data
+      userEvents.forEach(event => {
+        if (event.emotionFeatures) {
+          totalUserMessages++;
+          try {
+            const emotions = JSON.parse(event.emotionFeatures);
+            // Aggregate emotion scores
+            Object.entries(emotions).forEach(([emotion, score]) => {
+              emotionScores[emotion] = (emotionScores[emotion] || 0) + (score as number);
+            });
+          } catch (e) {
+            console.error("Error parsing emotion features:", e);
+          }
+        }
+      });
+      
+      // Calculate averages and find top emotions
+      if (totalUserMessages > 0) {
+        const averageEmotions = Object.entries(emotionScores).map(([emotion, score]) => ({
+          emotion,
+          score: score / totalUserMessages
+        }));
+        
+        // Sort by average score (descending) and pick the top 3
+        averageEmotions.sort((a, b) => b.score - a.score);
+        const top3 = averageEmotions.slice(0, 3);
+        
+        if (top3.length > 0) {
+          emotionSummary = "\n\nDominant emotions detected in the user's voice:\n" + 
+            top3.map(item => `- ${item.emotion}: ${(item.score * 100).toFixed(2)}%`).join("\n");
+          
+          prompt += emotionSummary;
+        }
+      }
+    }
 
     try {
       // Use DeepSeek API for generating the summary

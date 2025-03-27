@@ -7,6 +7,7 @@ import { StartCall } from "./start-call";
 import { ComponentRef, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { useMutation } from "convex/react";
+import { ChatSaveHandler } from "./voice-controller";
 
 interface HumeChatProps {
   accessToken: string;
@@ -20,9 +21,14 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
   const ref = useRef<ComponentRef<typeof Messages> | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(initialSessionId ?? null);
   const voice = useVoice(); // Use the existing voice connection
+  
+  // Track Hume chat IDs
+  const [humeChatId, setHumeChatId] = useState<string | undefined>();
+  const [humeGroupChatId, setHumeGroupChatId] = useState<string | undefined>();
 
   const createSession = useMutation(api.chat.createChatSession);
   const addMessage = useMutation(api.chat.addMessageToSession);
+  const updateHumeChatIds = useMutation(api.chat.updateHumeChatIds);
 
   // Set up message handler for the existing voice connection
   useEffect(() => {
@@ -32,6 +38,29 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
     const handleMessage = async (message: any) => {
       if (timeout.current) {
         window.clearTimeout(timeout.current);
+      }
+
+      // Check for chat metadata to get the chat ID and group ID
+      if (message.type === "chat_metadata") {
+        const chatId = message.chat_id;
+        const chatGroupId = message.chat_group_id;
+        
+        // Set the chat IDs for later use
+        setHumeChatId(chatId);
+        setHumeGroupChatId(chatGroupId);
+        
+        // Store the Hume chat IDs in the database if we have a session
+        if (currentSessionId && chatId && chatGroupId) {
+          try {
+            await updateHumeChatIds({
+              chatId: currentSessionId,
+              humeChatId: chatId,
+              humeGroupChatId: chatGroupId
+            });
+          } catch (error) {
+            console.error("Error storing Hume chat IDs:", error);
+          }
+        }
       }
 
       // Handle message storage
@@ -85,7 +114,7 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
     return () => {
       window.removeEventListener("hume:message", messageListener);
     };
-  }, [voice, currentSessionId, createSession, addMessage]);
+  }, [voice, currentSessionId, createSession, addMessage, updateHumeChatIds]);
 
   if (!accessToken) {
     return <div>Loading...</div>;
@@ -95,8 +124,17 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
     <div className="relative flex-1 flex flex-col mx-auto w-full overflow-hidden">
       {/* Use the components without wrapping in another VoiceProvider */}
       <Messages ref={ref} />
-      <Controls />
+      <Controls sessionId={currentSessionId || undefined} />
       <StartCall />
+      
+      {/* Add the ChatSaveHandler component to save transcripts when the chat ends */}
+      {currentSessionId && (
+        <ChatSaveHandler 
+          sessionId={currentSessionId}
+          humeChatId={humeChatId}
+          humeGroupChatId={humeGroupChatId}
+        />
+      )}
     </div>
   );
 } 

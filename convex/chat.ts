@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { QueryCtx } from "./_generated/server";
+import { api } from "./_generated/api";
 
 // Helper function to check if user has access to chat
 async function checkUserChatAccess(ctx: QueryCtx, userId: string) {
@@ -179,15 +180,19 @@ export const createChatSession = mutation({
         const existingSession = await ctx.db
             .query("chatHistory")
             .filter((q) => q.eq(q.field("userId"), userId))
-            .filter((q) => q.eq(q.field("sessionId"), newSessionId))
+            .filter((q) => 
+                q.or(
+                    q.eq(q.field("sessionId"), newSessionId),
+                    q.eq(q.field("chatId"), newSessionId)
+                )
+            )
             .first();
 
         if (existingSession) {
             return {
                 id: existingSession._id,
-                sessionId: existingSession.sessionId,
-                // Also return chatId for backward compatibility
-                chatId: existingSession.sessionId,
+                sessionId: existingSession.sessionId || existingSession.chatId,
+                chatId: existingSession.sessionId || existingSession.chatId,
             };
         }
 
@@ -195,6 +200,7 @@ export const createChatSession = mutation({
         const id = await ctx.db.insert("chatHistory", {
             userId,
             sessionId: newSessionId,
+            chatId: newSessionId, // Set both fields to the same value
             messages: args.initialMessage ? [{
                 ...args.initialMessage,
                 timestamp: Date.now(),
@@ -206,7 +212,6 @@ export const createChatSession = mutation({
         return {
             id,
             sessionId: newSessionId,
-            // Also return chatId for backward compatibility
             chatId: newSessionId,
         };
     },
@@ -467,5 +472,214 @@ export const updateHumeChatIds = mutation({
     });
 
     return { success: true };
+  },
+});
+
+export const getActiveConversation = query({
+  args: { chatId: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get chat from chatHistory table using either chatId or sessionId
+    const chat = await ctx.db
+      .query("chatHistory")
+      .filter((q) => 
+        q.and(
+          q.or(
+            q.eq(q.field("chatId"), args.chatId),
+            q.eq(q.field("sessionId"), args.chatId)
+          ),
+          q.eq(q.field("userId"), identity.subject)
+        )
+      )
+      .first();
+
+    if (!chat) {
+      // Instead of throwing error, return null to handle gracefully in UI
+      return null;
+    }
+
+    return {
+      chatId: chat.chatId || chat.sessionId, // Use sessionId as fallback
+      messages: chat.messages || [],
+      title: chat.title,
+      createdAt: chat.createdAt,
+      updatedAt: chat.updatedAt,
+      events: chat.events || []
+    };
+  },
+});
+
+// Function to save the complete conversation transcript and all events when a chat ends
+export const saveConversationTranscript = mutation({
+  args: {
+    chatId: v.string(),
+    humeChatId: v.optional(v.string()),
+    humeGroupChatId: v.optional(v.string()),
+    events: v.array(
+      v.object({
+        type: v.string(),
+        role: v.string(),
+        messageText: v.string(),
+        timestamp: v.number(),
+        emotionFeatures: v.optional(v.string()),
+        chatId: v.string(),
+        chatGroupId: v.string(),
+      })
+    ),
+    sessionDurationMinutes: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const identity = await ctx.auth.getUserIdentity();
+      let userId;
+      
+      // If authenticated, use the user's ID, otherwise use a test ID
+      if (identity) {
+        userId = identity.subject;
+      } else {
+        // For testing - use a default user ID
+        console.log("Using test user ID for transcript saving");
+        userId = "test_user_id";
+      }
+
+      // Find the chat session - use both chatId and sessionId fields for backward compatibility
+      const chatSession = await ctx.db
+        .query("chatHistory")
+        .filter((q) => q.eq(q.field("userId"), userId))
+        .filter((q) => 
+          q.or(
+            q.eq(q.field("chatId"), args.chatId),
+            q.eq(q.field("sessionId"), args.chatId)
+          )
+        )
+        .first();
+
+      if (!chatSession) {
+        // If chat session doesn't exist, create a new one
+        const sessionId = await ctx.db.insert("chatHistory", {
+          userId,
+          sessionId: args.chatId,
+          chatId: args.chatId,
+          chatGroupId: args.humeGroupChatId || args.chatId,
+          events: args.events,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          // Convert events to messages format for backward compatibility
+          messages: args.events
+            .filter(event => ['USER_MESSAGE', 'AGENT_MESSAGE'].includes(event.type))
+            .map(event => ({
+              role: event.role === 'USER' ? 'user' : 'assistant',
+              content: event.messageText,
+              timestamp: event.timestamp,
+              emotions: event.emotionFeatures ? JSON.parse(event.emotionFeatures) : undefined
+            })) as { role: "user" | "assistant"; content: string; timestamp: number; emotions?: any }[]
+        });
+
+        // Skip scheduling other functions for now
+        return { 
+          success: true,
+          sessionId,
+          isNew: true
+        };
+      }
+
+      // Update existing chat session with the new events and Hume IDs
+      await ctx.db.patch(chatSession._id, {
+        events: args.events,
+        chatId: args.humeChatId || chatSession.chatId || chatSession.sessionId,
+        chatGroupId: args.humeGroupChatId || chatSession.chatGroupId || chatSession.chatId || chatSession.sessionId,
+        updatedAt: Date.now(),
+        // Update messages array for backward compatibility
+        messages: args.events
+          .filter(event => ['USER_MESSAGE', 'AGENT_MESSAGE'].includes(event.type))
+          .map(event => ({
+            role: event.role === 'USER' ? 'user' : 'assistant',
+            content: event.messageText,
+            timestamp: event.timestamp,
+            emotions: event.emotionFeatures ? JSON.parse(event.emotionFeatures) : undefined
+          })) as { role: "user" | "assistant"; content: string; timestamp: number; emotions?: any }[]
+      });
+
+      // Skip scheduling other functions for now
+      return { 
+        success: true, 
+        sessionId: chatSession._id,
+        isNew: false
+      };
+    } catch (error) {
+      console.error("Error in saveConversationTranscript:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error"
+      };
+    }
+  },
+});
+
+// Function to add an event to a session
+export const addEventToSession = mutation({
+  args: {
+    sessionId: v.string(),
+    event: v.object({
+      type: v.string(),
+      role: v.string(),
+      messageText: v.string(),
+      timestamp: v.number(),
+      emotionFeatures: v.optional(v.string()),
+      chatId: v.string(),
+      chatGroupId: v.string(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userId = identity.subject;
+
+    // Find the chat session
+    const session = await ctx.db
+      .query("chatHistory")
+      .filter((q) => q.eq(q.field("userId"), userId))
+      .filter((q) => 
+        q.or(
+          q.eq(q.field("chatId"), args.sessionId),
+          q.eq(q.field("sessionId"), args.sessionId)
+        )
+      )
+      .first();
+
+    if (!session) {
+      throw new Error("Chat session not found");
+    }
+
+    // Add the new event
+    const updatedEvents = [...(session.events || []), args.event];
+
+    // If this is a user or assistant message, also update the messages array for backward compatibility
+    const updatedMessages = [...(session.messages || [])];
+    
+    if (['USER_MESSAGE', 'AGENT_MESSAGE'].includes(args.event.type)) {
+      updatedMessages.push({
+        role: args.event.role === 'USER' ? 'user' : 'assistant',
+        content: args.event.messageText,
+        timestamp: args.event.timestamp,
+        emotions: args.event.emotionFeatures ? JSON.parse(args.event.emotionFeatures) : undefined
+      });
+    }
+
+    // Update the session with the new event and message (if applicable)
+    await ctx.db.patch(session._id, {
+      events: updatedEvents,
+      messages: updatedMessages,
+      updatedAt: Date.now(),
+    });
+
+    return session._id;
   },
 }); 

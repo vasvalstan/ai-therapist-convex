@@ -11,6 +11,7 @@ import { useMutation, useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
+import { useSaveTranscript } from "@/lib/hooks/useSaveTranscript";
 
 interface ControlsProps {
   sessionId?: string;
@@ -29,6 +30,7 @@ export function Controls({ sessionId, onEndConversation }: ControlsProps) {
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { saveTranscript } = useSaveTranscript();
   
   const updateUserMinutes = useMutation(api.chat.updateUserRemainingMinutes);
   // We'll add this mutation once the summary API is available
@@ -80,11 +82,8 @@ export function Controls({ sessionId, onEndConversation }: ControlsProps) {
       console.log(`Call ended. Duration: ${sessionDurationMinutes} minutes (${Math.floor(sessionDurationMs / 1000)} seconds)`);
       
       try {
-        // Trigger a save chat event before updating minutes
-        const saveEvent = new CustomEvent('saveChat', {
-          detail: { reason: timeExpired ? "timeExpired" : "userEnded" }
-        });
-        window.dispatchEvent(saveEvent);
+        // Use the saveTranscript hook to save the chat
+        saveTranscript(timeExpired ? "timeExpired" : "userEnded");
         
         // For free plan users, we don't need to update minutes since they have unlimited time
         if (isFreePlan) {
@@ -299,15 +298,13 @@ export function Controls({ sessionId, onEndConversation }: ControlsProps) {
         return;
       }
       
-      // Otherwise use the default behavior
-      // Uncomment this once the summary API is available
-      // await endConversation({ sessionId });
-      toast({
-        title: "Conversation ended",
-        description: "Your conversation has been summarized and saved for future reference.",
-      });
-      // Optionally redirect to history or start a new conversation
-      router.push("/chat/history");
+      // Use the saveTranscript hook
+      saveTranscript("userEnded");
+      
+      // Wait a bit to ensure data is saved then redirect
+      setTimeout(() => {
+        router.push("/chat/history");
+      }, 1000);
     } catch (error) {
       console.error("Error ending conversation:", error);
       toast({

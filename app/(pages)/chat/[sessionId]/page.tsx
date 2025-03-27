@@ -5,7 +5,7 @@ import { Suspense } from "react";
 
 interface ChatPageProps {
   params: Promise<{
-    sessionId: string;  // This will be renamed to chatId in a future update
+    sessionId: string;  // This is actually the chatId from the URL
   }>;
 }
 
