@@ -16,9 +16,10 @@ import { useSaveTranscript } from "@/lib/hooks/useSaveTranscript";
 interface ControlsProps {
   sessionId?: string;
   onEndConversation?: () => Promise<void>;
+  onEndCallStart?: () => void;
 }
 
-export function Controls({ sessionId, onEndConversation }: ControlsProps) {
+export function Controls({ sessionId, onEndConversation, onEndCallStart }: ControlsProps) {
   const voice = useVoice();
   const { disconnect, status, isMuted, unmute, mute } = voice || {};
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -59,6 +60,7 @@ export function Controls({ sessionId, onEndConversation }: ControlsProps) {
   // Handle call end and update user minutes
   const handleEndCall = async (timeExpired = false) => {
     setIsLoading(true);
+    onEndCallStart?.();
     try {
       // Clear the timer
       if (timerRef.current) {
@@ -172,6 +174,7 @@ export function Controls({ sessionId, onEndConversation }: ControlsProps) {
       if (disconnect) {
         disconnect();
       }
+      router.push('/chat/history'); 
     }
   };
 

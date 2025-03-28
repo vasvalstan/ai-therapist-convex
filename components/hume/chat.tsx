@@ -12,11 +12,16 @@ import { ChatSaveHandler } from "./voice-controller";
 interface HumeChatProps {
   accessToken: string;
   sessionId?: string;
+  onEndCallStart?: () => void;
 }
 
 type MessageRole = "user" | "assistant";
 
-export default function HumeChat({ accessToken, sessionId: initialSessionId }: HumeChatProps) {
+export default function HumeChat({ 
+  accessToken, 
+  sessionId: initialSessionId, 
+  onEndCallStart 
+}: HumeChatProps) {
   const timeout = useRef<number | null>(null);
   const ref = useRef<ComponentRef<typeof Messages> | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(initialSessionId ?? null);
@@ -124,7 +129,10 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
     <div className="relative flex-1 flex flex-col mx-auto w-full overflow-hidden">
       {/* Use the components without wrapping in another VoiceProvider */}
       <Messages ref={ref} />
-      <Controls sessionId={currentSessionId || undefined} />
+      <Controls 
+        sessionId={currentSessionId || undefined} 
+        onEndCallStart={onEndCallStart} 
+      />
       <StartCall />
       
       {/* Add the ChatSaveHandler component to save transcripts when the chat ends */}
@@ -137,4 +145,4 @@ export default function HumeChat({ accessToken, sessionId: initialSessionId }: H
       )}
     </div>
   );
-} 
+}

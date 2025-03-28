@@ -3,7 +3,7 @@
 import { api } from "@/convex/_generated/api";
 import { useQuery, useMutation } from "convex/react";
 import { formatDistanceToNow } from "date-fns";
-import { Bot, User } from "lucide-react";
+import { Bot, User, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Controls } from "./controls";
 import { toast } from "@/components/ui/use-toast";
@@ -15,6 +15,7 @@ import { StartConversationPanel } from "./start-conversation-panel";
 import { TherapyProgress } from "./therapy-progress";
 import { VoiceController } from "./voice-controller";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export interface ChatViewProps {
     sessionId: string;  // This is actually the chatId from the URL
@@ -31,9 +32,10 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
     const searchParams = useSearchParams();
     const pathname = usePathname();
     
-    const [isEndingConversation, setIsEndingConversation] = useState(false);
     const [isSendingTestMessages, setIsSendingTestMessages] = useState(false);
     const [routerError, setRouterError] = useState(false);
+    // Add state to track call ending process
+    const [isCallEnding, setIsCallEnding] = useState(false);
     
     // Add the mutation for ending conversation and generating summary
     const endConversationAndSummarize = useMutation(api.summary.endConversationAndSummarize);
@@ -72,28 +74,6 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
             setRouterError(true);
         }
     }, [pathname, router, searchParams]);
-
-    // Handle ending the conversation
-    const handleEndConversation = async () => {
-        if (!sessionId) return;
-        
-        setIsEndingConversation(true);
-        try {
-            const result = await endConversationAndSummarize({ sessionId });
-            if (result?.success) {
-                try {
-                    router.push('/chat/history');
-                } catch (error) {
-                    console.error("Navigation error:", error);
-                    setRouterError(true);
-                }
-            }
-        } catch (error) {
-            console.error("Error ending conversation:", error);
-        } finally {
-            setIsEndingConversation(false);
-        }
-    };
 
     // Add a function to handle sending test messages
     const handleSendTestMessages = async () => {
@@ -148,6 +128,28 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
         }
     };
 
+    // Render loading state if call is ending
+    if (isCallEnding) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
+                {/* Background matching the main view */}
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-indigo-50/30 dark:from-blue-950/10 dark:to-indigo-950/10" />
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]" />
+                
+                {/* Content Card */}
+                <Card className="w-full max-w-md z-10">
+                    <CardHeader>
+                        <CardTitle className="text-center">Ending Session</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-col items-center space-y-4">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <p className="text-muted-foreground">Saving your conversation...</p>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
     if (!conversation) {
         return (
             <div className="flex-1 flex flex-col p-4 space-y-4">
@@ -200,7 +202,12 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                         
                         {accessToken ? (
                             <div className="flex-1 flex flex-col">
-                                <HumeChat accessToken={accessToken} sessionId={sessionId} />
+                                {/* Pass callbacks to HumeChat */}
+                                <HumeChat 
+                                    accessToken={accessToken} 
+                                    sessionId={sessionId} 
+                                    onEndCallStart={() => setIsCallEnding(true)}
+                                />
                             </div>
                         ) : (
                             <>
@@ -244,17 +251,6 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                                         );
                                     })}
                                 </div>
-                                
-                                {/* Controls */}
-                                <div className="p-4 bg-gradient-to-t from-card via-card/90 to-card/0">
-                                    <button
-                                        onClick={handleEndConversation}
-                                        disabled={isEndingConversation}
-                                        className="w-full py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-md disabled:opacity-50 transition-colors"
-                                    >
-                                        {isEndingConversation ? "Ending conversation..." : "End Conversation"}
-                                    </button>
-                                </div>
                             </>
                         )}
                     </TabsContent>
@@ -262,4 +258,4 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
             </div>
         </div>
     );
-} 
+}
