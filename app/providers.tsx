@@ -9,6 +9,7 @@ import { VoiceProvider } from "@humeai/voice-react";
 import { ConvexReactClient } from "convex/react";
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 // Initialize Convex client outside of component
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -30,6 +31,7 @@ function VoiceWrapper({ children }: { children: React.ReactNode }) {
         setAccessToken(data.accessToken);
       } catch (error) {
         console.error("Failed to get Hume access token:", error);
+        toast.error("Failed to initialize voice features. Please try refreshing.");
       }
     };
 

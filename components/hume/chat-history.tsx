@@ -3,7 +3,7 @@
 import { api } from "@/convex/_generated/api";
 import { useQuery, useMutation } from "convex/react";
 import { formatDistanceToNow } from "date-fns";
-import { MessageCircle, Trash2, Pencil, Home } from "lucide-react";
+import { MessageCircle, Trash2, Pencil, Home, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "../ui/button";
@@ -18,6 +18,7 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { useState } from "react";
+import { Skeleton } from "../ui/skeleton";
 
 export function ChatHistory() {
     const sessions = useQuery(api.chat.getChatSessions);
@@ -28,6 +29,8 @@ export function ChatHistory() {
     const [chatToDelete, setChatToDelete] = useState<{ id: Id<"chatHistory">, title: string } | null>(null);
     const [chatToRename, setChatToRename] = useState<{ id: Id<"chatHistory">, title: string } | null>(null);
     const [newTitle, setNewTitle] = useState("");
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isRenaming, setIsRenaming] = useState(false);
 
     const handleDelete = async (e: React.MouseEvent, id: Id<"chatHistory">, title: string) => {
         e.preventDefault(); // Prevent navigation
@@ -43,22 +46,36 @@ export function ChatHistory() {
     const confirmDelete = async () => {
         if (!chatToDelete) return;
 
-        await deleteChat({ id: chatToDelete.id });
-        if (params?.sessionId === chatToDelete.id) {
-            router.push("/chat/history");
+        setIsDeleting(true);
+        try {
+            await deleteChat({ id: chatToDelete.id });
+            if (params?.sessionId === chatToDelete.id) {
+                router.push("/chat/history");
+            }
+            setChatToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete chat:", error);
+        } finally {
+            setIsDeleting(false);
         }
-        setChatToDelete(null);
     };
 
     const confirmRename = async () => {
         if (!chatToRename || !newTitle.trim()) return;
 
-        await renameChat({ 
-            id: chatToRename.id,
-            title: newTitle.trim()
-        });
-        setChatToRename(null);
-        setNewTitle("");
+        setIsRenaming(true);
+        try {
+            await renameChat({
+                id: chatToRename.id,
+                title: newTitle.trim()
+            });
+            setChatToRename(null);
+            setNewTitle("");
+        } catch (error) {
+            console.error("Failed to rename chat:", error);
+        } finally {
+            setIsRenaming(false);
+        }
     };
 
     return (
@@ -71,6 +88,13 @@ export function ChatHistory() {
                     <h2 className="font-semibold">Chat History</h2>
                 </div>
                 <div className="flex-1 overflow-auto p-2 space-y-2">
+                    {sessions === undefined && (
+                        <>
+                            <Skeleton className="h-16 w-full rounded-lg" />
+                            <Skeleton className="h-16 w-full rounded-lg" />
+                            <Skeleton className="h-16 w-full rounded-lg" />
+                        </>
+                    )}
                     {sessions?.map((session) => {
                         // Find the first user or assistant message to use as title
                         const firstMessage = session.messages && session.messages.find(
@@ -148,7 +172,9 @@ export function ChatHistory() {
                         <Button
                             variant="destructive"
                             onClick={confirmDelete}
+                            disabled={isDeleting}
                         >
+                            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Delete
                         </Button>
                     </DialogFooter>
@@ -190,8 +216,9 @@ export function ChatHistory() {
                         </Button>
                         <Button
                             onClick={confirmRename}
-                            disabled={!newTitle.trim()}
+                            disabled={!newTitle.trim() || isRenaming}
                         >
+                            {isRenaming && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Rename
                         </Button>
                     </DialogFooter>
@@ -199,4 +226,4 @@ export function ChatHistory() {
             </Dialog>
         </>
     );
-} 
+}

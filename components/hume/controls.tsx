@@ -2,7 +2,7 @@
 
 import { useVoice } from "@humeai/voice-react";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, Phone } from "lucide-react";
+import { Mic, MicOff, Phone, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Toggle } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
@@ -58,114 +58,120 @@ export function Controls({ sessionId, onEndConversation }: ControlsProps) {
   
   // Handle call end and update user minutes
   const handleEndCall = async (timeExpired = false) => {
-    // Clear the timer
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    if (timeWarningRef.current) {
-      clearTimeout(timeWarningRef.current);
-      timeWarningRef.current = null;
-    }
-    
-    // Show a brief message to the user that their chat is being saved
-    const saveMessage = document.createElement('div');
-    saveMessage.className = 'fixed top-4 right-4 bg-green-100 text-green-800 p-3 rounded shadow-md z-50';
-    saveMessage.textContent = 'Saving your chat...';
-    document.body.appendChild(saveMessage);
-    
-    if (sessionStartTime) {
-      const sessionEndTime = Date.now();
-      const sessionDurationMs = sessionEndTime - sessionStartTime;
-      const sessionDurationMinutes = Math.ceil(sessionDurationMs / (1000 * 60)); // Round up to nearest minute
+    setIsLoading(true);
+    try {
+      // Clear the timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      if (timeWarningRef.current) {
+        clearTimeout(timeWarningRef.current);
+        timeWarningRef.current = null;
+      }
       
-      console.log(`Call ended. Duration: ${sessionDurationMinutes} minutes (${Math.floor(sessionDurationMs / 1000)} seconds)`);
+      // Show a brief message to the user that their chat is being saved
+      const saveMessage = document.createElement('div');
+      saveMessage.className = 'fixed top-4 right-4 bg-green-100 text-green-800 p-3 rounded shadow-md z-50';
+      saveMessage.textContent = 'Saving your chat...';
+      document.body.appendChild(saveMessage);
       
-      try {
-        // Use the saveTranscript hook to save the chat
-        saveTranscript(timeExpired ? "timeExpired" : "userEnded");
+      if (sessionStartTime) {
+        const sessionEndTime = Date.now();
+        const sessionDurationMs = sessionEndTime - sessionStartTime;
+        const sessionDurationMinutes = Math.ceil(sessionDurationMs / (1000 * 60)); // Round up to nearest minute
         
-        // For free plan users, we don't need to update minutes since they have unlimited time
-        if (isFreePlan) {
-          saveMessage.innerHTML = `
-            <div>
-              <p>Your chat has been saved!</p>
-              <p class="text-xs mt-1">
-                <span class="font-medium">${sessionDurationMinutes} minute${sessionDurationMinutes > 1 ? 's' : ''}</span> used.
-                <span class="font-medium">Unlimited</span> time remaining.
-              </p>
-            </div>
-          `;
+        console.log(`Call ended. Duration: ${sessionDurationMinutes} minutes (${Math.floor(sessionDurationMs / 1000)} seconds)`);
+        
+        try {
+          // Use the saveTranscript hook to save the chat
+          saveTranscript(timeExpired ? "timeExpired" : "userEnded");
           
-          setTimeout(() => {
-            saveMessage.remove();
-          }, 5000);
-        } else {
-          // Update paid plan user's remaining minutes
-          const result = await updateUserMinutes({
-            sessionDurationMinutes,
-          });
-          console.log("Updated user minutes:", result);
-          
-          // Dispatch an event to update the minutes display
-          if (result.success) {
-            const minutesUpdatedEvent = new CustomEvent('minutesUpdated', {
-              detail: {
-                previousMinutesRemaining: result.previousMinutesRemaining,
-                newMinutesRemaining: result.newMinutesRemaining,
-                minutesUsed: result.minutesUsed,
-                planKey: result.planKey
-              }
-            });
-            window.dispatchEvent(minutesUpdatedEvent);
-            
-            // Update the message to confirm chat was saved and show minutes remaining
+          // For free plan users, we don't need to update minutes since they have unlimited time
+          if (isFreePlan) {
             saveMessage.innerHTML = `
               <div>
                 <p>Your chat has been saved!</p>
                 <p class="text-xs mt-1">
                   <span class="font-medium">${sessionDurationMinutes} minute${sessionDurationMinutes > 1 ? 's' : ''}</span> used.
-                  <span class="font-medium">${result.newMinutesRemaining} minute${result.newMinutesRemaining !== 1 ? 's' : ''}</span> remaining.
+                  <span class="font-medium">Unlimited</span> time remaining.
                 </p>
               </div>
             `;
             
-            // If time expired or the user ran out of minutes, show the upgrade prompt
-            if (timeExpired || result.newMinutesRemaining <= 0) {
-              // We'll use a custom event to communicate with the parent component
-              const timeExpiredEvent = new CustomEvent('timeExpired', {
+            setTimeout(() => {
+              saveMessage.remove();
+            }, 5000);
+          } else {
+            // Update paid plan user's remaining minutes
+            const result = await updateUserMinutes({
+              sessionDurationMinutes,
+            });
+            console.log("Updated user minutes:", result);
+            
+            // Dispatch an event to update the minutes display
+            if (result.success) {
+              const minutesUpdatedEvent = new CustomEvent('minutesUpdated', {
                 detail: {
-                  message: timeExpired 
-                    ? `You've reached the ${planSessionDurationMinutes}-minute limit on your ${userDetails?.currentPlanKey} plan.`
-                    : "You have used all your available minutes. Please upgrade your plan to continue."
+                  previousMinutesRemaining: result.previousMinutesRemaining,
+                  newMinutesRemaining: result.newMinutesRemaining,
+                  minutesUsed: result.minutesUsed,
+                  planKey: result.planKey
                 }
               });
-              window.dispatchEvent(timeExpiredEvent);
+              window.dispatchEvent(minutesUpdatedEvent);
+              
+              // Update the message to confirm chat was saved and show minutes remaining
+              saveMessage.innerHTML = `
+                <div>
+                  <p>Your chat has been saved!</p>
+                  <p class="text-xs mt-1">
+                    <span class="font-medium">${sessionDurationMinutes} minute${sessionDurationMinutes > 1 ? 's' : ''}</span> used.
+                    <span class="font-medium">${result.newMinutesRemaining} minute${result.newMinutesRemaining !== 1 ? 's' : ''}</span> remaining.
+                  </p>
+                </div>
+              `;
+              
+              // If time expired or the user ran out of minutes, show the upgrade prompt
+              if (timeExpired || result.newMinutesRemaining <= 0) {
+                // We'll use a custom event to communicate with the parent component
+                const timeExpiredEvent = new CustomEvent('timeExpired', {
+                  detail: {
+                    message: timeExpired 
+                      ? `You've reached the ${planSessionDurationMinutes}-minute limit on your ${userDetails?.currentPlanKey} plan.`
+                      : "You have used all your available minutes. Please upgrade your plan to continue."
+                  }
+                });
+                window.dispatchEvent(timeExpiredEvent);
+              }
+            } else {
+              saveMessage.textContent = 'Your chat has been saved!';
             }
-          } else {
-            saveMessage.textContent = 'Your chat has been saved!';
+            
+            setTimeout(() => {
+              saveMessage.remove();
+            }, 5000);
           }
-          
+        } catch (err) {
+          console.error("Failed to update user minutes:", err);
+          saveMessage.textContent = 'Error saving chat';
+          saveMessage.className = 'fixed top-4 right-4 bg-red-100 text-red-800 p-3 rounded shadow-md z-50';
           setTimeout(() => {
             saveMessage.remove();
-          }, 5000);
+          }, 3000);
         }
-      } catch (err) {
-        console.error("Failed to update user minutes:", err);
-        saveMessage.textContent = 'Error saving chat';
-        saveMessage.className = 'fixed top-4 right-4 bg-red-100 text-red-800 p-3 rounded shadow-md z-50';
-        setTimeout(() => {
-          saveMessage.remove();
-        }, 3000);
+        
+        setSessionStartTime(null);
+        setElapsedSeconds(0);
       }
-      
-      setSessionStartTime(null);
-      setElapsedSeconds(0);
-    }
-    
-    // Disconnect the call if the function exists
-    if (disconnect) {
-      disconnect();
+    } catch (error) {
+      console.error("Unexpected error during handleEndCall:", error);
+      toast({ title: "Error ending call", description: "An unexpected error occurred.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+      if (disconnect) {
+        disconnect();
+      }
     }
   };
 
@@ -372,17 +378,17 @@ export function Controls({ sessionId, onEndConversation }: ControlsProps) {
               </Toggle>
 
               <Button
-                className="flex items-center gap-1.5 ml-2"
-                onClick={() => handleEndCall(false)}
+                size="icon"
                 variant="destructive"
-                size="sm"
+                className="rounded-full w-14 h-14 shadow-lg"
+                onClick={() => handleEndCall()}
+                disabled={isLoading} 
               >
-                <Phone
-                  className="size-4 opacity-70"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                />
-                <span>End Call</span>
+                {isLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <Phone className="h-6 w-6" />
+                )}
               </Button>
             </div>
             

@@ -6,9 +6,7 @@ import { api } from './convex/_generated/api';
 
 // Define protected routes that require authentication and subscription
 const isProtectedRoute = createRouteMatcher([
-  '/dashboard(.*)',
   '/chat(.*)',
-  '/playground(.*)',
   '/api/hume/:path*', // Protect all Hume API routes
 ]);
 
@@ -64,8 +62,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       });
 
       // For dashboard and other premium features, check subscription
-      const requiresSubscription = path.startsWith('/dashboard') || 
-                                 path.startsWith('/playground');
+      const requiresSubscription = false;
       
       if (requiresSubscription && !hasActiveSubscription) {
         // Use FRONTEND_URL for production or fallback to request origin

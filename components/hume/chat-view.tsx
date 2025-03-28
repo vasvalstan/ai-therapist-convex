@@ -14,6 +14,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { StartConversationPanel } from "./start-conversation-panel";
 import { TherapyProgress } from "./therapy-progress";
 import { VoiceController } from "./voice-controller";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export interface ChatViewProps {
     sessionId: string;  // This is actually the chatId from the URL
@@ -149,8 +150,12 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
 
     if (!conversation) {
         return (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                Loading conversation...
+            <div className="flex-1 flex flex-col p-4 space-y-4">
+                <Skeleton className="h-16 w-4/5 rounded-lg self-start" />
+                <Skeleton className="h-20 w-4/5 rounded-lg self-end" />
+                <Skeleton className="h-16 w-3/5 rounded-lg self-start" />
+                <Skeleton className="h-24 w-4/5 rounded-lg self-end" />
+                <Skeleton className="h-16 w-1/2 rounded-lg self-start" />
             </div>
         );
     }
