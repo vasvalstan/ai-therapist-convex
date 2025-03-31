@@ -90,5 +90,5 @@ export function ChatClientView({ sessionId }: ChatClientViewProps) {
     );
   }
 
-  return <ChatView sessionId={sessionId} accessToken={accessToken} />;
+  return <ChatView sessionId={conversation?.chatId || sessionId} accessToken={accessToken} />;
 } 

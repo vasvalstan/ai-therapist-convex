@@ -243,7 +243,12 @@ export const addMessageToSession = mutation({
         const session = await ctx.db
             .query("chatHistory")
             .filter((q) => q.eq(q.field("userId"), userId))
-            .filter((q) => q.eq(q.field("sessionId"), sessionIdentifier))
+            .filter((q) => 
+                q.or(
+                    q.eq(q.field("sessionId"), sessionIdentifier),
+                    q.eq(q.field("chatId"), sessionIdentifier)
+                )
+            )
             .first();
 
         if (!session) {

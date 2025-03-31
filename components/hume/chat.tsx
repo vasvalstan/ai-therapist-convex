@@ -88,7 +88,6 @@ export default function HumeChat({
           // Add message to existing session - include both sessionId and chatId for compatibility
           await addMessage({
             sessionId: currentSessionId,
-            chatId: currentSessionId,
             message: messageData,
           });
         }
