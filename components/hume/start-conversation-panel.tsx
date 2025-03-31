@@ -31,7 +31,6 @@ export function StartConversationPanel() {
     if (status.value === "connected" && pendingChatId) {
       // Wait a bit to ensure connection is stable
       const timer = setTimeout(() => {
-        console.log("Voice connection stable, navigating to chat:", pendingChatId);
         // Navigate directly to the chat tab to avoid intermediate screens
         router.push(`/chat/${pendingChatId}?tab=chat`);
       }, 1000);
@@ -41,7 +40,6 @@ export function StartConversationPanel() {
     
     // Reset states if connection is lost
     if (status.value === "disconnected") {
-      console.log("Voice connection lost, resetting state");
       setPendingChatId(null);
       setIsStarting(false);
     }

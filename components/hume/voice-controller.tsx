@@ -25,6 +25,13 @@ interface HumeEvent {
   emotionFeatures?: any;
   chatId?: string;
   chatGroupId?: string;
+  requestId?: string;
+  metadata?: {
+    chat_id: string;
+    chat_group_id: string;
+    request_id?: string;
+    timestamp: string;
+  };
 }
 
 export function VoiceController({ initialMessages = [] }: VoiceControllerProps) {
@@ -197,7 +204,7 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
   sessionId: string;
   humeChatId?: string;
   humeGroupChatId?: string;
-}) {
+}): JSX.Element | null {
   const [isSaving, setIsSaving] = useState(false);
   const saveTranscript = useMutation(api.chat.saveConversationTranscript);
 
@@ -251,7 +258,7 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
         }
         
         // Calculate session duration in minutes
-        const sessionStartEvent = events.find((e) => e.type === "CHAT_METADATA");
+        const sessionStartEvent = events.find((e) => e.type === "chat_metadata");
         const lastEvent = events[events.length - 1];
         
         let sessionDurationMinutes = 1; // Default to 1 minute
@@ -274,7 +281,13 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
             timestamp: new Date(event.timestamp).getTime(),
             emotionFeatures: event.emotionFeatures,
             chatId: event.chatId || humeChatId || sessionId,
-            chatGroupId: event.chatGroupId || humeGroupChatId || sessionId
+            chatGroupId: event.chatGroupId || humeGroupChatId || sessionId,
+            metadata: event.type === "chat_metadata" ? {
+              chat_id: event.chatId,
+              chat_group_id: event.chatGroupId,
+              request_id: event.requestId,
+              timestamp: event.timestamp
+            } : event.metadata // Preserve any existing metadata
           })) : [
             // Add at least one event if none exist to prevent empty events array
             {
@@ -284,7 +297,12 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
               timestamp: Date.now(),
               emotionFeatures: undefined,
               chatId: humeChatId || sessionId,
-              chatGroupId: humeGroupChatId || sessionId
+              chatGroupId: humeGroupChatId || sessionId,
+              metadata: {
+                chat_id: humeChatId || sessionId,
+                chat_group_id: humeGroupChatId || sessionId,
+                timestamp: new Date().toISOString()
+              }
             }
           ],
           sessionDurationMinutes

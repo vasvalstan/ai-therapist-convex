@@ -24,6 +24,35 @@ const intervalPricesValidator = v.object({
     usd: priceValidator,
 });
 
+// Define base message fields
+const baseMessageFields = {
+    type: v.string(),
+    role: v.string(),
+    timestamp: v.number(),
+    emotionFeatures: v.optional(v.any()),
+    chatId: v.string(),
+    chatGroupId: v.string(),
+};
+
+// Define message validator
+const messageValidator = v.object({
+    ...baseMessageFields,
+    content: v.string(),
+    messageText: v.optional(v.string()),
+    metadata: v.optional(v.object({
+        chat_id: v.string(),
+        chat_group_id: v.string(),
+        request_id: v.string(),
+        timestamp: v.string(),
+    })),
+});
+
+// Define event validator
+const eventValidator = v.object({
+    ...baseMessageFields,
+    messageText: v.string(),
+    content: v.optional(v.string()),
+});
 
 export default defineSchema({
     users: defineTable({
@@ -88,32 +117,38 @@ export default defineSchema({
     })
         .index("type", ["type"])
         .index("polarEventId", ["polarEventId"]),
+    messages: defineTable({
+        sessionId: v.id("sessions"),
+        ...baseMessageFields,
+        content: v.string(),
+        messageText: v.optional(v.string()),
+        metadata: v.optional(v.object({
+            chat_id: v.string(),
+            chat_group_id: v.string(),
+            request_id: v.string(),
+            timestamp: v.string(),
+        })),
+    }).index("by_session", ["sessionId"]),
     chatHistory: defineTable({
         userId: v.string(),
         sessionId: v.optional(v.string()),
-        messages: v.optional(v.array(v.object({
-            role: v.union(v.literal("user"), v.literal("assistant")),
-            content: v.string(),
-            timestamp: v.number(),
-            emotions: v.optional(v.any()),
-        }))),
-        events: v.optional(v.array(v.object({
-            type: v.string(),
-            role: v.string(),
-            messageText: v.string(),
-            timestamp: v.number(),
-            emotionFeatures: v.optional(v.string()),
-            chatId: v.string(),
-            chatGroupId: v.string(),
-        }))),
-        chatId: v.optional(v.string()),
-        chatGroupId: v.optional(v.string()),
+        chatId: v.string(),
+        chatGroupId: v.string(),
+        messages: v.array(messageValidator),
+        events: v.optional(v.array(eventValidator)),
         createdAt: v.number(),
         updatedAt: v.number(),
         title: v.optional(v.string()),
+        metadata: v.optional(v.object({
+            chat_id: v.string(),
+            chat_group_id: v.string(),
+            request_id: v.string(),
+            timestamp: v.string(),
+        })),
     })
         .index("by_user", ["userId"])
-        .index("by_user_and_time", ["userId", "createdAt"]),
+        .index("by_session", ["sessionId"])
+        .index("by_chat", ["chatId"]),
     conversationSummaries: defineTable({
         userId: v.string(),
         summary: v.string(),

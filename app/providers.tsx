@@ -19,49 +19,61 @@ if (!convexUrl) {
 
 const convex = new ConvexReactClient(convexUrl);
 
-function VoiceWrapper({ children }: { children: React.ReactNode }) {
+export function VoiceWrapper({ children }: { children: React.ReactNode }) {
+  const configId = process.env.NEXT_PUBLIC_HUME_CONFIG_ID || "fallback_config_id";
   const [accessToken, setAccessToken] = useState<string | null>(null);
-  const { isSignedIn } = useAuth();
 
   useEffect(() => {
-    const getToken = async () => {
+    const fetchToken = async () => {
       try {
-        const response = await fetch("/api/hume/token");
+        console.log("🔑 Fetching Hume access token...");
+        // Fetch Hume access token from our API endpoint
+        const response = await fetch('/api/hume/token');
         const data = await response.json();
+        console.log("✅ Successfully retrieved Hume access token");
         setAccessToken(data.accessToken);
       } catch (error) {
-        console.error("Failed to get Hume access token:", error);
-        toast.error("Failed to initialize voice features. Please try refreshing.");
+        console.error("❌ Failed to get Hume access token:", error);
+        toast({
+          title: "Error",
+          description: "Failed to get voice access token. Please try again."
+        });
       }
     };
-
-    if (isSignedIn) {
-      getToken();
-    }
-  }, [isSignedIn]);
+    fetchToken();
+  }, []);
 
   if (!accessToken) {
     return children;
-  }
-
-  // Ensure the configId is properly set
-  const fallbackConfigId = "3c38e3e5-3b4c-4e9e-80e8-e849f65408c1";
-  
-  // Try to get the config ID from environment variables
-  let configId = typeof process !== 'undefined' && 
-                process.env && 
-                process.env.NEXT_PUBLIC_HUME_CONFIG_ID;
-  
-  // If the config ID is not defined or empty, use the fallback
-  if (!configId || configId.trim() === '') {
-    console.warn("NEXT_PUBLIC_HUME_CONFIG_ID is not defined, using fallback config ID");
-    configId = fallbackConfigId;
   }
 
   return (
     <VoiceProvider
       auth={{ type: "accessToken", value: accessToken }}
       configId={configId}
+      debug={true}
+      onMessage={(message) => {
+        console.log("🎤 VoiceProvider received raw message:", message);
+        
+        // Log specific message types
+        if (message.type === "CHAT_METADATA") {
+          console.log("📋 VoiceProvider received metadata:", {
+            chat_id: message.chat_id,
+            chat_group_id: message.chat_group_id,
+            request_id: message.request_id
+          });
+        } else if (message.type === "user_message" || message.type === "assistant_message") {
+          console.log(`🗣️ VoiceProvider received ${message.type}:`, {
+            role: message.message?.role,
+            content: message.message?.content,
+            emotions: message.models?.prosody?.scores
+          });
+        }
+        
+        // Dispatch a custom event with the message data
+        window.dispatchEvent(new CustomEvent("hume:message", { detail: message }));
+        console.log("📢 Dispatched hume:message event");
+      }}
     >
       {children}
     </VoiceProvider>

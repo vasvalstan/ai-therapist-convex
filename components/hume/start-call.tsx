@@ -21,9 +21,6 @@ export function StartCall({ sessionId }: StartCallProps) {
   
   // Don't show overlay if we're viewing a specific session
   const hasSessionId = !!sessionId;
-  
-  // For debugging
-  console.log("StartCall component:", { hasSessionId, sessionId, status: status.value });
 
   return (
     <AnimatePresence>

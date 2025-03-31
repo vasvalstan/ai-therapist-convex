@@ -35,25 +35,13 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
     const pathname = usePathname();
     const currentTab = searchParams?.get("tab") || "chat";
     
-    // Log important debugging information
-    console.log("ChatView received:", { 
-        sessionId, 
-        hasConversation: !!conversation,
-        messageCount: conversation?.messages?.length || 0,
-        currentTab,
-        hasAccessToken: !!accessToken
-    });
-    
     const [isSendingTestMessages, setIsSendingTestMessages] = useState(false);
     const [routerError, setRouterError] = useState(false);
-    // Add state to track call ending process
     const [isCallEnding, setIsCallEnding] = useState(false);
     
-    // Add the mutation for ending conversation and generating summary
     const endConversationAndSummarize = useMutation(api.summary.endConversationAndSummarize);
     const addMessage = useMutation(api.chat.addMessageToSession);
 
-    // Convert messages for display
     const messages = conversation?.messages?.map(msg => ({
         role: msg.role,
         content: msg.content,
@@ -61,67 +49,54 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
         timestamp: msg.timestamp,
     })) || [];
 
-    // Handle scrolling when messages change
     useEffect(() => {
         if (containerRef.current) {
             containerRef.current.scrollTop = containerRef.current.scrollHeight;
         }
     }, [messages.length]);
     
-    // Handle tab redirect only once on mount with stable dependencies
     useEffect(() => {
         if (!searchParams.get("tab")) {
             const redirectUrl = `${pathname}?tab=chat`;
-            console.log(`Redirecting to chat tab: ${redirectUrl}`);
-            
             try {
                 router.push(redirectUrl);
             } catch (error) {
-                console.error("Navigation error:", error);
                 setRouterError(true);
             }
         }
-    }, []);  // Empty dependency array to run only once on mount
+    }, []);
 
-    // Safe navigation function that handles potential router errors
     const safeNavigate = (path: string) => {
         try {
             router.push(path);
         } catch (error) {
-            console.error("Navigation error:", error);
             setRouterError(true);
         }
     };
 
-    // Add a function to handle sending test messages
     const handleSendTestMessages = async () => {
         if (!sessionId) return;
         
         try {
             setIsSendingTestMessages(true);
-            console.log("Sending test messages to chat:", sessionId);
             
-            // Test user message
             const userMessage = {
                 role: "user" as "user" | "assistant",
                 content: "This is a test user message",
                 emotions: { happiness: 0.8, neutral: 0.2 }
             };
             
-            console.log("Sending test user message:", JSON.stringify(userMessage, null, 2));
             await addMessage({
                 sessionId,
                 message: userMessage
             });
             
-            // Test assistant message
             const assistantMessage = {
                 role: "assistant" as "user" | "assistant",
                 content: "This is a test assistant response",
                 emotions: undefined
             };
             
-            console.log("Sending test assistant message:", JSON.stringify(assistantMessage, null, 2));
             await addMessage({
                 sessionId,
                 message: assistantMessage
@@ -132,10 +107,8 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                 description: "Test messages sent. Refresh the page to see them.",
             });
             
-            // Refresh the page to show the new messages
             router.refresh();
         } catch (error) {
-            console.error("Error sending test messages:", error);
             toast({
                 title: "Error",
                 description: "Failed to send test messages",

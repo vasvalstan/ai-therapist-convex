@@ -25,22 +25,12 @@ export function ChatNav({ title }: ChatNavProps) {
   useEffect(() => {
     if (isOnSpecificChatPage && !searchParams?.get("tab")) {
       // Force navigation to the chat tab to ensure the chat content is displayed
-      console.log(`Redirecting to chat tab for ${chatId}`);
       router.push(`${pathname}?tab=chat`);
     }
   }, [isOnSpecificChatPage, pathname, router, searchParams, chatId]);
 
   // Handle tab changes
   const handleTabChange = (value: string) => {
-    // Current state logging to help with debugging
-    console.log("Tab change:", { 
-      from: currentTab, 
-      to: value, 
-      isOnSpecificChatPage, 
-      chatId, 
-      pathname 
-    });
-    
     // If we're already on the selected tab, don't do anything to avoid unnecessary navigation
     if (value === currentTab) {
       return;

@@ -13,11 +13,12 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
 import { ChatNav } from "@/components/hume/chat-nav";
-import type { ChatSession } from "@/lib/types";
+import { Message, ChatSession } from "@/lib/types";
 import { FileText, BarChart2, MessageCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSaveTranscript } from "@/lib/hooks/useSaveTranscript";
+import { ReactNode } from "react";
 
 export function ChatHistoryContentWrapper() {
   const { isLoading, isAuthenticated } = useConvexAuth();
@@ -60,13 +61,6 @@ export function ChatHistoryContent() {
   // Extract chat ID from the path - handle potential invalid formats
   const activeChatId = pathname?.split('/chat/')[1]?.split('?')[0];
 
-  // Debug logging for path and chat ID
-  console.log('Path info:', {
-    pathname,
-    activeChatId,
-    searchParams: Object.fromEntries(searchParams?.entries() || []),
-  });
-
   // Get the current user's plan status
   const user = useQuery(api.users.getUserByToken, 
     userId ? { tokenIdentifier: userId } : "skip"
@@ -77,13 +71,6 @@ export function ChatHistoryContent() {
     api.chat.getActiveConversation,
     activeChatId ? { chatId: activeChatId } : "skip"
   );
-
-  // Debug logging for active conversation
-  console.log('Active conversation query:', {
-    activeChatId,
-    hasActiveConversation: !!activeConversation,
-    conversationMessages: activeConversation?.messages?.length || 0
-  });
 
   // Get user's chat sessions
   const chatSessions = useQuery(
@@ -290,7 +277,6 @@ export function ChatHistoryContent() {
 
   // If we have a chat ID but no conversation data yet, show brief loading
   if (activeChatId && activeConversation === undefined) {
-    console.log("Loading conversation data for:", activeChatId);
     return (
       <div className="flex h-screen">
         <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
@@ -305,15 +291,12 @@ export function ChatHistoryContent() {
 
   // If chat not found, log and redirect to chat history
   if (activeChatId && activeConversation === null) {
-    console.log("Chat not found:", activeChatId);
     router.push('/chat/history');
     return null;
   }
 
   // If there's an active conversation to display
   if (activeChatId && activeConversation) {
-    console.log("Displaying conversation:", activeChatId, "with messages:", activeConversation?.messages?.length || 0);
-    
     // Get the active tab from URL params
     const activeTab = searchParams?.get("tab") || "chat";
     
@@ -357,7 +340,6 @@ export function ChatHistoryContent() {
   }
 
   // Default catch-all condition
-  console.log("Using default chat history view - no active chat");
   return (
     <div className="flex h-screen">
       <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
@@ -382,113 +364,77 @@ export function ChatHistoryContent() {
 export default ChatHistoryContentWrapper;
 
 // Component to display message history
-function MessageHistory({ conversation }: { conversation: ChatSession }) {
+function MessageHistory({ conversation }: { conversation: ChatSession }): ReactNode {
   const { saveTranscript } = useSaveTranscript();
   
-  // Use events if available, otherwise fall back to messages
-  const events = conversation.events || [];
-  const messages = conversation.events.filter(e => 
-    e.type === "USER_MESSAGE" || e.type === "AGENT_MESSAGE"
-  );
-  
-  const displayItems = messages;
-  
-  const handleManualSave = () => {
-    saveTranscript("manualSave");
-  };
+  const renderMessage = (item: Message, index: number) => {
+    const isUser = item.role === 'USER';
+    const content = item.content;
+    const timestamp = new Date(item.timestamp);
     
-  if (displayItems.length === 0) {
+    return (
+      <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+        <div className={`max-w-[80%] rounded-lg p-4 ${isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+          <div className="text-sm">{content}</div>
+          <div className="text-xs mt-2 opacity-70">{timestamp.toLocaleString()}</div>
+        </div>
+      </div>
+    );
+  };
+
+  if (!conversation.messages?.length) {
     return (
       <div className="text-center">
         <div className="text-muted-foreground mb-4">No messages in this conversation.</div>
-        <Button onClick={handleManualSave} variant="outline" size="sm">
+        <Button onClick={() => saveTranscript("manualSave")} variant="outline" size="sm">
           Save Transcript
         </Button>
       </div>
     );
   }
-  
+
   return (
-    <div>
+    <div className="flex flex-col space-y-4">
       <div className="flex justify-end mb-4">
-        <Button onClick={handleManualSave} variant="outline" size="sm">
+        <Button onClick={() => saveTranscript("manualSave")} variant="outline" size="sm">
           Save Transcript
         </Button>
       </div>
-      <div className="space-y-4">
-        {displayItems.map((item, index) => {
-          const isUser = item.role === 'USER';
-          const content = item.messageText;
-          const timestamp = new Date(item.timestamp);
-              
-          return (
-            <div 
-              key={index} 
-              className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-            >
-              <div 
-                className={`max-w-[80%] rounded-lg p-3 ${
-                  isUser 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'bg-muted'
-                }`}
-              >
-                <div className="mb-1">
-                  <span className="font-semibold">{isUser ? 'You' : 'Therapist'}</span>
-                  <span className="text-xs ml-2 opacity-70">
-                    {timestamp.toLocaleTimeString()}
-                  </span>
-                </div>
-                <div>{content}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {conversation.messages.map((item, index) => renderMessage(item, index))}
     </div>
   );
 }
 
 // Component to display transcript
-function TranscriptView({ conversation }: { conversation: ChatSession }) {
+function TranscriptView({ conversation }: { conversation: ChatSession }): ReactNode {
   const { saveTranscript } = useSaveTranscript();
-  
-  // Use events for transcript
-  const events = conversation.events || [];
-  
-  const handleManualSave = () => {
-    saveTranscript("manualSave");
-  };
-  
-  if (events.length === 0) {
+
+  if (!conversation.messages?.length) {
     return (
       <div className="text-center">
         <div className="text-muted-foreground mb-4">No transcript available for this conversation.</div>
-        <Button onClick={handleManualSave} variant="outline" size="sm">
+        <Button onClick={() => saveTranscript("manualSave")} variant="outline" size="sm">
           Save Transcript
         </Button>
       </div>
     );
   }
-  
+
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
           <FileText className="h-5 w-5" />
           Conversation Transcript
         </CardTitle>
-        <Button onClick={handleManualSave} variant="outline" size="sm">
+        <Button onClick={() => saveTranscript("manualSave")} variant="outline" size="sm">
           Save Transcript
         </Button>
       </CardHeader>
       <CardContent>
         <pre className="text-sm whitespace-pre-wrap bg-muted p-4 rounded-md">
-          {events.map((item, index) => {
+          {conversation.messages.map((item, index) => {
             let prefix;
-            let content = item.messageText;
-            const timestamp = new Date(item.timestamp).toLocaleString();
-              
             switch(item.type) {
               case 'USER_MESSAGE':
                 prefix = 'User:';
@@ -505,9 +451,8 @@ function TranscriptView({ conversation }: { conversation: ChatSession }) {
               default:
                 prefix = `System (${item.type}):`;
             }
-              
-            return `[${timestamp}] ${prefix} ${content}\n\n`;
-          }).join('')}
+            return `${prefix} ${item.content}\n`;
+          }).join('\n')}
         </pre>
       </CardContent>
     </Card>
@@ -515,41 +460,34 @@ function TranscriptView({ conversation }: { conversation: ChatSession }) {
 }
 
 // Component to display emotion analysis
-function EmotionAnalysis({ conversation }: { conversation: ChatSession }) {
+function EmotionAnalysis({ conversation }: { conversation: ChatSession }): ReactNode {
   const { saveTranscript } = useSaveTranscript();
-  
-  const events = conversation.events || [];
-  
-  const handleManualSave = () => {
-    saveTranscript("manualSave");
-  };
-  
-  // Extract user messages with emotion data
-  const emotionEvents = events.filter(
-    event => event.type === "USER_MESSAGE" && event.emotionFeatures
+
+  const emotionMessages = conversation.messages?.filter(
+    message => message.type === "USER_MESSAGE" && message.emotionFeatures
   );
-  
-  if (emotionEvents.length === 0) {
+
+  if (!emotionMessages?.length) {
     return (
       <div className="text-center">
         <div className="text-muted-foreground mb-4">
           No emotion data available for this conversation.
         </div>
-        <Button onClick={handleManualSave} variant="outline" size="sm">
+        <Button onClick={() => saveTranscript("manualSave")} variant="outline" size="sm">
           Save Transcript
         </Button>
       </div>
     );
   }
-  
+
   // Aggregate emotion data
   const emotionData: Record<string, { total: number, count: number, values: number[] }> = {};
   
-  emotionEvents.forEach(event => {
-    if (!event.emotionFeatures) return;
+  emotionMessages.forEach(message => {
+    if (!message.emotionFeatures) return;
     
     try {
-      const emotions = JSON.parse(event.emotionFeatures);
+      const emotions = JSON.parse(message.emotionFeatures as string);
       
       Object.entries(emotions).forEach(([emotion, score]) => {
         if (!emotionData[emotion]) {
@@ -564,7 +502,7 @@ function EmotionAnalysis({ conversation }: { conversation: ChatSession }) {
       console.error("Error parsing emotion features:", e);
     }
   });
-  
+
   // Calculate averages and sort by highest average
   const emotionAverages = Object.entries(emotionData)
     .map(([emotion, data]) => ({
@@ -574,11 +512,11 @@ function EmotionAnalysis({ conversation }: { conversation: ChatSession }) {
       values: data.values
     }))
     .sort((a, b) => b.average - a.average);
-  
+
   return (
     <div className="space-y-6">
       <div className="flex justify-end mb-4">
-        <Button onClick={handleManualSave} variant="outline" size="sm">
+        <Button onClick={() => saveTranscript("manualSave")} variant="outline" size="sm">
           Save Transcript
         </Button>
       </div>
@@ -636,7 +574,7 @@ function EmotionAnalysis({ conversation }: { conversation: ChatSession }) {
           
           <div className="mt-4 text-sm text-muted-foreground">
             <p>
-              These emotions were detected from {emotionEvents.length} voice samples
+              These emotions were detected from {emotionMessages.length} voice samples
               throughout the conversation.
             </p>
           </div>
