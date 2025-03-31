@@ -60,8 +60,12 @@ export function ChatHistoryContent() {
   // Extract chat ID from the path - handle potential invalid formats
   const activeChatId = pathname?.split('/chat/')[1]?.split('?')[0];
 
-  // Log the chat ID to help debug
-  console.log('Active Chat ID:', activeChatId);
+  // Debug logging for path and chat ID
+  console.log('Path info:', {
+    pathname,
+    activeChatId,
+    searchParams: Object.fromEntries(searchParams?.entries() || []),
+  });
 
   // Get the current user's plan status
   const user = useQuery(api.users.getUserByToken, 
@@ -73,6 +77,13 @@ export function ChatHistoryContent() {
     api.chat.getActiveConversation,
     activeChatId ? { chatId: activeChatId } : "skip"
   );
+
+  // Debug logging for active conversation
+  console.log('Active conversation query:', {
+    activeChatId,
+    hasActiveConversation: !!activeConversation,
+    conversationMessages: activeConversation?.messages?.length || 0
+  });
 
   // Get user's chat sessions
   const chatSessions = useQuery(
@@ -279,6 +290,7 @@ export function ChatHistoryContent() {
 
   // If we have a chat ID but no conversation data yet, show brief loading
   if (activeChatId && activeConversation === undefined) {
+    console.log("Loading conversation data for:", activeChatId);
     return (
       <div className="flex h-screen">
         <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
@@ -291,14 +303,17 @@ export function ChatHistoryContent() {
     );
   }
 
-  // If chat not found, redirect to chat history
+  // If chat not found, log and redirect to chat history
   if (activeChatId && activeConversation === null) {
+    console.log("Chat not found:", activeChatId);
     router.push('/chat/history');
     return null;
   }
 
   // If there's an active conversation to display
   if (activeChatId && activeConversation) {
+    console.log("Displaying conversation:", activeChatId, "with messages:", activeConversation?.messages?.length || 0);
+    
     // Get the active tab from URL params
     const activeTab = searchParams?.get("tab") || "chat";
     
@@ -341,6 +356,8 @@ export function ChatHistoryContent() {
     );
   }
 
+  // Default catch-all condition
+  console.log("Using default chat history view - no active chat");
   return (
     <div className="flex h-screen">
       <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
@@ -350,24 +367,7 @@ export function ChatHistoryContent() {
         <Tabs defaultValue={searchParams?.get("tab") || "start"} className="flex-1">
           <ChatNav />
           <TabsContent value="start" className="mt-0 h-[calc(100%-48px)]">
-            {activeChatId ? (
-              <VoiceController 
-                initialMessages={activeConversation?.messages || []} 
-              />
-            ) : (
-              <StartConversationPanel />
-            )}
-          </TabsContent>
-          <TabsContent value="chat" className="mt-0 h-[calc(100%-48px)]">
-            {activeChatId && activeConversation ? (
-              <VoiceController 
-                initialMessages={activeConversation.messages || []} 
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-            )}
+            <StartConversationPanel />
           </TabsContent>
           <TabsContent value="progress" className="mt-0 h-[calc(100%-48px)] overflow-auto">
             <TherapyProgress />

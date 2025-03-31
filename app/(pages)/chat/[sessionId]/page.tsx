@@ -1,24 +1,46 @@
-import { getHumeAccessToken } from "@/lib/hume";
+'use client';
+
 import { ChatHistory } from "@/components/hume/chat-history";
-import { ChatView } from "@/components/hume/chat-view";
-import { Suspense } from "react";
+import { ChatClientView } from "@/components/hume/chat-client-view";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 
-interface ChatPageProps {
-  params: Promise<{
-    sessionId: string;  // This is actually the chatId from the URL
-  }>;
-}
-
-export const dynamic = 'force-dynamic';
-
-export default async function ChatPage({ params }: ChatPageProps) {
-  const { sessionId } = await params;  // This is actually the chatId
-  const accessToken = await getHumeAccessToken();
-
-  if (!accessToken) {
-    throw new Error("Failed to get Hume access token");
+export default function ChatPage() {
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const sessionId = typeof params.sessionId === 'string' 
+    ? params.sessionId 
+    : Array.isArray(params.sessionId) 
+      ? params.sessionId[0] 
+      : '';
+  
+  const tab = searchParams.get('tab');
+  
+  // Handle redirection to chat tab if no tab is specified
+  useEffect(() => {
+    if (!tab && !isRedirecting) {
+      setIsRedirecting(true);
+      router.push(`/chat/${sessionId}?tab=chat`);
+    } else {
+      setIsLoading(false);
+    }
+  }, [tab, sessionId, router, isRedirecting]);
+  
+  if (isLoading || isRedirecting) {
+    return (
+      <div className="flex h-screen">
+        <ChatHistory />
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          Loading conversation...
+        </div>
+      </div>
+    );
   }
-
+  
   return (
     <div className="flex h-screen">
       <ChatHistory />
@@ -27,7 +49,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
           Loading conversation...
         </div>
       }>
-        <ChatView sessionId={sessionId} accessToken={accessToken} />
+        <ChatClientView sessionId={sessionId} />
       </Suspense>
     </div>
   );

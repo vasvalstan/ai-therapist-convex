@@ -133,7 +133,7 @@ export default function HumeChat({
         sessionId={currentSessionId || undefined} 
         onEndCallStart={onEndCallStart} 
       />
-      <StartCall />
+      <StartCall sessionId={currentSessionId || undefined} />
       
       {/* Add the ChatSaveHandler component to save transcripts when the chat ends */}
       {currentSessionId && (

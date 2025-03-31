@@ -10,45 +10,64 @@ export function ChatNav({ title }: ChatNavProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const currentTab = searchParams?.get("tab") || "start";
   
   // Check if we're on a specific chat page (not the history page)
   const isOnSpecificChatPage = pathname && pathname !== "/chat/history" && pathname.startsWith("/chat/");
   
+  // Get the current chat ID from the URL
+  const chatId = isOnSpecificChatPage ? pathname?.split('/chat/')[1]?.split('?')[0] : null;
+  
+  // Get the current tab, defaulting to "chat" if we're on a specific chat page,
+  // otherwise default to "start"
+  const currentTab = searchParams?.get("tab") || (isOnSpecificChatPage ? "chat" : "start");
+  
   // If we're on a specific chat page and no tab is specified, default to "chat" tab
   useEffect(() => {
     if (isOnSpecificChatPage && !searchParams?.get("tab")) {
+      // Force navigation to the chat tab to ensure the chat content is displayed
+      console.log(`Redirecting to chat tab for ${chatId}`);
       router.push(`${pathname}?tab=chat`);
     }
-  }, [isOnSpecificChatPage, pathname, router, searchParams]);
+  }, [isOnSpecificChatPage, pathname, router, searchParams, chatId]);
 
   // Handle tab changes
   const handleTabChange = (value: string) => {
-    // If we're already on the chat tab and on a specific chat page, don't do anything
-    if (value === "chat" && isOnSpecificChatPage && currentTab === "chat") {
+    // Current state logging to help with debugging
+    console.log("Tab change:", { 
+      from: currentTab, 
+      to: value, 
+      isOnSpecificChatPage, 
+      chatId, 
+      pathname 
+    });
+    
+    // If we're already on the selected tab, don't do anything to avoid unnecessary navigation
+    if (value === currentTab) {
       return;
     }
     
     if (value === "start") {
-      // If we're on a specific chat page and trying to go to "start" tab,
-      // redirect to the history page with start tab
+      // Going to start tab - always go to history page first
       router.push("/chat/history?tab=start");
     } else if (value === "progress") {
       // For progress tab, stay on current page but update tab
+      router.push(`${isOnSpecificChatPage ? pathname : "/chat/history"}?tab=progress`);
+    } else if (value === "chat") {
       if (isOnSpecificChatPage) {
-        router.push(`${pathname}?tab=progress`);
+        // For chat tab on specific chat page
+        router.push(`${pathname}?tab=chat`);
       } else {
-        router.push("/chat/history?tab=progress");
+        // If not on a specific chat page, redirect to chat history
+        router.push("/chat/history");
       }
-    } else if (value === "chat" && isOnSpecificChatPage) {
-      // For chat tab, only applicable on specific chat pages
-      router.push(`${pathname}?tab=chat`);
-    } else if (value === "transcript" && isOnSpecificChatPage) {
-      // For transcript tab
-      router.push(`${pathname}?tab=transcript`);
-    } else if (value === "emotions" && isOnSpecificChatPage) {
-      // For emotions tab
-      router.push(`${pathname}?tab=emotions`);
+    } else if (value === "transcript" || value === "emotions") {
+      // These tabs are only applicable for specific chat pages
+      if (isOnSpecificChatPage) {
+        router.push(`${pathname}?tab=${value}`);
+      } else {
+        // If not on a specific chat, first go to chat history
+        router.push("/chat/history");
+      }
     }
   };
 

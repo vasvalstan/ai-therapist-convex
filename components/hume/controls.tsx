@@ -326,6 +326,9 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
     }
   };
 
+  // Ensure sessionId is used correctly
+  console.log("Controls received sessionId:", sessionId);
+
   return (
     <div
       className={cn(

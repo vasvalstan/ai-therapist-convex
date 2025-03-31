@@ -7,17 +7,27 @@ import { History, MessageCircle, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
 
-export function StartCall() {
+interface StartCallProps {
+  sessionId?: string;
+}
+
+export function StartCall({ sessionId }: StartCallProps) {
   const { status, connect } = useVoice();
   const router = useRouter();
   const pathname = usePathname();
   
   // Check if we're already on the chat history page
   const isOnChatHistory = pathname === "/chat/history";
+  
+  // Don't show overlay if we're viewing a specific session
+  const hasSessionId = !!sessionId;
+  
+  // For debugging
+  console.log("StartCall component:", { hasSessionId, sessionId, status: status.value });
 
   return (
     <AnimatePresence>
-      {status.value !== "connected" ? (
+      {status.value !== "connected" && !hasSessionId ? (
         <motion.div
           className="fixed inset-0 p-4 flex items-center justify-center bg-background"
           initial="initial"
