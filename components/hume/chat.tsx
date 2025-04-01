@@ -15,12 +15,41 @@ interface HumeChatProps {
   onEndCallStart?: () => void;
 }
 
-type MessageRole = "USER" | "ASSISTANT";
+type MessageRole = "user" | "assistant";
+
+interface InitialMessage {
+  role: MessageRole;
+  content: string;
+  metadata?: {
+    chat_id: string;
+    chat_group_id: string;
+    request_id: string;
+    timestamp: string;
+  };
+}
+
+interface MessageData {
+  type: string;
+  role: MessageRole;
+  messageText: string;
+  content: string;
+  timestamp: number;
+  emotionFeatures?: any;
+  chatId?: string;
+  chatGroupId?: string;
+  metadata?: {
+    chat_id: string;
+    chat_group_id: string;
+    request_id: string;
+    timestamp: string;
+  };
+}
 
 interface Message {
   type: string;
   role: MessageRole;
   content: string;
+  messageText: string;
   timestamp: number;
   emotionFeatures?: any;
   chatId?: string;
@@ -50,7 +79,7 @@ export default function HumeChat({
 
   const createSession = useMutation(api.chat.createChatSession);
   const addMessage = useMutation(api.chat.addMessageToSession);
-  const updateHumeChatIds = useMutation(api.chat.updateHumeChatIds);
+  const updateChatMetadata = useMutation(api.chat.updateChatMetadata);
 
   // Set up message handler for the existing voice connection
   const handleMessage = useCallback(
@@ -64,24 +93,24 @@ export default function HumeChat({
       });
 
       // Handle chat_metadata event which is sent at the start of every chat session
-      if (message.type === "CHAT_METADATA") {
+      if (message.type === "chat_metadata") {
         console.log("📋 Received chat_metadata event:", {
-          chat_id: message.chat_id,
-          chat_group_id: message.chat_group_id,
-          request_id: message.request_id,
-          timestamp: new Date().toISOString()
+          chatId: message.chatId,
+          chatGroupId: message.chatGroupId,
+          requestId: message.requestId,
+          receivedAt: message.receivedAt
         });
         
         // Store the chat IDs for later use
-        setHumeChatId(message.chat_id);
-        setHumeGroupChatId(message.chat_group_id);
+        setHumeChatId(message.chatId);
+        setHumeGroupChatId(message.chatGroupId);
         
         // Store metadata in state for debugging
         const newMetadata = {
-          chat_id: message.chat_id,
-          chat_group_id: message.chat_group_id,
-          request_id: message.request_id,
-          timestamp: new Date().toISOString()
+          chat_id: message.chatId,
+          chat_group_id: message.chatGroupId,
+          request_id: message.requestId,
+          timestamp: message.receivedAt
         };
         setMetadata(newMetadata);
         console.log("💾 Stored metadata in state:", newMetadata);
@@ -89,16 +118,17 @@ export default function HumeChat({
         // If we have a session, store the Hume chat IDs in our database
         if (currentSessionId) {
           try {
-            console.log("💫 Updating Hume chat IDs in database for session:", currentSessionId);
-            await updateHumeChatIds({
+            console.log("💫 Updating chat metadata in database for session:", currentSessionId);
+            await updateChatMetadata({
               sessionId: currentSessionId,
-              humeChatId: message.chat_id,
-              humeGroupChatId: message.chat_group_id,
-              metadata: JSON.stringify(newMetadata)
+              chatId: message.chatId,
+              chatGroupId: message.chatGroupId,
+              requestId: message.requestId,
+              receivedAt: message.receivedAt
             });
-            console.log("✅ Successfully stored Hume chat IDs and metadata in database");
+            console.log("✅ Successfully stored chat metadata in database");
           } catch (error) {
-            console.error("❌ Error storing Hume chat IDs and metadata:", error);
+            console.error("❌ Error storing chat metadata:", error);
           }
         }
         return;
@@ -112,31 +142,55 @@ export default function HumeChat({
       // Handle message storage
       if (message.type === "user_message" || message.type === "assistant_message") {
         console.log(`🗣️ Processing ${message.type}:`, {
-          role: message.type === "user_message" ? "USER" : "ASSISTANT",
+          role: message.type === "user_message" ? "user" : "assistant",
           content: message.message.content,
           emotions: message.models.prosody?.scores
         });
 
-        const messageData = {
+        const messageData: MessageData = {
           type: message.type.toUpperCase(),
-          role: message.type === "user_message" ? "USER" : "ASSISTANT",
+          role: message.type === "user_message" ? "user" : "assistant",
+          messageText: message.message.content,
           content: message.message.content,
           timestamp: Date.now(),
           emotionFeatures: message.models.prosody?.scores,
-          chatId: humeChatId || currentSessionId,
-          chatGroupId: humeGroupChatId || currentSessionId
+          chatId: metadata?.chat_id,
+          chatGroupId: metadata?.chat_group_id,
+          metadata: metadata || undefined
         };
 
         // If no session exists, create one with the initial message
         if (!currentSessionId) {
           console.log("📝 Creating new session with initial message:", messageData);
+          const initialMessage: InitialMessage = {
+            role: messageData.role,
+            content: messageData.content,
+            metadata: metadata || undefined
+          };
           const result = await createSession({
-            initialMessage: messageData
+            initialMessage
           });
           console.log("✨ Session creation result:", result);
           if (result?.sessionId) {
             console.log("🆔 Setting current session ID:", result.sessionId);
             setCurrentSessionId(result.sessionId);
+            
+            // Update metadata immediately after session creation
+            if (metadata) {
+              try {
+                console.log("💫 Updating chat metadata for new session:", result.sessionId);
+                await updateChatMetadata({
+                  sessionId: result.sessionId,
+                  chatId: metadata.chat_id,
+                  chatGroupId: metadata.chat_group_id,
+                  requestId: metadata.request_id,
+                  receivedAt: metadata.timestamp
+                });
+                console.log("✅ Successfully stored chat metadata for new session");
+              } catch (error) {
+                console.error("❌ Error storing chat metadata:", error);
+              }
+            }
           }
         } else {
           // Add message to existing session
@@ -162,7 +216,7 @@ export default function HumeChat({
         }
       }, 200);
     },
-    [currentSessionId, createSession, addMessage, updateHumeChatIds, humeChatId, humeGroupChatId]
+    [currentSessionId, createSession, addMessage, updateChatMetadata, humeChatId, humeGroupChatId, metadata]
   );
 
   useEffect(() => {

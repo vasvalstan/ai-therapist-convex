@@ -116,8 +116,9 @@ export const updateUserRemainingMinutes = mutation({
 // Update the Message interface to match our schema
 interface Message {
     type: string;
-    role: string;
+    role: "user" | "assistant";
     messageText: string;
+    content: string;  // Add this to satisfy both formats
     timestamp: number;
     emotionFeatures?: any;
     chatId?: string;
@@ -134,8 +135,9 @@ interface Message {
 function formatMessage(role: "user" | "assistant", content: string, emotions?: any, chatId?: string, chatGroupId?: string): Message {
     return {
         type: role === "user" ? "USER_MESSAGE" : "AGENT_MESSAGE",
-        role: role.toUpperCase(),
+        role: role,
         messageText: content,
+        content: content,  // Set both fields
         timestamp: Date.now(),
         emotionFeatures: emotions,
         chatId: chatId,
@@ -168,10 +170,9 @@ export interface ChatSession {
 // Helper to convert our Message type to ChatEvent
 function messageToEvent(message: Message, chatId: string, chatGroupId: string): ChatEvent {
     return {
-        type: message.role === "USER" ? "USER_MESSAGE" : 
-              message.role === "ASSISTANT" ? "AGENT_MESSAGE" : "SYSTEM_MESSAGE",
-        role: message.role as "USER" | "ASSISTANT" | "SYSTEM",
-        messageText: message.messageText,
+        type: message.role === "user" ? "USER_MESSAGE" : "AGENT_MESSAGE",
+        role: message.role === "user" ? "USER" : "ASSISTANT",
+        messageText: message.messageText || message.content,
         timestamp: message.timestamp,
         emotionFeatures: message.emotionFeatures ? JSON.stringify(message.emotionFeatures) : undefined,
         chatId,
@@ -798,4 +799,48 @@ export const addEventToSession = mutation({
 
     return session._id;
   },
+});
+
+export const updateChatMetadata = mutation({
+    args: {
+        sessionId: v.string(),
+        chatId: v.string(),
+        chatGroupId: v.string(),
+        requestId: v.optional(v.string()),
+        receivedAt: v.optional(v.string())
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const userId = identity.subject;
+
+        // Find the chat session
+        const session = await ctx.db
+            .query("chatHistory")
+            .filter((q) => q.eq(q.field("userId"), userId))
+            .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
+            .first();
+
+        if (!session) {
+            throw new Error("Chat session not found");
+        }
+
+        // Update the session with the new metadata
+        await ctx.db.patch(session._id, {
+            chatId: args.chatId,
+            chatGroupId: args.chatGroupId,
+            metadata: JSON.stringify({
+                chat_id: args.chatId,
+                chat_group_id: args.chatGroupId,
+                request_id: args.requestId,
+                timestamp: args.receivedAt
+            }),
+            updatedAt: Date.now()
+        });
+
+        return session._id;
+    }
 }); 

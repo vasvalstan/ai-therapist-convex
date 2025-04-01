@@ -39,40 +39,106 @@ export function VoiceController({ initialMessages = [] }: VoiceControllerProps) 
   const prevStatusRef = useRef<string | undefined>(undefined);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [chatMetadata, setChatMetadata] = useState<{
+    chatId?: string;
+    chatGroupId?: string;
+    requestId?: string;
+  } | null>(null);
+  
+  const updateChatIds = useMutation(api.chat.updateHumeChatIds);
   
   // Extract session ID from the URL or use a generated one
   useEffect(() => {
-    // Get session ID from URL or generate one
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('sessionId') || `session_${Date.now()}`;
     setCurrentSessionId(sessionId);
-    
-    console.log("VoiceController: Using session ID:", sessionId);
+    console.log("Chat session created:", sessionId);
   }, []);
+
+  // Initialize voice connection
+  useEffect(() => {
+    if (!voice || !currentSessionId) return;
+
+    const connect = async () => {
+      try {
+        console.log("Connecting to voice service...");
+        await voice.connect();
+      } catch (error) {
+        console.error("Error connecting to voice service:", error);
+        toast({
+          title: "Connection Error",
+          description: "Failed to connect to voice service. Please try again.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    connect();
+
+    return () => {
+      if (voice.disconnect) {
+        voice.disconnect();
+      }
+    };
+  }, [voice, currentSessionId]);
+
+  // Handle voice status changes and events
+  useEffect(() => {
+    if (!voice || !currentSessionId) return;
+
+    // Track status changes
+    if (voice.status) {
+      const currentStatus = voice.status.value;
+      if (prevStatusRef.current !== currentStatus) {
+        console.log(`Voice status changed from ${prevStatusRef.current} to ${currentStatus}`);
+        prevStatusRef.current = currentStatus;
+      }
+    }
+
+    // Update metadata when it changes
+    if (voice.chatMetadata) {
+      console.log("🎤 Received chat metadata:", voice.chatMetadata);
+      const metadata = {
+        chatId: voice.chatMetadata.chatId,
+        chatGroupId: voice.chatMetadata.chatGroupId,
+        requestId: voice.chatMetadata.requestId,
+        receivedAt: voice.chatMetadata.receivedAt
+      };
+      
+      setChatMetadata(metadata);
+      
+      // Update the chat IDs in the database
+      updateChatIds({
+        sessionId: currentSessionId,
+        humeChatId: voice.chatMetadata.chatId,
+        humeGroupChatId: voice.chatMetadata.chatGroupId,
+        metadata: JSON.stringify(metadata)
+      }).catch(error => {
+        console.error("Error updating chat IDs:", error);
+      });
+    }
+  }, [voice, currentSessionId, updateChatIds, voice?.status, voice?.chatMetadata]);
   
+  // Handle page visibility and time expiration
   useEffect(() => {
     const handleTimeExpired = () => {
-      console.log("VoiceController: Time expired event received, forcing disconnect");
+      console.log("Time expired event received, forcing disconnect");
       
-      // Show a notification that the chat is being saved
       const saveMessage = document.createElement('div');
       saveMessage.className = 'fixed top-4 right-4 bg-green-100 text-green-800 p-3 rounded shadow-md z-50';
       saveMessage.textContent = 'Saving your chat before disconnecting...';
       document.body.appendChild(saveMessage);
       
-      // Dispatch a custom event to trigger message saving
       const saveEvent = new CustomEvent('saveChat', {
         detail: { reason: "timeExpired" }
       });
       window.dispatchEvent(saveEvent);
       
-      // Give a small delay to allow any pending messages to be saved
       setTimeout(() => {
         if (voice && voice.disconnect) {
           voice.disconnect();
         }
         
-        // Update the message
         saveMessage.textContent = 'Your chat has been saved!';
         setTimeout(() => {
           saveMessage.remove();
@@ -82,9 +148,7 @@ export function VoiceController({ initialMessages = [] }: VoiceControllerProps) 
     
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        console.log("VoiceController: Page hidden, saving chat");
-        
-        // Dispatch a custom event to trigger message saving
+        console.log("Page hidden, saving chat");
         const saveEvent = new CustomEvent('saveChat', {
           detail: { reason: "visibilityChange" }
         });
@@ -92,22 +156,8 @@ export function VoiceController({ initialMessages = [] }: VoiceControllerProps) 
       }
     };
     
-    // Listen for the timeExpired event
     window.addEventListener('timeExpired', handleTimeExpired);
-    
-    // Listen for visibility change to save chat when user leaves the page
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // Track status changes
-    if (voice && voice.status) {
-      const currentStatus = voice.status.value;
-      
-      // Log status changes
-      if (prevStatusRef.current !== currentStatus) {
-        console.log(`VoiceController: Status changed from ${prevStatusRef.current} to ${currentStatus}`);
-        prevStatusRef.current = currentStatus;
-      }
-    }
     
     return () => {
       window.removeEventListener('timeExpired', handleTimeExpired);
@@ -122,16 +172,13 @@ export function VoiceController({ initialMessages = [] }: VoiceControllerProps) 
     }
   }, [initialMessages]);
   
-  // Render the ChatSaveHandler alongside (invisibly)
   return (
     <>
       {currentSessionId && (
         <ChatSaveHandler 
           sessionId={currentSessionId} 
-          // We'll use the sessionId for both humeChatId and humeGroupChatId
-          // when we don't have explicit values
-          humeChatId={undefined}
-          humeGroupChatId={undefined}
+          humeChatId={chatMetadata?.chatId}
+          humeGroupChatId={chatMetadata?.chatGroupId}
         />
       )}
     </>
@@ -207,6 +254,7 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
 }): JSX.Element | null {
   const [isSaving, setIsSaving] = useState(false);
   const saveTranscript = useMutation(api.chat.saveConversationTranscript);
+  const updateMinutes = useMutation(api.chat.updateUserRemainingMinutes);
 
   useEffect(() => {
     // Handler for saving chat when triggered by the End Call button
@@ -217,15 +265,19 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
       try {
         console.log("Saving chat transcript for session:", sessionId);
         
+        // Use the provided chat IDs or fall back to sessionId
+        const chatId = humeChatId || sessionId;
+        const chatGroupId = humeGroupChatId || sessionId;
+        
         // Use mock data for testing if needed
-        const mockEvents = generateMockEvents(sessionId, humeChatId, humeGroupChatId);
+        const mockEvents = generateMockEvents(sessionId, chatId, chatGroupId);
         
         // Try to fetch events from Hume API, but fallback to mock data if it fails
         let events: HumeEvent[] = [];
         try {
           // Fetch events from Hume API
-          console.log(`Fetching events from API for chat ID: ${humeChatId || sessionId}`);
-          const response = await fetch(`/api/hume/events?chatId=${humeChatId || sessionId}`);
+          console.log(`Fetching events from API for chat ID: ${chatId}`);
+          const response = await fetch(`/api/hume/events?chatId=${chatId}`);
           
           if (!response.ok) {
             const errorData = await response.json();
@@ -272,22 +324,16 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
         // Save the transcript to our database
         const result = await saveTranscript({
           chatId: sessionId,
-          humeChatId: humeChatId,
-          humeGroupChatId: humeGroupChatId,
+          humeChatId: chatId,
+          humeGroupChatId: chatGroupId,
           events: events.length > 0 ? events.map((event) => ({
             type: event.type,
             role: event.role || "",
             messageText: event.messageText || "",
             timestamp: new Date(event.timestamp).getTime(),
             emotionFeatures: event.emotionFeatures,
-            chatId: event.chatId || humeChatId || sessionId,
-            chatGroupId: event.chatGroupId || humeGroupChatId || sessionId,
-            metadata: event.type === "chat_metadata" ? {
-              chat_id: event.chatId,
-              chat_group_id: event.chatGroupId,
-              request_id: event.requestId,
-              timestamp: event.timestamp
-            } : event.metadata // Preserve any existing metadata
+            chatId: event.chatId || chatId,
+            chatGroupId: event.chatGroupId || chatGroupId
           })) : [
             // Add at least one event if none exist to prevent empty events array
             {
@@ -296,15 +342,14 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
               messageText: "Conversation summary saved",
               timestamp: Date.now(),
               emotionFeatures: undefined,
-              chatId: humeChatId || sessionId,
-              chatGroupId: humeGroupChatId || sessionId,
-              metadata: {
-                chat_id: humeChatId || sessionId,
-                chat_group_id: humeGroupChatId || sessionId,
-                timestamp: new Date().toISOString()
-              }
+              chatId: chatId,
+              chatGroupId: chatGroupId
             }
-          ],
+          ]
+        });
+
+        // Update user's remaining minutes
+        await updateMinutes({
           sessionDurationMinutes
         });
         
@@ -332,7 +377,7 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
     return () => {
       window.removeEventListener("saveChat", handleSaveChat as EventListener);
     };
-  }, [sessionId, humeChatId, humeGroupChatId, saveTranscript, isSaving]);
+  }, [sessionId, humeChatId, humeGroupChatId, saveTranscript, updateMinutes, isSaving]);
 
   // This component doesn't render anything visible
   return null;
