@@ -113,81 +113,177 @@ export const updateUserRemainingMinutes = mutation({
     },
 });
 
-// Update the Message interface to match our schema
-interface Message {
-    type: string;
-    role: "user" | "assistant";
-    messageText: string;
-    content: string;  // Add this to satisfy both formats
-    timestamp: number;
-    emotionFeatures?: any;
-    chatId?: string;
-    chatGroupId?: string;
-    metadata?: {
-        chat_id: string;
-        chat_group_id: string;
-        request_id: string;
-        timestamp: string;
-    };
+type MessageType = "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE" | "CHAT_METADATA";
+type MessageRole = "USER" | "ASSISTANT" | "SYSTEM";
+
+interface MessageMetadata {
+    chat_id: string;
+    chat_group_id: string;
+    request_id: string;
+    timestamp: string;
 }
 
-// Helper function to format messages
-function formatMessage(role: "user" | "assistant", content: string, emotions?: any, chatId?: string, chatGroupId?: string): Message {
-    return {
-        type: role === "user" ? "USER_MESSAGE" : "AGENT_MESSAGE",
-        role: role,
-        messageText: content,
-        content: content,  // Set both fields
+interface Message {
+    type: MessageType;
+    role: MessageRole;
+    messageText: string;
+    content?: string;
+    timestamp: number;
+    emotionFeatures?: string;
+    chatId?: string;
+    chatGroupId?: string;
+    metadata?: MessageMetadata;
+}
+
+// Define the base event type
+type BaseEvent = Message;
+
+// Helper function to validate and normalize event type
+function validateEventType(type: string): "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE" | "CHAT_METADATA" {
+    const validTypes = ["USER_MESSAGE", "AGENT_MESSAGE", "SYSTEM_MESSAGE", "CHAT_METADATA"] as const;
+    if (!validTypes.includes(type as any)) {
+        throw new Error(`Invalid event type: ${type}`);
+    }
+    return type as "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE" | "CHAT_METADATA";
+}
+
+// Helper function to validate and normalize role
+function validateRole(role: string): "USER" | "ASSISTANT" | "SYSTEM" {
+    const validRoles = ["USER", "ASSISTANT", "SYSTEM"] as const;
+    if (!validRoles.includes(role as any)) {
+        throw new Error(`Invalid role: ${role}`);
+    }
+    return role as "USER" | "ASSISTANT" | "SYSTEM";
+}
+
+// Base message fields for type checking
+export const baseMessageFields = {
+  type: v.union(
+    v.literal("USER_MESSAGE"),
+    v.literal("AGENT_MESSAGE"),
+    v.literal("SYSTEM_MESSAGE"),
+    v.literal("CHAT_METADATA")
+  ),
+  role: v.union(
+    v.literal("USER"),
+    v.literal("ASSISTANT"),
+    v.literal("SYSTEM")
+  ),
+  messageText: v.string(),
+  content: v.optional(v.string()),
+  timestamp: v.number(),
+  emotionFeatures: v.optional(v.string()),
+  chatId: v.optional(v.string()),
+  chatGroupId: v.optional(v.string()),
+};
+
+// Define message validator matches schema
+export const messageValidator = v.object({
+  ...baseMessageFields,
+  metadata: v.optional(
+    v.object({
+      chat_id: v.string(),
+      chat_group_id: v.string(),
+      request_id: v.string(),
+      timestamp: v.string(),
+    })
+  ),
+});
+
+// Helper function to format a message
+function formatMessage(
+    type: MessageType,
+    role: MessageRole,
+    messageText: string,
+    chatId?: string,
+    chatGroupId?: string,
+    emotionFeatures?: string
+): Message {
+    const message: Message = {
+        type,
+        role,
+        messageText,
         timestamp: Date.now(),
-        emotionFeatures: emotions,
-        chatId: chatId,
-        chatGroupId: chatGroupId
     };
+
+    if (emotionFeatures) {
+        message.emotionFeatures = emotionFeatures;
+    }
+
+    if (chatId && chatGroupId) {
+        message.chatId = chatId;
+        message.chatGroupId = chatGroupId;
+        message.metadata = {
+            chat_id: chatId,
+            chat_group_id: chatGroupId,
+            request_id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+        };
+    }
+
+    return message;
 }
 
 // Add ChatEvent type to match Hume.ai's EVI
 export type ChatEvent = {
-  type: "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE";
-  role: "USER" | "ASSISTANT" | "SYSTEM";
-  messageText: string;
-  timestamp: number;
-  emotionFeatures?: string; // JSON stringified EmotionScores
-  chatId: string;
-  chatGroupId: string;
+    type: "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE" | "CHAT_METADATA";
+    role: "USER" | "ASSISTANT" | "SYSTEM";
+    messageText: string;
+    content?: string;
+    timestamp: number;
+    emotionFeatures?: string;
+    chatId?: string;
+    chatGroupId?: string;
 };
 
 // Update the chat history table schema
 export interface ChatSession {
-  userId: string;
-  chatId: string;  // Previously sessionId
-  chatGroupId: string;  // New field to link related sessions
-  events: ChatEvent[];  // Store standardized events instead of custom messages
-  createdAt: number;
-  updatedAt: number;
-  title?: string;
+    userId: string;
+    chatId: string;  // Previously sessionId
+    chatGroupId: string;  // New field to link related sessions
+    events: ChatEvent[];  // Store standardized events instead of custom messages
+    messages: Message[];  // Store messages in the same format
+    createdAt: number;
+    updatedAt: number;
+    title?: string;
 }
 
 // Helper to convert our Message type to ChatEvent
-function messageToEvent(message: Message, chatId: string, chatGroupId: string): ChatEvent {
+function messageToEvent(message: Message, chatId?: string, chatGroupId?: string): ChatEvent {
     return {
-        type: message.role === "user" ? "USER_MESSAGE" : "AGENT_MESSAGE",
-        role: message.role === "user" ? "USER" : "ASSISTANT",
-        messageText: message.messageText || message.content,
+        type: message.type,
+        role: message.role.toUpperCase() as "USER" | "ASSISTANT" | "SYSTEM",
+        messageText: message.messageText,
+        content: message.content,
         timestamp: message.timestamp,
         emotionFeatures: message.emotionFeatures ? JSON.stringify(message.emotionFeatures) : undefined,
-        chatId,
-        chatGroupId
+        chatId: chatId || message.chatId,
+        chatGroupId: chatGroupId || message.chatGroupId
     };
 }
 
 // Update createChatSession to handle chat groups
 export const createChatSession = mutation({
     args: {
-        sessionId: v.optional(v.string()),
-        initialMessage: v.optional(v.object({
-            role: v.string(),
-            content: v.string(),
-        })),
+        initialMessage: v.object({
+            type: v.union(
+                v.literal("USER_MESSAGE"),
+                v.literal("AGENT_MESSAGE"),
+                v.literal("SYSTEM_MESSAGE"),
+                v.literal("CHAT_METADATA")
+            ),
+            role: v.union(
+                v.literal("USER"),
+                v.literal("ASSISTANT"),
+                v.literal("SYSTEM")
+            ),
+            messageText: v.string(),
+            content: v.optional(v.string()),
+            timestamp: v.number(),
+            emotionFeatures: v.optional(v.string()),
+        }),
+        chatId: v.optional(v.string()),
+        chatGroupId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -196,44 +292,40 @@ export const createChatSession = mutation({
         }
 
         const userId = identity.subject;
-        const newSessionId = args.sessionId ?? crypto.randomUUID();
+        const sessionId = crypto.randomUUID();
 
-        // Check if a session with this sessionId already exists
-        const existingSession = await ctx.db
-            .query("chatHistory")
-            .filter((q) => q.eq(q.field("userId"), userId))
-            .filter((q) => q.eq(q.field("sessionId"), newSessionId))
-            .first();
+        const message: Message = {
+            type: args.initialMessage.type as MessageType,
+            role: args.initialMessage.role as MessageRole,
+            messageText: args.initialMessage.messageText,
+            content: args.initialMessage.content,
+            timestamp: args.initialMessage.timestamp,
+            emotionFeatures: args.initialMessage.emotionFeatures,
+            chatId: args.chatId,
+            chatGroupId: args.chatGroupId,
+        };
 
-        if (existingSession) {
-            return {
-                id: existingSession._id,
-                sessionId: existingSession.sessionId,
+        if (args.chatId && args.chatGroupId) {
+            message.metadata = {
+                chat_id: args.chatId,
+                chat_group_id: args.chatGroupId,
+                request_id: crypto.randomUUID(),
+                timestamp: new Date().toISOString(),
             };
         }
 
-        // Format the initial message if provided
-        const formattedMessage = args.initialMessage ? {
-            type: "AGENT_MESSAGE",
-            role: "ASSISTANT",
-            messageText: args.initialMessage.content,
-            timestamp: Date.now(),
-        } : undefined;
-
-        // If no existing session, create a new one
-        const id = await ctx.db.insert("chatHistory", {
+        await ctx.db.insert("chatHistory", {
             userId,
-            sessionId: newSessionId,
-            messages: formattedMessage ? [formattedMessage] : [],
-            events: formattedMessage ? [formattedMessage] : [],
+            sessionId,
+            messages: [message],
+            events: [message],
+            chatId: args.chatId,
+            chatGroupId: args.chatGroupId,
             createdAt: Date.now(),
             updatedAt: Date.now(),
         });
 
-        return {
-            id,
-            sessionId: newSessionId,
-        };
+        return { sessionId, message };
     },
 });
 
@@ -242,11 +334,23 @@ export const addMessageToSession = mutation({
     args: {
         sessionId: v.string(),
         message: v.object({
-            type: v.string(),
-            role: v.union(v.literal("user"), v.literal("assistant")),
+            type: v.union(
+                v.literal("USER_MESSAGE"),
+                v.literal("AGENT_MESSAGE"),
+                v.literal("SYSTEM_MESSAGE"),
+                v.literal("CHAT_METADATA")
+            ),
+            role: v.union(
+                v.literal("USER"),
+                v.literal("ASSISTANT"),
+                v.literal("SYSTEM"),
+                v.literal("user"),
+                v.literal("assistant")
+            ),
             messageText: v.string(),
+            content: v.optional(v.string()),
             timestamp: v.number(),
-            emotionFeatures: v.optional(v.any()),
+            emotionFeatures: v.optional(v.string()),
             chatId: v.optional(v.string()),
             chatGroupId: v.optional(v.string())
         })
@@ -275,27 +379,37 @@ export const addMessageToSession = mutation({
             throw new Error("Chat session not found");
         }
 
+        // Convert role to uppercase if it's in lowercase
+        const role = typeof args.message.role === 'string' && 
+            (args.message.role === 'user' || args.message.role === 'assistant') ? 
+            args.message.role.toUpperCase() as MessageRole : 
+            args.message.role as MessageRole;
+
         // Normalize the message and ensure all required fields are present
-        const normalizedMessage = {
-            ...args.message,
-            role: args.message.role.toLowerCase() as "user" | "assistant",
-            content: args.message.messageText, // Use messageText as content
-            chatId: args.message.chatId || session.chatId || args.sessionId,
-            chatGroupId: args.message.chatGroupId || session.chatGroupId || args.sessionId,
-            metadata: {
-                chat_id: args.message.chatId || session.chatId || args.sessionId,
-                chat_group_id: args.message.chatGroupId || session.chatGroupId || args.sessionId,
-                request_id: args.sessionId,
-                timestamp: new Date(args.message.timestamp).toISOString()
-            }
+        const normalizedMessage: Message = {
+            type: args.message.type as MessageType,
+            role: role,
+            messageText: args.message.messageText,
+            content: args.message.content || args.message.messageText,
+            timestamp: args.message.timestamp,
+            emotionFeatures: args.message.emotionFeatures,
+            chatId: args.message.chatId || session.chatId,
+            chatGroupId: args.message.chatGroupId || session.chatGroupId,
         };
+
+        // Add metadata if chatId and chatGroupId are available
+        if (normalizedMessage.chatId && normalizedMessage.chatGroupId) {
+            normalizedMessage.metadata = {
+                chat_id: normalizedMessage.chatId,
+                chat_group_id: normalizedMessage.chatGroupId,
+                request_id: crypto.randomUUID(),
+                timestamp: new Date(args.message.timestamp).toISOString()
+            };
+        }
 
         // Add the new message to both messages and events arrays
         const updatedMessages = [...(session.messages || []), normalizedMessage];
-        const updatedEvents = [...(session.events || []), {
-            ...normalizedMessage,
-            messageText: normalizedMessage.content
-        }];
+        const updatedEvents = [...(session.events || []), normalizedMessage];
 
         // Update the session with the new message
         await ctx.db.patch(session._id, {
@@ -304,7 +418,11 @@ export const addMessageToSession = mutation({
             updatedAt: Date.now()
         });
 
-        return session._id;
+        return {
+            success: true,
+            sessionId: args.sessionId,
+            messageId: normalizedMessage.metadata?.request_id || crypto.randomUUID()
+        };
     }
 });
 
@@ -385,9 +503,9 @@ export const deleteChat = mutation({
 });
 
 export const renameChat = mutation({
-    args: { 
+    args: {
         id: v.id("chatHistory"),
-        title: v.string()
+        title: v.string(),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -397,23 +515,28 @@ export const renameChat = mutation({
 
         const userId = identity.subject;
 
-        // Get the chat to verify ownership
-        const chat = await ctx.db.get(args.id);
-        if (!chat) {
-            throw new Error("Chat not found");
+        // Get the chat session
+        const chatSession = await ctx.db.get(args.id);
+        if (!chatSession) {
+            throw new Error("Chat session not found");
         }
 
-        // Verify the user owns this chat
-        if (chat.userId !== userId) {
+        // Verify ownership
+        if (chatSession.userId !== userId) {
             throw new Error("Not authorized to rename this chat");
         }
 
         // Update the chat title
         await ctx.db.patch(args.id, {
-            title: args.title
+            title: args.title,
+            updatedAt: Date.now(),
         });
-        
-        return true;
+
+        return {
+            success: true,
+            id: args.id,
+            title: args.title,
+        };
     },
 });
 
@@ -476,94 +599,54 @@ export const adminCleanupEmptySessions = mutation({
 });
 
 export const updateHumeChatIds = mutation({
-  args: { 
-    sessionId: v.string(), 
-    humeChatId: v.string(), 
-    humeGroupChatId: v.string(),
-    metadata: v.optional(v.string())  // Add optional metadata field
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    args: {
+        sessionId: v.string(),
+        chatId: v.string(),
+        chatGroupId: v.string(),
+        metadata: v.optional(v.object({
+            chat_id: v.string(),
+            chat_group_id: v.string(),
+            request_id: v.string(),
+            timestamp: v.string(),
+        })),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
 
-    const userId = identity.subject;
+        const userId = identity.subject;
 
-    // Parse metadata if provided
-    let parsedMetadata;
-    if (args.metadata) {
-      try {
-        parsedMetadata = JSON.parse(args.metadata);
-      } catch (error) {
-        console.error("Error parsing metadata:", error);
-      }
-    }
+        // Get the chat session
+        const chatSession = await ctx.db
+            .query("chatHistory")
+            .filter((q) => q.eq(q.field("userId"), userId))
+            .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
+            .first();
 
-    // Create metadata object
-    const metadata = parsedMetadata || {
-      chat_id: args.humeChatId,
-      chat_group_id: args.humeGroupChatId,
-      request_id: args.humeChatId, // Use chatId as requestId if not provided
-      timestamp: new Date().toISOString()
-    };
+        if (!chatSession) {
+            throw new Error("Chat session not found");
+        }
 
-    // Log the received Hume metadata
-    console.log("Received Hume chat_metadata:", {
-      sessionId: args.sessionId,
-      humeChatId: args.humeChatId,
-      humeGroupChatId: args.humeGroupChatId,
-      metadata,
-      userId,
-      timestamp: new Date().toISOString()
-    });
+        // Update the chat session with the new IDs
+        await ctx.db.patch(chatSession._id, {
+            chatId: args.chatId,
+            chatGroupId: args.chatGroupId,
+            metadata: args.metadata || {
+                chat_id: args.chatId,
+                chat_group_id: args.chatGroupId,
+                request_id: crypto.randomUUID(),
+                timestamp: new Date().toISOString(),
+            },
+            updatedAt: Date.now(),
+        });
 
-    // Find the chat session
-    const chatSession = await ctx.db
-      .query("chatHistory")
-      .filter((q) => q.eq(q.field("userId"), userId))
-      .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
-      .first();
-
-    if (!chatSession) {
-      console.error("Chat session not found for metadata update:", {
-        sessionId: args.sessionId,
-        userId,
-        humeChatId: args.humeChatId,
-        humeGroupChatId: args.humeGroupChatId,
-        metadata
-      });
-      throw new Error("Chat session not found");
-    }
-
-    // Log the current state before update
-    console.log("Current chat session state:", {
-      sessionId: chatSession.sessionId,
-      currentChatId: chatSession.chatId,
-      currentGroupId: chatSession.chatGroupId,
-      updatingTo: {
-        chatId: args.humeChatId,
-        chatGroupId: args.humeGroupChatId,
-        metadata
-      }
-    });
-
-    // Update the chat session with Hume's IDs and metadata
-    await ctx.db.patch(chatSession._id, {
-      chatId: args.humeChatId,
-      chatGroupId: args.humeGroupChatId,
-      metadata,
-      updatedAt: Date.now(),
-    });
-
-    return { 
-      success: true,
-      sessionId: chatSession._id,
-      chatId: args.humeChatId,
-      chatGroupId: args.humeGroupChatId,
-      metadata
-    };
-  },
+        return {
+            success: true,
+            sessionId: args.sessionId,
+        };
+    },
 });
 
 export const getActiveConversation = query({
@@ -622,192 +705,69 @@ export const getActiveConversation = query({
   },
 });
 
-// Function to save the complete conversation transcript and all events when a chat ends
 export const saveConversationTranscript = mutation({
     args: {
-        chatId: v.string(),
-        humeChatId: v.string(),
-        humeGroupChatId: v.string(),
-        events: v.array(v.object({
-            type: v.string(),
-            role: v.string(),
-            messageText: v.string(),
-            timestamp: v.number(),
-            emotionFeatures: v.optional(v.string()),
-            chatId: v.string(),
-            chatGroupId: v.string(),
-        }))
-    },
-    handler: async (ctx, args) => {
-        try {
-            const identity = await ctx.auth.getUserIdentity();
-            if (!identity) {
-                throw new Error("Not authenticated");
-            }
-
-            const userId = identity.subject;
-
-            // Find existing chat session
-            const chatSession = await ctx.db
-                .query("chatHistory")
-                .filter((q) => q.eq(q.field("userId"), userId))
-                .filter((q) => 
-                    q.or(
-                        q.eq(q.field("sessionId"), args.chatId),
-                        q.eq(q.field("chatId"), args.chatId)
-                    )
-                )
-                .first();
-
-            if (!chatSession) {
-                // If chat session doesn't exist, create a new one with Hume IDs
-                const sessionId = await ctx.db.insert("chatHistory", {
-                    userId,
-                    sessionId: args.chatId,
-                    chatId: args.humeChatId,
-                    chatGroupId: args.humeGroupChatId,
-                    events: args.events,
-                    messages: args.events,
-                    createdAt: Date.now(),
-                    updatedAt: Date.now()
-                });
-
-                return { 
-                    success: true,
-                    sessionId,
-                    isNew: true
-                };
-            }
-
-            // Update existing chat session with the new events and Hume IDs
-            await ctx.db.patch(chatSession._id, {
-                events: args.events,
-                messages: args.events,
-                chatId: args.humeChatId,
-                chatGroupId: args.humeGroupChatId,
-                updatedAt: Date.now()
-            });
-
-            return { 
-                success: true, 
-                sessionId: chatSession._id,
-                isNew: false
-            };
-        } catch (error) {
-            console.error("Error saving conversation transcript:", error);
-            throw error;
-        }
-    }
-});
-
-// Base message fields for type checking
-const baseMessageFields = {
-  type: v.string(),
-  role: v.string(),
-  timestamp: v.number(),
-  emotionFeatures: v.optional(v.any()),
-  chatId: v.string(),
-  chatGroupId: v.string(),
-};
-
-// Function to add an event to a session
-export const addEventToSession = mutation({
-  args: {
-    sessionId: v.string(),
-    event: v.object({
-      ...baseMessageFields,
-      messageText: v.string(),
-    }),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const userId = identity.subject;
-
-    // Find the chat session
-    const session = await ctx.db
-      .query("chatHistory")
-      .filter((q) => q.eq(q.field("userId"), userId))
-      .filter((q) => 
-        q.or(
-          q.eq(q.field("chatId"), args.sessionId),
-          q.eq(q.field("sessionId"), args.sessionId)
-        )
-      )
-      .first();
-
-    // Convert the event to the new message format
-    const newMessage = {
-      type: args.event.type,
-      role: args.event.role,
-      content: args.event.messageText,
-      messageText: args.event.messageText,
-      timestamp: args.event.timestamp,
-      emotionFeatures: args.event.emotionFeatures,
-      chatId: args.event.chatId,
-      chatGroupId: args.event.chatGroupId,
-      metadata: {
-        chat_id: args.event.chatId,
-        chat_group_id: args.event.chatGroupId,
-        request_id: args.event.chatId,
-        timestamp: new Date(args.event.timestamp).toISOString()
-      }
-    };
-
-    // Create a new event with both content and messageText
-    const newEvent = {
-      type: args.event.type,
-      role: args.event.role,
-      messageText: args.event.messageText,
-      content: args.event.messageText,
-      timestamp: args.event.timestamp,
-      emotionFeatures: args.event.emotionFeatures,
-      chatId: args.event.chatId,
-      chatGroupId: args.event.chatGroupId,
-    };
-
-    if (!session) {
-      // Create a new session if none exists
-      const newSessionId = await ctx.db.insert("chatHistory", {
-        userId,
-        sessionId: args.sessionId,
-        chatId: args.event.chatId,
-        chatGroupId: args.event.chatGroupId,
-        messages: [newMessage],
-        events: [newEvent],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-      return newSessionId;
-    }
-
-    // Add the new message and event
-    const updatedMessages = [...(session.messages || []), newMessage];
-    const updatedEvents = [...(session.events || []), newEvent];
-
-    // Update the session with the new message and event
-    await ctx.db.patch(session._id, {
-      messages: updatedMessages,
-      events: updatedEvents,
-      chatId: args.event.chatId,
-      chatGroupId: args.event.chatGroupId,
-      updatedAt: Date.now(),
-    });
-
-    return session._id;
-  },
-});
-
-export const updateChatMetadata = mutation({
-    args: {
         sessionId: v.string(),
-        chatId: v.string(),
-        chatGroupId: v.string(),
-        requestId: v.optional(v.string()),
-        receivedAt: v.optional(v.string())
+        messages: v.array(
+            v.object({
+                type: v.union(
+                    v.literal("USER_MESSAGE"),
+                    v.literal("AGENT_MESSAGE"),
+                    v.literal("SYSTEM_MESSAGE"),
+                    v.literal("CHAT_METADATA")
+                ),
+                role: v.union(
+                    v.literal("USER"),
+                    v.literal("ASSISTANT"),
+                    v.literal("SYSTEM")
+                ),
+                messageText: v.string(),
+                content: v.optional(v.string()),
+                timestamp: v.number(),
+                emotionFeatures: v.optional(v.string()),
+                chatId: v.optional(v.string()),
+                chatGroupId: v.optional(v.string()),
+                metadata: v.optional(
+                    v.object({
+                        chat_id: v.string(),
+                        chat_group_id: v.string(),
+                        request_id: v.string(),
+                        timestamp: v.string(),
+                    })
+                ),
+            })
+        ),
+        events: v.array(
+            v.object({
+                type: v.union(
+                    v.literal("USER_MESSAGE"),
+                    v.literal("AGENT_MESSAGE"),
+                    v.literal("SYSTEM_MESSAGE"),
+                    v.literal("CHAT_METADATA")
+                ),
+                role: v.union(
+                    v.literal("USER"),
+                    v.literal("ASSISTANT"),
+                    v.literal("SYSTEM")
+                ),
+                messageText: v.string(),
+                content: v.optional(v.string()),
+                timestamp: v.number(),
+                emotionFeatures: v.optional(v.string()),
+                chatId: v.optional(v.string()),
+                chatGroupId: v.optional(v.string()),
+                metadata: v.optional(
+                    v.object({
+                        chat_id: v.string(),
+                        chat_group_id: v.string(),
+                        request_id: v.string(),
+                        timestamp: v.string(),
+                    })
+                ),
+            })
+        ),
+        chatId: v.optional(v.string()),
+        chatGroupId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -817,7 +777,134 @@ export const updateChatMetadata = mutation({
 
         const userId = identity.subject;
 
-        // Find the chat session
+        // Get the chat session
+        const chatSession = await ctx.db
+            .query("chatHistory")
+            .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
+            .filter((q) => q.eq(q.field("userId"), userId))
+            .first();
+
+        if (!chatSession) {
+            throw new Error("Chat session not found");
+        }
+
+        // Update the chat history
+        await ctx.db.patch(chatSession._id, {
+            messages: args.messages,
+            events: args.events,
+            chatId: args.chatId,
+            chatGroupId: args.chatGroupId,
+            updatedAt: Date.now(),
+        });
+
+        return { success: true };
+    },
+});
+
+// Function to add an event to a session
+export const addEventToSession = mutation({
+    args: {
+        sessionId: v.string(),
+        event: v.object({
+            type: v.union(
+                v.literal("USER_MESSAGE"),
+                v.literal("AGENT_MESSAGE"),
+                v.literal("SYSTEM_MESSAGE"),
+                v.literal("CHAT_METADATA")
+            ),
+            role: v.union(
+                v.literal("USER"),
+                v.literal("ASSISTANT"),
+                v.literal("SYSTEM")
+            ),
+            messageText: v.string(),
+            content: v.optional(v.string()),
+            timestamp: v.number(),
+            emotionFeatures: v.optional(v.string()),
+            chatId: v.optional(v.string()),
+            chatGroupId: v.optional(v.string()),
+            metadata: v.optional(v.object({
+                chat_id: v.string(),
+                chat_group_id: v.string(),
+                request_id: v.string(),
+                timestamp: v.string(),
+            })),
+        }),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const userId = identity.subject;
+
+        // Get the chat session
+        const chatSession = await ctx.db
+            .query("chatHistory")
+            .filter((q) => q.eq(q.field("userId"), userId))
+            .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
+            .first();
+
+        if (!chatSession) {
+            throw new Error("Chat session not found");
+        }
+
+        // Format the event to match the Message interface
+        const formattedEvent: Message = {
+            type: args.event.type as MessageType,
+            role: args.event.role as MessageRole,
+            messageText: args.event.messageText,
+            content: args.event.content,
+            timestamp: args.event.timestamp,
+            emotionFeatures: args.event.emotionFeatures,
+            chatId: args.event.chatId,
+            chatGroupId: args.event.chatGroupId,
+        };
+
+        // Add metadata if it exists or create it if chatId and chatGroupId are available
+        if (args.event.metadata) {
+            formattedEvent.metadata = args.event.metadata;
+        } else if (formattedEvent.chatId && formattedEvent.chatGroupId) {
+            formattedEvent.metadata = {
+                chat_id: formattedEvent.chatId,
+                chat_group_id: formattedEvent.chatGroupId,
+                request_id: crypto.randomUUID(),
+                timestamp: new Date(args.event.timestamp).toISOString(),
+            };
+        }
+
+        // Update the chat session with the new event
+        await ctx.db.patch(chatSession._id, {
+            events: [...(chatSession.events || []), formattedEvent],
+            messages: [...(chatSession.messages || []), formattedEvent],
+            updatedAt: Date.now(),
+        });
+
+        return {
+            success: true,
+            sessionId: args.sessionId,
+        };
+    },
+});
+
+export const updateMetadata = mutation({
+    args: {
+        sessionId: v.string(),
+        chatId: v.string(),
+        chatGroupId: v.string(),
+        requestId: v.string(),
+        receivedAt: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const userId = identity.subject;
+
+        // Get the chat session
         const session = await ctx.db
             .query("chatHistory")
             .filter((q) => q.eq(q.field("userId"), userId))
@@ -832,15 +919,18 @@ export const updateChatMetadata = mutation({
         await ctx.db.patch(session._id, {
             chatId: args.chatId,
             chatGroupId: args.chatGroupId,
-            metadata: JSON.stringify({
+            metadata: {
                 chat_id: args.chatId,
                 chat_group_id: args.chatGroupId,
                 request_id: args.requestId,
                 timestamp: args.receivedAt
-            }),
+            },
             updatedAt: Date.now()
         });
 
-        return session._id;
+        return {
+            success: true,
+            sessionId: args.sessionId,
+        };
     }
 }); 

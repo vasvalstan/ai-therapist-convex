@@ -30,15 +30,15 @@ const baseMessageFields = {
     role: v.string(),
     timestamp: v.number(),
     emotionFeatures: v.optional(v.any()),
-    chatId: v.string(),
-    chatGroupId: v.string(),
+    chatId: v.optional(v.string()),
+    chatGroupId: v.optional(v.string()),
 };
 
 // Define message validator
 const messageValidator = v.object({
     ...baseMessageFields,
-    content: v.string(),
-    messageText: v.optional(v.string()),
+    content: v.optional(v.string()),
+    messageText: v.string(),
     metadata: v.optional(v.object({
         chat_id: v.string(),
         chat_group_id: v.string(),
@@ -131,9 +131,9 @@ export default defineSchema({
     }).index("by_session", ["sessionId"]),
     chatHistory: defineTable({
         userId: v.string(),
-        sessionId: v.optional(v.string()),
-        chatId: v.string(),
-        chatGroupId: v.string(),
+        sessionId: v.string(),
+        chatId: v.optional(v.string()),
+        chatGroupId: v.optional(v.string()),
         messages: v.array(messageValidator),
         events: v.optional(v.array(eventValidator)),
         createdAt: v.number(),
