@@ -18,6 +18,32 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
+// Define a consistent Message interface
+interface Message {
+    type: "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE" | "CHAT_METADATA";
+    role: "USER" | "ASSISTANT" | "SYSTEM" | "user" | "assistant";
+    content?: string;
+    messageText: string;
+    timestamp: number;
+    emotionFeatures?: string;
+    chatId?: string;
+    chatGroupId?: string;
+    metadata?: {
+        chat_id: string;
+        chat_group_id: string;
+        request_id: string;
+        timestamp: string;
+    };
+}
+
+// Parsed message with emotions properly extracted
+interface ParsedMessage {
+    role: string;
+    content: string;
+    timestamp: number;
+    emotions?: Record<string, number>;
+}
+
 export interface ChatViewProps {
     sessionId: string;  // This is actually the chatId from the URL
     accessToken?: string;
@@ -42,18 +68,33 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
     const endConversationAndSummarize = useMutation(api.summary.endConversationAndSummarize);
     const addMessage = useMutation(api.chat.addMessageToSession);
 
-    const messages = conversation?.messages?.map(msg => ({
-        role: msg.role,
-        content: msg.content,
-        emotions: msg.emotions,
-        timestamp: msg.timestamp,
-    })) || [];
+    // Parse messages with proper emotion handling
+    const parsedMessages: ParsedMessage[] = conversation?.messages?.map((msg: any) => {
+        // Parse emotion features if they exist
+        let emotions: Record<string, number> | undefined;
+        if (msg.emotionFeatures) {
+            try {
+                emotions = typeof msg.emotionFeatures === 'string' 
+                    ? JSON.parse(msg.emotionFeatures) 
+                    : msg.emotionFeatures;
+            } catch (e) {
+                console.error("Failed to parse emotions:", e);
+            }
+        }
+        
+        return {
+            role: msg.role,
+            content: msg.content || msg.messageText,
+            timestamp: msg.timestamp,
+            emotions
+        };
+    }) || [];
 
     useEffect(() => {
         if (containerRef.current) {
             containerRef.current.scrollTop = containerRef.current.scrollHeight;
         }
-    }, [messages.length]);
+    }, [parsedMessages.length]);
     
     useEffect(() => {
         if (!searchParams.get("tab")) {
@@ -81,9 +122,12 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
             setIsSendingTestMessages(true);
             
             const userMessage = {
-                role: "user" as "user" | "assistant",
+                type: "USER_MESSAGE" as const,
+                role: "USER" as const,
+                messageText: "This is a test user message",
                 content: "This is a test user message",
-                emotions: { happiness: 0.8, neutral: 0.2 }
+                timestamp: Date.now(),
+                emotionFeatures: JSON.stringify({ happiness: 0.8, neutral: 0.2 })
             };
             
             await addMessage({
@@ -92,9 +136,11 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
             });
             
             const assistantMessage = {
-                role: "assistant" as "user" | "assistant",
+                type: "AGENT_MESSAGE" as const,
+                role: "ASSISTANT" as const,
+                messageText: "This is a test assistant response",
                 content: "This is a test assistant response",
-                emotions: undefined
+                timestamp: Date.now()
             };
             
             await addMessage({
@@ -179,7 +225,6 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                     <ChatNav />
                     
                     <TabsContent value="start" className="mt-0 h-[calc(100%-48px)]">
-                        <VoiceController />
                         <StartConversationPanel />
                     </TabsContent>
                     
@@ -188,6 +233,9 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                     </TabsContent>
                     
                     <TabsContent value="chat" className="mt-0 h-[calc(100%-48px)] flex flex-col">
+                        {/* Voice Controller - only render if accessToken is NOT provided (since HumeChat will render its own) */}
+                        {!accessToken && <VoiceController sessionId={sessionId} />}
+                        
                         {/* Header */}
                         <div className="p-4 bg-gradient-to-r from-blue-50/30 to-indigo-50/30 dark:from-blue-950/10 dark:to-indigo-950/10 border-b flex justify-between items-center">
                             <h1 className="text-lg font-medium">Chat with Sereni</h1>
@@ -204,7 +252,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                             )}
                         </div>
                         
-                        {!conversation.messages || conversation.messages.length === 0 ? (
+                        {!parsedMessages || parsedMessages.length === 0 ? (
                             <div className="flex-1 flex flex-col">
                                 {accessToken ? (
                                     <HumeChat 
@@ -230,17 +278,17 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                                     <>
                                         {/* Messages */}
                                         <div ref={containerRef} className="flex-1 overflow-y-auto p-4">
-                                            {conversation?.messages?.map((msg, index) => {
+                                            {parsedMessages.map((msg, index) => {
                                                 return (
                                                     <div
                                                         key={index}
                                                         className={`mb-4 max-w-[80%] rounded-lg p-4 ${
-                                                            msg.role === "assistant" ? "ml-auto bg-blue-50 dark:bg-blue-950/50" : 
+                                                            msg.role.toLowerCase() === "assistant" ? "ml-auto bg-blue-50 dark:bg-blue-950/50" : 
                                                             "mr-auto bg-white dark:bg-gray-900/50"
                                                         }`}
                                                     >
                                                         <div className="flex items-start gap-2">
-                                                            {msg.role === "assistant" ? (
+                                                            {msg.role.toLowerCase() === "assistant" ? (
                                                                 <Bot className="mt-1 size-4 text-blue-500" />
                                                             ) : (
                                                                 <User className="mt-1 size-4 text-gray-500" />
@@ -250,14 +298,14 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                                                                 {msg.emotions && (
                                                                     <div className="mt-2 flex flex-wrap gap-1">
                                                                         {Object.entries(msg.emotions)
-                                                                            .sort(([, a], [, b]) => (b as number) - (a as number))
+                                                                            .sort(([, a], [, b]) => b - a)
                                                                             .slice(0, 3)
                                                                             .map(([emotion, score]) => (
                                                                                 <span
                                                                                     key={emotion}
                                                                                     className="inline-flex items-center rounded-full bg-blue-50/50 dark:bg-blue-950/50 px-2 py-0.5 text-xs text-blue-600 dark:text-blue-400"
                                                                                 >
-                                                                                    {emotion} ({Math.round((score as number) * 100)}%)
+                                                                                    {emotion} ({Math.round(score * 100)}%)
                                                                                 </span>
                                                                             ))}
                                                                     </div>

@@ -85,9 +85,14 @@ export function StartConversationPanel() {
       console.log("Creating new chat session...");
       const result = await createSession({
         initialMessage: {
-          role: "assistant",
+          type: "AGENT_MESSAGE",
+          role: "ASSISTANT",
+          messageText: "Hi, I'm Sereni, your AI therapist. I'm here to listen and help you process your thoughts and feelings. What's on your mind today?",
           content: "Hi, I'm Sereni, your AI therapist. I'm here to listen and help you process your thoughts and feelings. What's on your mind today?",
+          timestamp: Date.now(),
         }
+        // Don't provide chatId or chatGroupId - these will be populated by updateHumeChatIds
+        // when chat_metadata is received from Hume
       });
       
       console.log("Create session result:", result);

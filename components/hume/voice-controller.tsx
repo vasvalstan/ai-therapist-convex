@@ -6,6 +6,23 @@ import { api } from "@/convex/_generated/api";
 import { useMutation } from "convex/react";
 import { toast } from "@/components/ui/use-toast";
 
+// Define the message type constants that match the Convex schema
+type MessageType = "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE" | "CHAT_METADATA";
+type MessageRole = "USER" | "ASSISTANT" | "SYSTEM";
+
+// Utility function to generate a UUID safely in browser or Node.js environment
+function generateUUID(): string {
+  // Use crypto.randomUUID if available (modern browsers)
+  if (typeof window !== 'undefined' && window.crypto && typeof window.crypto.randomUUID === 'function') {
+    return window.crypto.randomUUID();
+  }
+  
+  // Fallback for older browsers - simple random ID
+  return 'xxxx-xxxx-xxxx-xxxx'.replace(/[x]/g, function() {
+    return (Math.random() * 16 | 0).toString(16);
+  });
+}
+
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -15,6 +32,7 @@ interface ChatMessage {
 
 interface VoiceControllerProps {
   initialMessages?: ChatMessage[];
+  sessionId?: string;
 }
 
 interface HumeEvent {
@@ -34,26 +52,28 @@ interface HumeEvent {
   };
 }
 
-export function VoiceController({ initialMessages = [] }: VoiceControllerProps) {
+export function VoiceController({ initialMessages = [], sessionId: propSessionId }: VoiceControllerProps) {
   const voice = useVoice();
   const prevStatusRef = useRef<string | undefined>(undefined);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(propSessionId || null);
   const [chatMetadata, setChatMetadata] = useState<{
     chatId?: string;
     chatGroupId?: string;
     requestId?: string;
   } | null>(null);
   
-  const updateChatIds = useMutation(api.chat.updateHumeChatIds);
-  
-  // Extract session ID from the URL or use a generated one
+  // Extract session ID from the URL or use a generated one only if not provided as prop
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get('sessionId') || `session_${Date.now()}`;
-    setCurrentSessionId(sessionId);
-    console.log("Chat session created:", sessionId);
-  }, []);
+    if (!propSessionId) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('sessionId') || `session_${Date.now()}`;
+      setCurrentSessionId(sessionId);
+      console.log("Chat session created from URL/generated:", sessionId);
+    } else {
+      console.log("Using provided session ID:", propSessionId);
+    }
+  }, [propSessionId]);
 
   // Initialize voice connection
   useEffect(() => {
@@ -94,30 +114,17 @@ export function VoiceController({ initialMessages = [] }: VoiceControllerProps) 
         prevStatusRef.current = currentStatus;
       }
     }
-
-    // Update metadata when it changes
+    
+    // Store metadata for reference but don't handle saving it (that's done in HumeChat)
     if (voice.chatMetadata) {
-      console.log("🎤 Received chat metadata:", voice.chatMetadata);
-      const metadata = {
+      console.log("🎤 Received chat metadata from Hume:", voice.chatMetadata);
+      setChatMetadata({
         chatId: voice.chatMetadata.chatId,
         chatGroupId: voice.chatMetadata.chatGroupId,
-        requestId: voice.chatMetadata.requestId,
-        receivedAt: voice.chatMetadata.receivedAt
-      };
-      
-      setChatMetadata(metadata);
-      
-      // Update the chat IDs in the database
-      updateChatIds({
-        sessionId: currentSessionId,
-        humeChatId: voice.chatMetadata.chatId,
-        humeGroupChatId: voice.chatMetadata.chatGroupId,
-        metadata: JSON.stringify(metadata)
-      }).catch(error => {
-        console.error("Error updating chat IDs:", error);
+        requestId: voice.chatMetadata.requestId
       });
     }
-  }, [voice, currentSessionId, updateChatIds, voice?.status, voice?.chatMetadata]);
+  }, [voice, currentSessionId]);
   
   // Handle page visibility and time expiration
   useEffect(() => {
@@ -323,29 +330,67 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
         
         // Save the transcript to our database
         const result = await saveTranscript({
-          chatId: sessionId,
-          humeChatId: chatId,
-          humeGroupChatId: chatGroupId,
-          events: events.length > 0 ? events.map((event) => ({
-            type: event.type,
-            role: event.role || "",
-            messageText: event.messageText || "",
-            timestamp: new Date(event.timestamp).getTime(),
-            emotionFeatures: event.emotionFeatures,
-            chatId: event.chatId || chatId,
-            chatGroupId: event.chatGroupId || chatGroupId
-          })) : [
-            // Add at least one event if none exist to prevent empty events array
+          sessionId: sessionId,
+          chatId: chatId,
+          chatGroupId: chatGroupId,
+          events: events.length > 0 ? events.map((event) => {
+            // Ensure event type follows the expected format
+            const type: MessageType = 
+              event.type === "chat_metadata" ? "CHAT_METADATA" :
+              event.type === "user_message" ? "USER_MESSAGE" : 
+              event.type === "agent_message" ? "AGENT_MESSAGE" : 
+              event.type === "CHAT_METADATA" ? "CHAT_METADATA" :
+              event.type === "USER_MESSAGE" ? "USER_MESSAGE" :
+              event.type === "AGENT_MESSAGE" ? "AGENT_MESSAGE" :
+              "SYSTEM_MESSAGE";
+            
+            // Ensure role follows the expected format
+            const role: MessageRole = 
+              (event.role || "").toLowerCase() === "user" ? "USER" :
+              (event.role || "").toLowerCase() === "assistant" ? "ASSISTANT" : 
+              (event.role || "").toUpperCase() === "USER" ? "USER" :
+              (event.role || "").toUpperCase() === "ASSISTANT" ? "ASSISTANT" :
+              "SYSTEM";
+            
+            // Build metadata with required fields
+            const metadata = {
+              chat_id: chatId,
+              chat_group_id: chatGroupId,
+              request_id: generateUUID(),
+              timestamp: new Date().toISOString()
+            };
+            
+            return {
+              type,
+              role,
+              messageText: event.messageText || "",
+              content: event.messageText || "",
+              timestamp: typeof event.timestamp === 'number' ? event.timestamp : new Date(event.timestamp).getTime(),
+              emotionFeatures: typeof event.emotionFeatures === 'string' ? 
+                               event.emotionFeatures : 
+                               event.emotionFeatures ? JSON.stringify(event.emotionFeatures) : undefined,
+              chatId: event.chatId || chatId,
+              chatGroupId: event.chatGroupId || chatGroupId,
+              metadata
+            };
+          }) : [
             {
-              type: "SYSTEM_MESSAGE",
-              role: "SYSTEM",
+              type: "SYSTEM_MESSAGE" as MessageType,
+              role: "SYSTEM" as MessageRole,
               messageText: "Conversation summary saved",
+              content: "Conversation summary saved",
               timestamp: Date.now(),
-              emotionFeatures: undefined,
-              chatId: chatId,
-              chatGroupId: chatGroupId
+              chatId,
+              chatGroupId,
+              metadata: {
+                chat_id: chatId,
+                chat_group_id: chatGroupId,
+                request_id: generateUUID(),
+                timestamp: new Date().toISOString()
+              }
             }
-          ]
+          ],
+          messages: [] // Use the same events for messages
         });
 
         // Update user's remaining minutes

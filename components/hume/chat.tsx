@@ -62,6 +62,48 @@ interface Message {
   };
 }
 
+// Helper function to safely extract timestamp from possibly date object
+const safeGetISOString = (value: any): string => {
+  if (value === null || value === undefined) {
+    return Date.now().toString();
+  }
+  
+  if (typeof value === 'object') {
+    // Handle Date objects
+    if (value instanceof Date) {
+      return value.getTime().toString();
+    }
+    // Try toISOString if available, then convert to timestamp
+    if (typeof (value as any).toISOString === 'function') {
+      try {
+        const isoString = (value as Date).toISOString();
+        return Date.parse(isoString).toString();
+      } catch (e) {
+        return Date.now().toString();
+      }
+    }
+  }
+  
+  if (typeof value === 'string') {
+    // Check if already a numeric string
+    if (/^\d+$/.test(value)) {
+      return value;
+    }
+    // Try to parse as date string
+    const timestamp = Date.parse(value);
+    if (!isNaN(timestamp)) {
+      return timestamp.toString();
+    }
+  }
+  
+  if (typeof value === 'number') {
+    return value.toString();
+  }
+  
+  // Default fallback
+  return Date.now().toString();
+};
+
 export default function HumeChat({ 
   accessToken, 
   sessionId: initialSessionId, 
@@ -76,14 +118,30 @@ export default function HumeChat({
   const [humeChatId, setHumeChatId] = useState<string | undefined>();
   const [humeGroupChatId, setHumeGroupChatId] = useState<string | undefined>();
   const [metadata, setMetadata] = useState<{ chat_id: string; chat_group_id: string; request_id: string; timestamp: string } | null>(null);
+  
+  // Use a ref to track whether metadata has been processed
+  const metadataProcessedRef = useRef<boolean>(false);
 
   const createSession = useMutation(api.chat.createChatSession);
   const addMessage = useMutation(api.chat.addMessageToSession);
-  const updateChatMetadata = useMutation(api.chat.updateChatMetadata);
+  const updateChatMetadata = useMutation(api.chat.updateMetadata);
 
   // Set up message handler for the existing voice connection
   const handleMessage = useCallback(
     async (message: any) => {
+      console.log("⚡ handleMessage called with message type:", message.type);
+      
+      // Stringent type checking
+      console.log("🔬 Message raw value:", JSON.stringify(message));
+      console.log("🔬 Message type typeof:", typeof message.type);
+      console.log("🔬 Message type comparison:", {
+        direct: message.type === "chat_metadata",
+        lowercase: message.type?.toLowerCase?.() === "chat_metadata",
+        includes: message.type?.includes?.("metadata"),
+        _debug: message._debug,
+        receivedAt: message.receivedAt
+      });
+      
       console.log("🎯 Chat component received message:", {
         type: message.type,
         role: message.message?.role,
@@ -92,14 +150,25 @@ export default function HumeChat({
         models: message.models
       });
 
+      // Check explicitly for the chat_metadata event type
+      console.log("🧪 Message type:", message.type, typeof message.type);
+
       // Handle chat_metadata event which is sent at the start of every chat session
-      if (message.type === "chat_metadata") {
+      const isMetadataEvent = 
+        message.type === "chat_metadata" || 
+        message.type?.toLowerCase?.() === "chat_metadata" ||
+        message._debug === true;
+        
+      if (isMetadataEvent && !metadataProcessedRef.current) {
         console.log("📋 Received chat_metadata event:", {
           chatId: message.chatId,
           chatGroupId: message.chatGroupId,
           requestId: message.requestId,
           receivedAt: message.receivedAt
         });
+        
+        // Mark metadata as processed to avoid duplicate processing
+        metadataProcessedRef.current = true;
         
         // Store the chat IDs for later use
         setHumeChatId(message.chatId);
@@ -110,7 +179,7 @@ export default function HumeChat({
           chat_id: message.chatId,
           chat_group_id: message.chatGroupId,
           request_id: message.requestId,
-          timestamp: message.receivedAt
+          timestamp: safeGetISOString(message.receivedAt)
         };
         setMetadata(newMetadata);
         console.log("💾 Stored metadata in state:", newMetadata);
@@ -119,18 +188,65 @@ export default function HumeChat({
         if (currentSessionId) {
           try {
             console.log("💫 Updating chat metadata in database for session:", currentSessionId);
+            
+            // Convert receivedAt to a numeric timestamp string
+            const receivedTimestamp = typeof message.receivedAt === 'string' ? 
+              Date.parse(message.receivedAt) || Date.now() : 
+              typeof message.receivedAt === 'object' && message.receivedAt !== null ? 
+              (message.receivedAt instanceof Date ? message.receivedAt.getTime() : Date.now()) : 
+              Date.now();
+            
             await updateChatMetadata({
               sessionId: currentSessionId,
               chatId: message.chatId,
               chatGroupId: message.chatGroupId,
               requestId: message.requestId,
-              receivedAt: message.receivedAt
+              receivedAt: receivedTimestamp.toString()
             });
             console.log("✅ Successfully stored chat metadata in database");
           } catch (error) {
             console.error("❌ Error storing chat metadata:", error);
+            // Reset the processed flag so we can try again
+            metadataProcessedRef.current = false;
           }
         }
+        
+        // Add CHAT_METADATA event to the session
+        if (currentSessionId) {
+          try {
+            // Make sure timestamp in the metadata is a string representation of a number
+            const timestampNum = typeof message.receivedAt === 'string' ? 
+              Date.parse(message.receivedAt) : 
+              typeof message.receivedAt === 'object' && message.receivedAt !== null && typeof message.receivedAt.toISOString === 'function' ?
+              Date.parse(message.receivedAt.toISOString()) :
+              Date.now();
+              
+            const metadataMessage = {
+              type: "CHAT_METADATA" as const,
+              role: "SYSTEM" as const,
+              messageText: "Chat started",
+              content: "Chat started",
+              timestamp: Date.now(),
+              chatId: message.chatId,
+              chatGroupId: message.chatGroupId,
+              metadata: {
+                chat_id: message.chatId,
+                chat_group_id: message.chatGroupId,
+                request_id: message.requestId,
+                timestamp: timestampNum.toString() // Store as string representation of number
+              }
+            };
+            
+            await addMessage({
+              sessionId: currentSessionId,
+              message: metadataMessage,
+            });
+            console.log("✅ Added CHAT_METADATA event to session");
+          } catch (error) {
+            console.error("❌ Error adding CHAT_METADATA event:", error);
+          }
+        }
+        
         return;
       }
 
@@ -147,13 +263,18 @@ export default function HumeChat({
           emotions: message.models.prosody?.scores
         });
 
-        const messageData: MessageData = {
-          type: message.type.toUpperCase(),
-          role: message.type === "user_message" ? "user" : "assistant",
+        const messageData = {
+          type: message.type === "user_message" ? "USER_MESSAGE" : 
+                message.type === "assistant_message" ? "AGENT_MESSAGE" : 
+                message.type.toUpperCase(),
+          role: message.type === "user_message" ? "USER" as const : "ASSISTANT" as const,
           messageText: message.message.content,
           content: message.message.content,
           timestamp: Date.now(),
-          emotionFeatures: message.models.prosody?.scores,
+          emotionFeatures: message.models.prosody?.scores ? 
+            typeof message.models.prosody.scores === 'string' ?
+            message.models.prosody.scores :
+            JSON.stringify(message.models.prosody.scores) : undefined,
           chatId: metadata?.chat_id,
           chatGroupId: metadata?.chat_group_id,
           metadata: metadata || undefined
@@ -162,10 +283,16 @@ export default function HumeChat({
         // If no session exists, create one with the initial message
         if (!currentSessionId) {
           console.log("📝 Creating new session with initial message:", messageData);
-          const initialMessage: InitialMessage = {
-            role: messageData.role,
+          const initialMessage = {
+            type: messageData.type as "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE" | "CHAT_METADATA",
+            role: messageData.role.toUpperCase() as "USER" | "ASSISTANT" | "SYSTEM",
+            messageText: messageData.messageText,
             content: messageData.content,
-            metadata: metadata || undefined
+            timestamp: messageData.timestamp,
+            emotionFeatures: messageData.emotionFeatures ? 
+              typeof messageData.emotionFeatures === 'string' ? 
+              messageData.emotionFeatures : 
+              JSON.stringify(messageData.emotionFeatures) : undefined,
           };
           const result = await createSession({
             initialMessage
@@ -179,12 +306,20 @@ export default function HumeChat({
             if (metadata) {
               try {
                 console.log("💫 Updating chat metadata for new session:", result.sessionId);
+                
+                // Convert timestamp string to numeric timestamp
+                const timestampNum = typeof metadata.timestamp === 'string' ? 
+                  (metadata.timestamp.match(/^\d+$/) ? 
+                    parseInt(metadata.timestamp, 10) : 
+                    Date.parse(metadata.timestamp) || Date.now()) : 
+                  Date.now();
+                
                 await updateChatMetadata({
                   sessionId: result.sessionId,
                   chatId: metadata.chat_id,
                   chatGroupId: metadata.chat_group_id,
                   requestId: metadata.request_id,
-                  receivedAt: metadata.timestamp
+                  receivedAt: timestampNum.toString()
                 });
                 console.log("✅ Successfully stored chat metadata for new session");
               } catch (error) {
@@ -224,7 +359,54 @@ export default function HumeChat({
     
     // Listen for messages from the voice service using a custom event
     const messageListener = (event: any) => {
+      console.log("🔍 Event listener triggered with event:", {
+        type: event.type,
+        detail: event.detail ? {
+          type: event.detail.type,
+          chatId: event.detail.chatId,
+          chatGroupId: event.detail.chatGroupId
+        } : null
+      });
+      
       if (event.detail) {
+        // Direct handling of chat_metadata to avoid potential timing issues
+        if (event.detail.type === "chat_metadata") {
+          console.log("🚨 Directly handling chat_metadata in event listener:", {
+            chatId: event.detail.chatId,
+            chatGroupId: event.detail.chatGroupId
+          });
+          
+          // Store the chat IDs immediately
+          setHumeChatId(event.detail.chatId);
+          setHumeGroupChatId(event.detail.chatGroupId);
+          
+          // Store full metadata using our helper
+          const newMetadata = {
+            chat_id: event.detail.chatId,
+            chat_group_id: event.detail.chatGroupId,
+            request_id: event.detail.requestId,
+            timestamp: safeGetISOString(event.detail.receivedAt)
+          };
+          setMetadata(newMetadata);
+          
+          // Update database if we have a session
+          if (currentSessionId) {
+            console.log("🔄 Direct update of metadata for session:", currentSessionId);
+            updateChatMetadata({
+              sessionId: currentSessionId,
+              chatId: event.detail.chatId,
+              chatGroupId: event.detail.chatGroupId,
+              requestId: event.detail.requestId,
+              receivedAt: safeGetISOString(event.detail.receivedAt)
+            }).then(() => {
+              console.log("✅ Successfully stored chat metadata (direct handler)");
+            }).catch(error => {
+              console.error("❌ Error storing chat metadata (direct):", error);
+            });
+          }
+        }
+        
+        // Still call the regular handler for all messages
         handleMessage(event.detail);
       }
     };
@@ -236,7 +418,7 @@ export default function HumeChat({
     return () => {
       window.removeEventListener("hume:message", messageListener);
     };
-  }, [voice, handleMessage]);
+  }, [voice, handleMessage, currentSessionId, updateChatMetadata]);
 
   if (!accessToken) {
     return <div>Loading...</div>;

@@ -52,6 +52,12 @@ const eventValidator = v.object({
     ...baseMessageFields,
     messageText: v.string(),
     content: v.optional(v.string()),
+    metadata: v.optional(v.object({
+        chat_id: v.string(),
+        chat_group_id: v.string(),
+        request_id: v.string(),
+        timestamp: v.string(),
+    })),
 });
 
 export default defineSchema({

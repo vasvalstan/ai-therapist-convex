@@ -51,28 +51,44 @@ export function VoiceWrapper({ children }: { children: React.ReactNode }) {
     <VoiceProvider
       auth={{ type: "accessToken", value: accessToken }}
       configId={configId}
-      debug={true}
+      debug={false}
       onMessage={(message) => {
         console.log("🎤 VoiceProvider received raw message:", message);
         
         // Log specific message types
-        if (message.type === "CHAT_METADATA") {
+        if (message.type === "chat_metadata") {
           console.log("📋 VoiceProvider received metadata:", {
-            chat_id: message.chat_id,
-            chat_group_id: message.chat_group_id,
-            request_id: message.request_id
+            chatId: message.chatId,
+            chatGroupId: message.chatGroupId,
+            requestId: message.requestId
           });
+          
+          // Add debug info to the message
+          const enhancedMessage = {
+            ...message,
+            _source: "VoiceProvider",
+            _timestamp: new Date().toISOString(),
+            _debug: true
+          };
+          
+          console.log("🔄 Dispatching enhanced hume:message event for chat_metadata");
+          window.dispatchEvent(new CustomEvent("hume:message", { detail: enhancedMessage }));
+          console.log("📢 Dispatched enhanced hume:message event");
         } else if (message.type === "user_message" || message.type === "assistant_message") {
           console.log(`🗣️ VoiceProvider received ${message.type}:`, {
             role: message.message?.role,
             content: message.message?.content,
             emotions: message.models?.prosody?.scores
           });
+          
+          // Dispatch a custom event with the message data
+          window.dispatchEvent(new CustomEvent("hume:message", { detail: message }));
+          console.log("📢 Dispatched hume:message event");
+        } else {
+          // Dispatch other message types as is
+          window.dispatchEvent(new CustomEvent("hume:message", { detail: message }));
+          console.log("📢 Dispatched hume:message event for type:", message.type);
         }
-        
-        // Dispatch a custom event with the message data
-        window.dispatchEvent(new CustomEvent("hume:message", { detail: message }));
-        console.log("📢 Dispatched hume:message event");
       }}
     >
       {children}
