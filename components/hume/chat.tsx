@@ -125,6 +125,7 @@ export default function HumeChat({
   const createSession = useMutation(api.chat.createChatSession);
   const addMessage = useMutation(api.chat.addMessageToSession);
   const updateChatMetadata = useMutation(api.chat.updateMetadata);
+  const updateAndVerifyMetadata = useMutation(api.chat.updateAndVerifyMetadata);
 
   // Set up message handler for the existing voice connection
   const handleMessage = useCallback(
@@ -368,6 +369,15 @@ export default function HumeChat({
         } : null
       });
       
+      // Direct debug logging of event fields for metadata events
+      if (event.detail && event.detail.type === "chat_metadata") {
+        console.log("⭐ DIRECT ACCESS event.detail fields:", {
+          chatId: event.detail.chatId,
+          chatGroupId: event.detail.chatGroupId,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
       if (event.detail) {
         // Direct handling of chat_metadata to avoid potential timing issues
         if (event.detail.type === "chat_metadata") {
@@ -376,33 +386,55 @@ export default function HumeChat({
             chatGroupId: event.detail.chatGroupId
           });
           
-          // Store the chat IDs immediately
-          setHumeChatId(event.detail.chatId);
-          setHumeGroupChatId(event.detail.chatGroupId);
-          
-          // Store full metadata using our helper
-          const newMetadata = {
-            chat_id: event.detail.chatId,
-            chat_group_id: event.detail.chatGroupId,
-            request_id: event.detail.requestId,
-            timestamp: safeGetISOString(event.detail.receivedAt)
-          };
-          setMetadata(newMetadata);
-          
-          // Update database if we have a session
-          if (currentSessionId) {
-            console.log("🔄 Direct update of metadata for session:", currentSessionId);
-            updateChatMetadata({
-              sessionId: currentSessionId,
-              chatId: event.detail.chatId,
-              chatGroupId: event.detail.chatGroupId,
-              requestId: event.detail.requestId,
-              receivedAt: safeGetISOString(event.detail.receivedAt)
-            }).then(() => {
-              console.log("✅ Successfully stored chat metadata (direct handler)");
-            }).catch(error => {
-              console.error("❌ Error storing chat metadata (direct):", error);
-            });
+          // Ensure we have the chat IDs before setting them - add defensive coding
+          if (event.detail.chatId && event.detail.chatGroupId) {
+            console.log(`🔵 Setting Hume chat IDs: chatId=${event.detail.chatId}, chatGroupId=${event.detail.chatGroupId}`);
+            
+            // Store the chat IDs immediately
+            setHumeChatId(event.detail.chatId);
+            setHumeGroupChatId(event.detail.chatGroupId);
+            
+            // Store full metadata using our helper
+            const newMetadata = {
+              chat_id: event.detail.chatId,
+              chat_group_id: event.detail.chatGroupId,
+              request_id: event.detail.requestId || crypto.randomUUID(),
+              timestamp: safeGetISOString(event.detail.receivedAt)
+            };
+            setMetadata(newMetadata);
+            
+            // Update database if we have a session
+            if (currentSessionId) {
+              console.log(`🔄 Direct update of metadata for session: ${currentSessionId} with IDs: ${event.detail.chatId}, ${event.detail.chatGroupId}`);
+              
+              // Use the new updateAndVerifyMetadata function instead
+              updateAndVerifyMetadata({
+                sessionId: currentSessionId,
+                chatId: event.detail.chatId,
+                chatGroupId: event.detail.chatGroupId,
+                requestId: event.detail.requestId || crypto.randomUUID(),
+                receivedAt: safeGetISOString(event.detail.receivedAt)
+              }).then((result) => {
+                console.log("✅ Successfully stored chat metadata (verified):", result);
+              }).catch(error => {
+                console.error("❌ Error storing chat metadata (updateAndVerify):", error);
+                
+                // Fall back to regular update if verification fails
+                updateChatMetadata({
+                  sessionId: currentSessionId,
+                  chatId: event.detail.chatId,
+                  chatGroupId: event.detail.chatGroupId,
+                  requestId: event.detail.requestId || crypto.randomUUID(),
+                  receivedAt: safeGetISOString(event.detail.receivedAt)
+                }).then(() => {
+                  console.log("✅ Successfully stored chat metadata (fallback)");
+                }).catch(error => {
+                  console.error("❌ Error storing chat metadata (fallback):", error);
+                });
+              });
+            }
+          } else {
+            console.error("⛔ Missing chat IDs in metadata event:", event.detail);
           }
         }
         
@@ -418,7 +450,40 @@ export default function HumeChat({
     return () => {
       window.removeEventListener("hume:message", messageListener);
     };
-  }, [voice, handleMessage, currentSessionId, updateChatMetadata]);
+  }, [voice, handleMessage, currentSessionId, updateChatMetadata, updateAndVerifyMetadata]);
+
+  // Check localStorage for metadata when component mounts
+  useEffect(() => {
+    if (!initialSessionId) return;
+    
+    try {
+      const storedMetadata = localStorage.getItem('hume_metadata');
+      if (storedMetadata) {
+        const metadata = JSON.parse(storedMetadata);
+        console.log(`🎉 Found Hume metadata in localStorage:`, metadata);
+        
+        // Only update if we have both required IDs
+        if (metadata.chatId && metadata.chatGroupId) {
+          console.log(`📊 Using Hume IDs from localStorage: chatId=${metadata.chatId}, chatGroupId=${metadata.chatGroupId}`);
+          
+          // Update our database with this metadata
+          updateAndVerifyMetadata({
+            sessionId: initialSessionId,
+            chatId: metadata.chatId,
+            chatGroupId: metadata.chatGroupId,
+            requestId: metadata.requestId || crypto.randomUUID(),
+            receivedAt: new Date().toISOString()
+          }).then(result => {
+            console.log(`✅ Successfully updated database with localStorage metadata:`, result);
+          }).catch(error => {
+            console.error(`❌ Failed to update database with localStorage metadata:`, error);
+          });
+        }
+      }
+    } catch (e) {
+      console.error(`Error checking localStorage for metadata:`, e);
+    }
+  }, [initialSessionId]);
 
   if (!accessToken) {
     return <div>Loading...</div>;
@@ -426,6 +491,35 @@ export default function HumeChat({
 
   return (
     <div className="relative flex-1 flex flex-col mx-auto w-full overflow-hidden">
+      {/* Debug panel for development */}
+      {process.env.NODE_ENV !== 'production' && (
+        <div className="fixed top-20 right-4 bg-black/80 text-white p-2 rounded shadow-md z-50 text-xs font-mono max-w-xs">
+          <div className="font-bold mb-1">Debug Info:</div>
+          <div>Session ID: {initialSessionId}</div>
+          <div>
+            <button 
+              onClick={() => {
+                try {
+                  const metadata = localStorage.getItem('hume_metadata');
+                  if (metadata) {
+                    console.log("localStorage metadata:", JSON.parse(metadata));
+                    alert("Metadata found in localStorage! Check console.");
+                  } else {
+                    alert("No metadata in localStorage");
+                  }
+                } catch (e) {
+                  console.error("Error reading localStorage:", e);
+                  alert("Error reading localStorage: " + e);
+                }
+              }}
+              className="mt-1 bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs"
+            >
+              Check localStorage
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Use the components without wrapping in another VoiceProvider */}
       <Messages ref={ref} />
       <Controls 
@@ -436,11 +530,25 @@ export default function HumeChat({
       
       {/* Add the ChatSaveHandler component to save transcripts when the chat ends */}
       {currentSessionId && (
-        <ChatSaveHandler 
-          sessionId={currentSessionId}
-          humeChatId={humeChatId}
-          humeGroupChatId={humeGroupChatId}
-        />
+        <>
+          <div className="hidden">DEBUG: ChatID: {humeChatId || 'undefined'}, GroupID: {humeGroupChatId || 'undefined'}</div>
+          <ChatSaveHandler 
+            sessionId={currentSessionId}
+            humeChatId={humeChatId}
+            humeGroupChatId={humeGroupChatId}
+          />
+        </>
+      )}
+      
+      {/* Add debug info display */}
+      {process.env.NODE_ENV !== 'production' && (
+        <div className="fixed bottom-4 left-4 bg-white/80 text-black p-2 rounded shadow-md z-50 text-xs font-mono">
+          <div>HumeChat Debug Info:</div>
+          <div>Session: {currentSessionId}</div>
+          <div>ChatID: {humeChatId || 'not set'}</div>
+          <div>GroupID: {humeGroupChatId || 'not set'}</div>
+          <div>MetadataProcessed: {metadataProcessedRef.current ? 'Yes' : 'No'}</div>
+        </div>
       )}
     </div>
   );

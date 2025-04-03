@@ -22,6 +22,7 @@ const convex = new ConvexReactClient(convexUrl);
 export function VoiceWrapper({ children }: { children: React.ReactNode }) {
   const configId = process.env.NEXT_PUBLIC_HUME_CONFIG_ID || "fallback_config_id";
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchToken = async () => {
@@ -34,13 +35,50 @@ export function VoiceWrapper({ children }: { children: React.ReactNode }) {
         setAccessToken(data.accessToken);
       } catch (error) {
         console.error("❌ Failed to get Hume access token:", error);
-        toast({
-          title: "Error",
-          description: "Failed to get voice access token. Please try again."
-        });
+        toast("Failed to get voice access token. Please try again.");
       }
     };
     fetchToken();
+  }, []);
+
+  useEffect(() => {
+    const handleEvent = (event: any) => {
+      console.log("Received Hume event:", event.detail);
+      const data = event.detail || {};
+      
+      // Check if the message type is chat_metadata
+      if (data.type === "chat_metadata") {
+        console.log("📦 Received chat metadata from Hume:", data);
+        
+        // Check that we have the required fields
+        if (data.chatId && data.chatGroupId) {
+          // Store the metadata in localStorage for cross-component access
+          try {
+            const metadataToStore = {
+              chatId: data.chatId,
+              chatGroupId: data.chatGroupId,
+              requestId: data.requestId || crypto.randomUUID(),
+              timestamp: new Date().toISOString()
+            };
+            
+            localStorage.setItem('hume_metadata', JSON.stringify(metadataToStore));
+            console.log("✅ Stored Hume metadata in localStorage:", metadataToStore);
+          } catch (e) {
+            console.error("Error storing metadata in localStorage:", e);
+          }
+        } else {
+          console.warn("⚠️ Received chat metadata but missing required fields:", data);
+        }
+      }
+      
+      setMessages(prev => [...prev, data]);
+    };
+
+    window.addEventListener("hume:message", handleEvent);
+
+    return () => {
+      window.removeEventListener("hume:message", handleEvent);
+    };
   }, []);
 
   if (!accessToken) {
@@ -63,15 +101,47 @@ export function VoiceWrapper({ children }: { children: React.ReactNode }) {
             requestId: message.requestId
           });
           
-          // Add debug info to the message
+          console.log("📋 FULL metadata object:", JSON.stringify(message, null, 2));
+          
+          // Make sure we have the required fields
+          if (!message.chatId || !message.chatGroupId) {
+            console.warn("⚠️ Missing critical metadata fields:", {
+              hasChatId: !!message.chatId,
+              hasGroupChatId: !!message.chatGroupId
+            });
+          } else {
+            // Store in localStorage for cross-component access
+            try {
+              const metadataForStorage = {
+                chatId: message.chatId,
+                chatGroupId: message.chatGroupId,
+                requestId: message.requestId || crypto.randomUUID(),
+                timestamp: new Date().toISOString()
+              };
+              localStorage.setItem('hume_metadata', JSON.stringify(metadataForStorage));
+              console.log("💾 Stored metadata in localStorage:", metadataForStorage);
+            } catch (e) {
+              console.error("Failed to store metadata in localStorage:", e);
+            }
+          }
+          
+          // Add debug info to the message and ensure field names are consistent
           const enhancedMessage = {
             ...message,
+            type: "chat_metadata", // Ensure consistent casing
+            chatId: message.chatId, // Ensure these fields are included explicitly
+            chatGroupId: message.chatGroupId,
+            requestId: message.requestId || crypto.randomUUID(),
             _source: "VoiceProvider",
             _timestamp: new Date().toISOString(),
             _debug: true
           };
           
-          console.log("🔄 Dispatching enhanced hume:message event for chat_metadata");
+          console.log("🔄 Dispatching enhanced hume:message event for chat_metadata with IDs:", {
+            chatId: enhancedMessage.chatId,
+            chatGroupId: enhancedMessage.chatGroupId
+          });
+          
           window.dispatchEvent(new CustomEvent("hume:message", { detail: enhancedMessage }));
           console.log("📢 Dispatched enhanced hume:message event");
         } else if (message.type === "user_message" || message.type === "assistant_message") {

@@ -15,6 +15,7 @@ async function handleEventsRequest(req: NextRequest) {
   try {
     // Get the chat ID from the query parameters
     const chatId = req.nextUrl.searchParams.get("chatId");
+    const chatGroupId = req.nextUrl.searchParams.get("chatGroupId");
     
     if (!chatId) {
       return NextResponse.json({ error: "Missing chat ID" }, { status: 400 });
@@ -30,18 +31,19 @@ async function handleEventsRequest(req: NextRequest) {
       );
     }
 
-    console.log(`Fetching chat events for chatId: ${chatId}`);
+    console.log(`Fetching chat events for chatId: ${chatId}, chatGroupId: ${chatGroupId || 'not provided'}`);
 
     try {
-      // Fetch chat events from Hume API using POST method
+      // Fetch chat events from Hume API using the correct endpoint and POST method
       const response = await fetch(
-        `https://api.hume.ai/v0/evi/sessions/${chatId}/events`,
+        `https://api.hume.ai/v0/evi/chats/${chatId}/events`,
         {
-          method: 'GET', // Use GET for sessions endpoint
+          method: 'POST', // Change to POST since GET is not supported
           headers: {
             "Content-Type": "application/json",
             "X-Hume-Api-Key": humeApiKey,
           },
+          body: JSON.stringify({}), // Empty body for POST request
           cache: 'no-store',
         }
       );
@@ -54,7 +56,7 @@ async function handleEventsRequest(req: NextRequest) {
         if (response.status === 404) {
           // Return mock data for testing when the chat ID is not found
           return NextResponse.json({
-            events: generateMockEvents(chatId)
+            events: generateMockEvents(chatId, chatGroupId || undefined)
           });
         }
         
@@ -71,7 +73,7 @@ async function handleEventsRequest(req: NextRequest) {
       console.error("Error in Hume API call:", error);
       // Return mock data on error for testing
       return NextResponse.json({
-        events: generateMockEvents(chatId)
+        events: generateMockEvents(chatId, chatGroupId || undefined)
       });
     }
   } catch (error: any) {
@@ -84,8 +86,9 @@ async function handleEventsRequest(req: NextRequest) {
 }
 
 // Helper to generate mock events for testing
-function generateMockEvents(chatId: string) {
+function generateMockEvents(chatId: string, chatGroupId?: string) {
   const now = Date.now();
+  const actualChatGroupId = chatGroupId || chatId; // Fall back to chatId if no group ID provided
   
   return [
     {
@@ -94,7 +97,7 @@ function generateMockEvents(chatId: string) {
       messageText: "Chat started",
       timestamp: now - 1000 * 60 * 5, // 5 minutes ago
       chatId,
-      chatGroupId: chatId
+      chatGroupId: actualChatGroupId
     },
     {
       type: "USER_MESSAGE",
@@ -103,7 +106,7 @@ function generateMockEvents(chatId: string) {
       timestamp: now - 1000 * 60 * 4, // 4 minutes ago
       emotionFeatures: JSON.stringify({ neutral: 0.8, calm: 0.7, happy: 0.2 }),
       chatId,
-      chatGroupId: chatId
+      chatGroupId: actualChatGroupId
     },
     {
       type: "AGENT_MESSAGE",
@@ -111,7 +114,7 @@ function generateMockEvents(chatId: string) {
       messageText: "I'm doing well, thank you for asking. How are you feeling today?",
       timestamp: now - 1000 * 60 * 3.5, // 3.5 minutes ago
       chatId,
-      chatGroupId: chatId
+      chatGroupId: actualChatGroupId
     },
     {
       type: "USER_MESSAGE",
@@ -120,7 +123,7 @@ function generateMockEvents(chatId: string) {
       timestamp: now - 1000 * 60 * 3, // 3 minutes ago
       emotionFeatures: JSON.stringify({ anxious: 0.6, stressed: 0.5, worried: 0.4 }),
       chatId,
-      chatGroupId: chatId
+      chatGroupId: actualChatGroupId
     }
   ];
 } 

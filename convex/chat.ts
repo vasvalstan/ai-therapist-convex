@@ -812,16 +812,88 @@ export const saveConversationTranscript = mutation({
         }
 
         const userId = identity.subject;
+        
+        console.log(`📝 saveConversationTranscript called with:`, {
+            sessionId: args.sessionId,
+            chatId: args.chatId,
+            chatGroupId: args.chatGroupId,
+            messagesCount: args.messages.length,
+            eventsCount: args.events.length
+        });
 
-        // Get the chat session
-        const chatSession = await ctx.db
+        // Try multiple approaches to find the chat session
+        let chatSession;
+        
+        // 1. First try by the exact sessionId
+        chatSession = await ctx.db
             .query("chatHistory")
-            .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
             .filter((q) => q.eq(q.field("userId"), userId))
+            .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
             .first();
+            
+        if (chatSession) {
+            console.log(`✅ Found session by sessionId: ${args.sessionId}`);
+        }
 
+        // 2. If not found, try using the chatId parameter if provided
+        if (!chatSession && args.chatId) {
+            console.log(`⚠️ Session not found by sessionId, trying chatId: ${args.chatId}`);
+            chatSession = await ctx.db
+                .query("chatHistory")
+                .filter((q) => q.eq(q.field("userId"), userId))
+                .filter((q) => q.eq(q.field("chatId"), args.chatId))
+                .first();
+                
+            if (chatSession) {
+                console.log(`✅ Found session by chatId: ${args.chatId} -> sessionId: ${chatSession.sessionId}`);
+            }
+        }
+        
+        // 3. If still not found, try using chatGroupId parameter if provided
+        if (!chatSession && args.chatGroupId) {
+            console.log(`⚠️ Session not found by chatId, trying chatGroupId: ${args.chatGroupId}`);
+            chatSession = await ctx.db
+                .query("chatHistory")
+                .filter((q) => q.eq(q.field("userId"), userId))
+                .filter((q) => q.eq(q.field("chatGroupId"), args.chatGroupId))
+                .first();
+                
+            if (chatSession) {
+                console.log(`✅ Found session by chatGroupId: ${args.chatGroupId} -> sessionId: ${chatSession.sessionId}`);
+            }
+        }
+        
+        // 4. Try looking through the first message's chatId if available
+        if (!chatSession && args.events.length > 0 && args.events[0].chatId) {
+            const firstEventChatId = args.events[0].chatId;
+            console.log(`⚠️ Session not found by params, trying first event chatId: ${firstEventChatId}`);
+            
+            chatSession = await ctx.db
+                .query("chatHistory")
+                .filter((q) => q.eq(q.field("userId"), userId))
+                .filter((q) => q.eq(q.field("chatId"), firstEventChatId))
+                .first();
+                
+            if (chatSession) {
+                console.log(`✅ Found session by first event chatId: ${firstEventChatId} -> sessionId: ${chatSession.sessionId}`);
+            }
+        }
+        
+        // 5. As a last resort, get the most recent session
         if (!chatSession) {
-            throw new Error("Chat session not found");
+            console.log(`⚠️ Session not found by any id, trying most recent session`);
+            chatSession = await ctx.db
+                .query("chatHistory")
+                .filter((q) => q.eq(q.field("userId"), userId))
+                .order("desc")
+                .first();
+                
+            if (chatSession) {
+                console.log(`✅ Using most recent session as fallback: ${chatSession.sessionId}`);
+            } else {
+                console.error(`❌ No session found for user, cannot save transcript`);
+                throw new Error("Chat session not found - no sessions available for this user");
+            }
         }
 
         // If messages is empty but events is populated, use events for both
@@ -835,8 +907,14 @@ export const saveConversationTranscript = mutation({
             chatGroupId: args.chatGroupId || chatSession.chatGroupId,
             updatedAt: Date.now(),
         });
+        
+        console.log(`✅ Successfully saved transcript to session: ${chatSession.sessionId}`);
 
-        return { success: true };
+        return { 
+            success: true,
+            sessionId: chatSession.sessionId,
+            actualSessionId: chatSession.sessionId 
+        };
     },
 });
 
@@ -1016,42 +1094,400 @@ export const updateMetadata = mutation({
     }
 });
 
-// Add a debug function to retrieve chat sessions by ID
+// New function to help with debugging and ensuring metadata updates correctly
+export const updateAndVerifyMetadata = mutation({
+    args: {
+        sessionId: v.string(),
+        chatId: v.string(),
+        chatGroupId: v.string(),
+        requestId: v.string(),
+        receivedAt: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const userId = identity.subject;
+        
+        console.log(`🔄 updateAndVerifyMetadata called with:`, {
+            sessionId: args.sessionId,
+            chatId: args.chatId,
+            chatGroupId: args.chatGroupId,
+            requestId: args.requestId,
+            receivedAt: args.receivedAt
+        });
+
+        // Try multiple approaches to find the session
+        let sessionBefore;
+        
+        // 1. First try by sessionId (traditional approach)
+        sessionBefore = await ctx.db
+            .query("chatHistory")
+            .filter((q) => q.eq(q.field("userId"), userId))
+            .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
+            .first();
+            
+        // 2. If not found by sessionId, try by chatId
+        if (!sessionBefore) {
+            console.log(`⚠️ Session not found by sessionId ${args.sessionId}, trying chatId ${args.chatId}`);
+            sessionBefore = await ctx.db
+                .query("chatHistory")
+                .filter((q) => q.eq(q.field("userId"), userId))
+                .filter((q) => q.eq(q.field("chatId"), args.chatId))
+                .first();
+                
+            if (sessionBefore) {
+                console.log(`✅ Found session using chatId instead: ${sessionBefore.sessionId}`);
+            }
+        }
+        
+        // 3. If still not found, try by chatGroupId
+        if (!sessionBefore) {
+            console.log(`⚠️ Session not found by chatId, trying chatGroupId ${args.chatGroupId}`);
+            sessionBefore = await ctx.db
+                .query("chatHistory")
+                .filter((q) => q.eq(q.field("userId"), userId))
+                .filter((q) => q.eq(q.field("chatGroupId"), args.chatGroupId))
+                .first();
+                
+            if (sessionBefore) {
+                console.log(`✅ Found session using chatGroupId instead: ${sessionBefore.sessionId}`);
+            }
+        }
+        
+        // 4. If still not found, try to get the most recent session as last resort
+        if (!sessionBefore) {
+            console.log(`⚠️ Session not found by any ID, trying most recent session`);
+            sessionBefore = await ctx.db
+                .query("chatHistory")
+                .filter((q) => q.eq(q.field("userId"), userId))
+                .order("desc")
+                .first();
+                
+            if (sessionBefore) {
+                console.log(`✅ Using most recent session as fallback: ${sessionBefore.sessionId}`);
+            }
+        }
+
+        if (!sessionBefore) {
+            console.error(`❌ Chat session not found after trying all approaches`);
+            throw new Error("Chat session not found after trying all approaches");
+        }
+        
+        console.log(`ℹ️ Session BEFORE update:`, {
+            sessionId: sessionBefore.sessionId,
+            chatId: sessionBefore.chatId,
+            chatGroupId: sessionBefore.chatGroupId
+        });
+
+        // Convert receivedAt string to a timestamp number if it's an ISO string
+        const timestamp = args.receivedAt.match(/^\d+$/) ? 
+            args.receivedAt : // If it's already a numeric string, use it as is
+            Date.parse(args.receivedAt) || Date.now().toString(); // Otherwise parse ISO string or use current time
+
+        // Update both top-level fields and metadata consistently
+        const updateData = {
+            chatId: args.chatId,
+            chatGroupId: args.chatGroupId,
+            metadata: {
+                chat_id: args.chatId, // Keep underscore format in metadata
+                chat_group_id: args.chatGroupId, // Keep underscore format in metadata
+                request_id: args.requestId,
+                timestamp: timestamp.toString()
+            },
+            updatedAt: Date.now()
+        };
+
+        console.log(`🔧 Applying update with data:`, updateData);
+
+        // Update the session with the new metadata
+        await ctx.db.patch(sessionBefore._id, updateData);
+
+        // Also update any existing messages and events to maintain consistency
+        const messages = sessionBefore.messages || [];
+        const events = sessionBefore.events || [];
+
+        console.log(`📝 Updating ${messages.length} messages and ${events.length} events`);
+
+        const updatedMessages = messages.map(msg => ({
+            ...msg,
+            chatId: args.chatId,
+            chatGroupId: args.chatGroupId,
+            metadata: {
+                chat_id: args.chatId,
+                chat_group_id: args.chatGroupId,
+                request_id: args.requestId, // Use the new request ID consistently
+                timestamp: timestamp.toString() // Use the new timestamp consistently
+            }
+        }));
+
+        const updatedEvents = events.map(event => ({
+            ...event,
+            chatId: args.chatId,
+            chatGroupId: args.chatGroupId,
+            metadata: {
+                chat_id: args.chatId,
+                chat_group_id: args.chatGroupId,
+                request_id: args.requestId, // Use the new request ID consistently
+                timestamp: timestamp.toString() // Use the new timestamp consistently
+            }
+        }));
+
+        // Update messages and events
+        await ctx.db.patch(sessionBefore._id, {
+            messages: updatedMessages,
+            events: updatedEvents
+        });
+        
+        // Get the chat session AFTER update to verify
+        const sessionAfter = await ctx.db
+            .query("chatHistory")
+            .filter((q) => q.eq(q.field("userId"), userId))
+            .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
+            .first();
+        
+        if (!sessionAfter) {
+            console.error(`❌ Session not found AFTER update: ${args.sessionId}`);
+            return {
+                success: false,
+                error: "Session not found after update",
+                sessionId: args.sessionId,
+                before: {
+                    chatId: sessionBefore.chatId,
+                    chatGroupId: sessionBefore.chatGroupId
+                },
+                after: null
+            };
+        }
+        
+        console.log(`✅ Session AFTER update:`, {
+            sessionId: sessionAfter.sessionId,
+            chatId: sessionAfter.chatId,
+            chatGroupId: sessionAfter.chatGroupId,
+            firstMessageChatId: sessionAfter.messages[0]?.chatId,
+            firstMessageChatGroupId: sessionAfter.messages[0]?.chatGroupId,
+            firstMessageMetadataChatId: sessionAfter.messages[0]?.metadata?.chat_id,
+            firstMessageMetadataChatGroupId: sessionAfter.messages[0]?.metadata?.chat_group_id,
+        });
+
+        return {
+            success: true,
+            sessionId: args.sessionId,
+            before: {
+                chatId: sessionBefore.chatId,
+                chatGroupId: sessionBefore.chatGroupId
+            },
+            after: {
+                chatId: sessionAfter.chatId,
+                chatGroupId: sessionAfter.chatGroupId
+            }
+        };
+    }
+});
+
+// Debug function to get chat session info
 export const debugGetChatSession = query({
-  args: { sessionId: v.string() },
+  args: {
+    sessionId: v.string(),
+    chatId: v.optional(v.string()),
+    chatGroupId: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
-    // This will retrieve any session regardless of user for debugging purposes
-    const session = await ctx.db
-      .query("chatHistory")
-      .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
-      .first();
+    const { sessionId, chatId, chatGroupId } = args;
     
-    if (!session) {
-      // Also try to find by chatId in case that's what was passed
-      const sessionByChat = await ctx.db
-        .query("chatHistory")
-        .filter((q) => q.eq(q.field("chatId"), args.sessionId))
-        .first();
+    // First try by sessionId
+    const byId = await ctx.db
+      .query("chatHistory")
+      .filter((q) => q.eq(q.field("sessionId"), sessionId))
+      .first();
       
-      if (sessionByChat) {
+    if (byId) {
+      return {
+        found: true,
+        foundBy: "sessionId",
+        sessionId: byId._id,
+        chatId: byId.chatId,
+        chatGroupId: byId.chatGroupId,
+      };
+    }
+    
+    // Then try by chatId if provided
+    if (chatId) {
+      const byChatId = await ctx.db
+        .query("chatHistory")
+        .filter((q) => q.eq(q.field("chatId"), chatId))
+        .first();
+        
+      if (byChatId) {
         return {
           found: true,
           foundBy: "chatId",
-          sessionId: sessionByChat.sessionId,
-          chatId: sessionByChat.chatId,
-          userId: sessionByChat.userId
+          sessionId: byChatId._id,
+          chatId: byChatId.chatId,
+          chatGroupId: byChatId.chatGroupId,
         };
       }
-      
-      return { found: false, searchedFor: args.sessionId };
+    }
+    
+    // Finally try by chatGroupId if provided
+    if (chatGroupId) {
+      const byGroupId = await ctx.db
+        .query("chatHistory")
+        .filter((q) => q.eq(q.field("chatGroupId"), chatGroupId))
+        .first();
+        
+      if (byGroupId) {
+        return {
+          found: true,
+          foundBy: "chatGroupId",
+          sessionId: byGroupId._id,
+          chatId: byGroupId.chatId,
+          chatGroupId: byGroupId.chatGroupId,
+        };
+      }
     }
     
     return {
-      found: true,
-      foundBy: "sessionId",
-      sessionId: session.sessionId,
-      chatId: session.chatId,
-      userId: session.userId
+      found: false,
+      sessionId,
+      chatId,
+      chatGroupId,
     };
   },
+});
+
+// Query to lookup a session by chat IDs (for troubleshooting session mismatches)
+export const lookupByChatIds = query({
+  args: {
+    chatId: v.optional(v.string()),
+    chatGroupId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { chatId, chatGroupId } = args;
+    
+    // Need at least one ID to search
+    if (!chatId && !chatGroupId) {
+      return { found: false, error: "No search criteria provided" };
+    }
+    
+    // First try to find by chatId
+    if (chatId) {
+      const sessionByChatId = await ctx.db
+        .query("chatHistory")
+        .filter((q) => q.eq(q.field("chatId"), chatId))
+        .first();
+      
+      if (sessionByChatId) {
+        return {
+          found: true,
+          foundBy: "chatId",
+          sessionId: sessionByChatId._id,
+          chatId: sessionByChatId.chatId,
+          chatGroupId: sessionByChatId.chatGroupId,
+        };
+      }
+    }
+    
+    // Next try to find by chatGroupId
+    if (chatGroupId) {
+      const sessionByGroupId = await ctx.db
+        .query("chatHistory")
+        .filter((q) => q.eq(q.field("chatGroupId"), chatGroupId))
+        .first();
+      
+      if (sessionByGroupId) {
+        return {
+          found: true,
+          foundBy: "chatGroupId",
+          sessionId: sessionByGroupId._id,
+          chatId: sessionByGroupId.chatId,
+          chatGroupId: sessionByGroupId.chatGroupId,
+        };
+      }
+    }
+    
+    // Not found by either ID
+    return { found: false };
+  },
+});
+
+// Add a new mutation to create a session with Hume IDs
+export const createSessionWithHumeIds = mutation({
+    args: {
+        chatId: v.string(),
+        chatGroupId: v.string(),
+        initialMessage: v.object({
+            type: v.union(
+                v.literal("USER_MESSAGE"),
+                v.literal("AGENT_MESSAGE"),
+                v.literal("SYSTEM_MESSAGE"),
+                v.literal("CHAT_METADATA")
+            ),
+            role: v.union(
+                v.literal("USER"),
+                v.literal("ASSISTANT"),
+                v.literal("SYSTEM")
+            ),
+            messageText: v.string(),
+            content: v.optional(v.string()),
+            timestamp: v.number(),
+            emotionFeatures: v.optional(v.string()),
+        })
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error("Not authenticated");
+        }
+
+        const userId = identity.subject;
+        
+        // Generate a unique session ID that's different from the Hume IDs
+        const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+        
+        console.log(`Creating new session with Hume IDs: chatId=${args.chatId}, chatGroupId=${args.chatGroupId}`);
+
+        // Create a message with the Hume IDs included
+        const message: Message = {
+            type: args.initialMessage.type as MessageType,
+            role: args.initialMessage.role as MessageRole,
+            messageText: args.initialMessage.messageText,
+            content: args.initialMessage.content || args.initialMessage.messageText,
+            timestamp: args.initialMessage.timestamp,
+            emotionFeatures: args.initialMessage.emotionFeatures,
+            chatId: args.chatId,
+            chatGroupId: args.chatGroupId,
+            metadata: {
+                chat_id: args.chatId,
+                chat_group_id: args.chatGroupId,
+                request_id: crypto.randomUUID(),
+                timestamp: new Date().toISOString()
+            }
+        };
+
+        // Insert the new session
+        const id = await ctx.db.insert("chatHistory", {
+            userId,
+            sessionId,
+            chatId: args.chatId,
+            chatGroupId: args.chatGroupId,
+            messages: [message],
+            events: [message],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            title: `Hume Chat ${new Date().toLocaleDateString()}`
+        });
+        
+        console.log(`Created new session with ID: ${id}, sessionId: ${sessionId}`);
+
+        return { 
+            id,
+            sessionId,
+            message,
+            chatId: args.chatId,
+            chatGroupId: args.chatGroupId
+        };
+    },
 }); 
