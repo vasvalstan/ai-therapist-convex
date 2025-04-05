@@ -3,8 +3,11 @@
 import { useVoice } from "@humeai/voice-react";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { api } from "@/convex/_generated/api";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useAction } from "convex/react";
 import { toast } from "@/components/ui/use-toast";
+import { SaveChatHistory } from "@/components/hume/save-chat-history";
+import { useSaveTranscript } from "@/lib/hooks/useSaveTranscript";
+import { useSaveHumeChat } from "@/app/handlers/chat-save-handler";
 
 // Define the message type constants that match the Convex schema
 type MessageType = "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE" | "CHAT_METADATA";
@@ -409,28 +412,29 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
   sessionId: string;
   humeChatId?: string;
   humeGroupChatId?: string;
-}): JSX.Element | null {
+}) {
   const [isSaving, setIsSaving] = useState(false);
-  const saveTranscript = useMutation(api.chat.saveConversationTranscript);
-  const updateMinutes = useMutation(api.chat.updateUserRemainingMinutes);
+  const [storedChatId, setStoredChatId] = useState<string | null>(humeChatId || null);
+  const [storedGroupChatId, setStoredGroupChatId] = useState<string | null>(humeGroupChatId || null);
+  const [savedEvents, setSavedEvents] = useState<any[]>([]);
   
-  // Add state for saved events
-  const [savedEvents, setSavedEvents] = useState<HumeEvent[]>([]);
-
-  // Helper function to get mock events for testing
-  const getMockEvents = (count: number) => {
-    return generateMockEvents(sessionId).slice(0, count);
-  };
-
-  // Store the Hume IDs in local state to preserve them
-  const [storedChatId, setStoredChatId] = useState<string | undefined>(humeChatId);
-  const [storedGroupChatId, setStoredGroupChatId] = useState<string | undefined>(humeGroupChatId);
+  // Add Convex mutations and actions
+  const updateUserMinutes = useMutation(api.chat.updateUserRemainingMinutes);
+  
+  // Use our new helper for saving chat history
+  const { saveChat } = useSaveHumeChat();
+  
+  // Import the hook for saving transcripts
+  const { saveTranscript } = useSaveTranscript();
+  
+  // Ref to track if we've already attempted to save this chat
+  const hasSavedRef = useRef(false);
   
   // Create a new query that uses both sessionId and chatId if available
   const debugSession = useQuery(api.chat.debugGetChatSession, { 
     sessionId,
-    chatId: storedChatId,
-    chatGroupId: storedGroupChatId
+    chatId: storedChatId || undefined,
+    chatGroupId: storedGroupChatId || undefined
   });
   
   // Log props at component mount time
@@ -546,7 +550,7 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
         }
         
         // For testing purposes, return mock events if API fails
-        setSavedEvents(getMockEvents(5));
+        setSavedEvents(generateMockEvents(sessionId, finalChatId, finalGroupChatId));
         return;
       }
 
@@ -556,7 +560,7 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
     } catch (error) {
       console.error("Error fetching events:", error);
       // For testing purposes, return mock events if API fails
-      setSavedEvents(getMockEvents(5));
+      setSavedEvents(generateMockEvents(sessionId, finalChatId, finalGroupChatId));
     }
   };
 
@@ -620,243 +624,52 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
       
       console.log(`🔤 Using chatId: ${chatId}, chatGroupId: ${chatGroupId}, sessionId: ${actualSessionId}`);
       
-      // Use mock data for testing if needed
-      const mockEvents = generateMockEvents(actualSessionId, chatId, chatGroupId);
-      
-      // Try to fetch events from Hume API, but fallback to mock data if it fails
-      let events: HumeEvent[] = [];
-      try {
-        // First, let's try to query our database directly for the most up-to-date metadata
-        await checkMetadataInDb(actualSessionId);
-        
-        // Now attempt to fetch events from Hume API using the potentially updated chatId and chatGroupId
-        console.log(`Fetching events from API for chat ID: ${chatId}, chat group ID: ${chatGroupId}`);
-        const response = await fetch(`/api/hume/events?chatId=${chatId}&chatGroupId=${chatGroupId}`);
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error(`Error fetching chat events (${response.status}):`, errorData);
-          
-          // Try to extract more detailed error info
-          if (errorData.details) {
-            console.error("Detailed API error:", errorData.details);
-            try {
-              const detailsObj = typeof errorData.details === 'string' ? 
-                JSON.parse(errorData.details) : errorData.details;
-              console.error("Parsed error details:", detailsObj);
-            } catch (e) {
-              console.error("Could not parse error details");
-            }
-          }
-          
-          // Fall back to mock data for testing
-          console.log("Using mock events for testing due to API error");
-          events = mockEvents;
-        } else {
-          const data = await response.json();
-          console.log("Received API response:", data);
-          
-          // Check if the response contains events
-          if (Array.isArray(data.events) && data.events.length > 0) {
-            events = data.events;
-            console.log(`Successfully fetched ${events.length} events from Hume API`);
-          } else if (Array.isArray(data) && data.length > 0) {
-            // Handle case where the events are the top-level array
-            events = data;
-            console.log(`Successfully fetched ${events.length} events (top-level array) from API`);
-          } else {
-            console.warn("No events found in API response. Using mock data instead.");
-            events = mockEvents;
-          }
-        }
-      } catch (error) {
-        console.error("Exception when fetching events:", error);
-        // Fall back to mock data for testing
-        console.log("Using mock events for testing due to exception");
-        events = mockEvents;
+      if (!chatId) {
+        throw new Error("No chat ID available to save history");
       }
-      
-      // Update the saved events state for display if needed
-      setSavedEvents(events);
-      
-      // Calculate session duration in minutes
-      const sessionStartEvent = events.find((e) => e.type === "chat_metadata");
-      const lastEvent = events[events.length - 1];
-      
-      let sessionDurationMinutes = 1; // Default to 1 minute
-      if (sessionStartEvent && lastEvent) {
-        const startTime = new Date(sessionStartEvent.timestamp).getTime();
-        const endTime = new Date(lastEvent.timestamp).getTime();
-        const durationMs = endTime - startTime;
-        sessionDurationMinutes = Math.ceil(durationMs / (1000 * 60)); // Round up to nearest minute
-      }
-      
-      // Try saving the transcript to the database
-      // First attempt: use the actual sessionId from the database if available
-      let saveResult;
-      let saveError;
       
       try {
-        console.log(`💾 Saving transcript with sessionId: ${actualSessionId}`);
-        saveResult = await saveTranscript({
-          sessionId: actualSessionId,
-          chatId: chatId,
-          chatGroupId: chatGroupId,
-          events: processEvents(events, chatId, chatGroupId),
-          messages: [] // Use the same events for messages
-        });
+        // Use our helper function which handles error cases better
+        // Pass both the chatId and chatGroupId to the saveChat function
+        const saveResult = await saveChat(chatId, chatGroupId);
         
-        console.log("Transcript saved successfully (first attempt):", saveResult);
-      } catch (error) {
-        console.warn("First save attempt failed:", error);
-        saveError = error;
+        hasSavedRef.current = true;
         
-        // Second attempt: if first attempt failed and we're using a different sessionId than the one from Hume,
-        // try using the Hume chatId as the sessionId
-        if (chatId && chatId !== actualSessionId) {
-          try {
-            console.log(`🔄 Retry: saving transcript with chatId as sessionId: ${chatId}`);
-            saveResult = await saveTranscript({
-              sessionId: chatId, // Try using chatId as sessionId
-              chatId: chatId,
-              chatGroupId: chatGroupId,
-              events: processEvents(events, chatId, chatGroupId),
-              messages: [] // Use the same events for messages
-            });
-            
-            console.log("Transcript saved successfully (second attempt):", saveResult);
-          } catch (retryError) {
-            console.error("Second save attempt also failed:", retryError);
-            // Keep the original error if both attempts fail
-            throw saveError;
-          }
-        } else {
-          // If we can't retry, rethrow the original error
-          throw saveError;
-        }
-      }
-
-      // Update user's remaining minutes
-      try {
-        await updateMinutes({
-          sessionDurationMinutes
-        });
-      } catch (minutesError) {
-        console.warn("Error updating minutes, but transcript was saved:", minutesError);
-      }
-      
-      toast({
-        title: "Chat saved",
-        description: "Your conversation has been saved successfully.",
-      });
-    } catch (error) {
-      console.error("Error saving chat:", error);
-      
-      // Check for specific errors to provide better messages
-      const errorString = String(error);
-      if (errorString.includes("Chat session not found")) {
-        console.log("⚠️ Session ID mismatch detected. Trying to find the correct session ID...");
-        
-        // Try to query the database directly for the correct session
+        // Update user's remaining minutes after successful save
         try {
-          const response = await fetch(`/api/session-lookup?chatId=${storedChatId}&chatGroupId=${storedGroupChatId}`);
-          if (response.ok) {
-            const data = await response.json();
-            console.log("✅ Found correct session:", data);
-            toast({
-              title: "Session ID mismatch detected",
-              description: "Found the correct session but couldn't save automatically. Please click the 'Force Update Metadata' button and try again.",
-            });
-          } else {
-            toast({
-              title: "Error saving chat",
-              description: "Session ID mismatch. Please try starting a new chat session.",
-              variant: "destructive",
-            });
-          }
-        } catch (lookupError) {
-          console.error("Error looking up session:", lookupError);
-          toast({
-            title: "Error saving chat",
-            description: "There was a session ID mismatch. Please try starting a new session.",
-            variant: "destructive",
+          await updateUserMinutes({
+            sessionDurationMinutes: 1 // Default to 1 minute
           });
+          console.log(`Updated user's remaining minutes: -1 minute`);
+        } catch (minutesError) {
+          console.warn("Error updating minutes, but transcript was saved:", minutesError);
         }
-      } else {
+        
+        toast({
+          title: "Chat saved",
+          description: `Your conversation with ${saveResult.messageCount} messages has been saved successfully.`,
+        });
+        
+      } catch (error) {
+        console.error("Error saving chat history:", error);
+        
         toast({
           title: "Error saving chat",
-          description: "There was an error saving your conversation. Some data might be missing.",
+          description: String(error) || "There was an error saving your conversation.",
           variant: "destructive",
         });
       }
+    } catch (error) {
+      console.error("Error in save workflow:", error);
+      
+      toast({
+        title: "Error saving chat",
+        description: "There was an error saving your conversation. Please try again later.",
+        variant: "destructive",
+      });
     } finally {
       setIsSaving(false);
     }
-  };
-
-  // Helper function to process events
-  const processEvents = (events: HumeEvent[], chatId: string, chatGroupId: string) => {
-    if (!events || events.length === 0) {
-      // Return a single system message if no events
-      return [{
-        type: "SYSTEM_MESSAGE" as MessageType,
-        role: "SYSTEM" as MessageRole,
-        messageText: "Conversation summary saved",
-        content: "Conversation summary saved",
-        timestamp: Date.now(),
-        chatId,
-        chatGroupId,
-        metadata: {
-          chat_id: chatId,
-          chat_group_id: chatGroupId,
-          request_id: generateUUID(),
-          timestamp: new Date().toISOString()
-        }
-      }];
-    }
-    
-    // Process each event to ensure proper formatting
-    return events.map((event) => {
-      // Ensure event type follows the expected format
-      const type: MessageType = 
-        event.type === "chat_metadata" ? "CHAT_METADATA" :
-        event.type === "user_message" ? "USER_MESSAGE" : 
-        event.type === "agent_message" ? "AGENT_MESSAGE" : 
-        event.type === "CHAT_METADATA" ? "CHAT_METADATA" :
-        event.type === "USER_MESSAGE" ? "USER_MESSAGE" :
-        event.type === "AGENT_MESSAGE" ? "AGENT_MESSAGE" :
-        "SYSTEM_MESSAGE";
-      
-      // Ensure role follows the expected format
-      const role: MessageRole = 
-        (event.role || "").toLowerCase() === "user" ? "USER" :
-        (event.role || "").toLowerCase() === "assistant" ? "ASSISTANT" : 
-        (event.role || "").toUpperCase() === "USER" ? "USER" :
-        (event.role || "").toUpperCase() === "ASSISTANT" ? "ASSISTANT" :
-        "SYSTEM";
-      
-      // Build metadata with required fields
-      const metadata = {
-        chat_id: chatId,
-        chat_group_id: chatGroupId,
-        request_id: generateUUID(),
-        timestamp: new Date().toISOString()
-      };
-      
-      return {
-        type,
-        role,
-        messageText: event.messageText || "",
-        content: event.messageText || "",
-        timestamp: typeof event.timestamp === 'number' ? event.timestamp : new Date(event.timestamp).getTime(),
-        emotionFeatures: typeof event.emotionFeatures === 'string' ? 
-                         event.emotionFeatures : 
-                         event.emotionFeatures ? JSON.stringify(event.emotionFeatures) : undefined,
-        chatId: event.chatId || chatId,
-        chatGroupId: event.chatGroupId || chatGroupId,
-        metadata
-      };
-    });
   };
 
   // Check localStorage on mount for any Hume metadata
@@ -916,6 +729,45 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
     };
   }, [debugSession]);
 
-  // This component doesn't render anything visible
-  return null;
+  // Auto-save chat history when chat ID becomes available and we haven't saved yet
+  useEffect(() => {
+    if (storedChatId && !hasSavedRef.current) {
+      console.log("Auto-saving chat history for chatId:", storedChatId);
+      // The SaveChatHistory component will handle the actual saving when it's rendered
+    }
+  }, [storedChatId]);
+
+  return (
+    <div className="space-y-4">
+      {storedChatId && (
+        <div className="flex flex-col gap-2 mt-4">
+          <SaveChatHistory 
+            chatId={storedChatId} 
+            onSuccess={(result) => {
+              console.log("Chat history saved successfully:", result);
+              hasSavedRef.current = true;
+            }}
+            onError={(error) => {
+              console.error("Error saving chat history:", error);
+            }}
+            variant="outline"
+            size="sm"
+            className="w-full"
+          />
+          <div className="text-xs text-gray-500 text-center">
+            Chat ID: {storedChatId.substring(0, 8)}...
+          </div>
+        </div>
+      )}
+      {/* Add a fallback button that triggers handleSaveChat */}
+      {(!storedChatId || process.env.NODE_ENV !== 'production') && (
+        <button 
+          onClick={handleSaveChat} 
+          className="w-full bg-gray-100 text-gray-600 hover:bg-gray-200 px-3 py-1 rounded-md text-sm"
+        >
+          Force Save Chat (Fallback)
+        </button>
+      )}
+    </div>
+  );
 } 
