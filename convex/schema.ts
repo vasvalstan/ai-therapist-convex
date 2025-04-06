@@ -38,7 +38,7 @@ const baseMessageFields = {
 const messageValidator = v.object({
     ...baseMessageFields,
     content: v.optional(v.string()),
-    messageText: v.string(),
+    messageText: v.optional(v.string()),
     metadata: v.optional(v.object({
         chat_id: v.string(),
         chat_group_id: v.string(),
@@ -50,7 +50,7 @@ const messageValidator = v.object({
 // Define event validator
 const eventValidator = v.object({
     ...baseMessageFields,
-    messageText: v.string(),
+    messageText: v.optional(v.string()),
     content: v.optional(v.string()),
     metadata: v.optional(v.object({
         chat_id: v.string(),

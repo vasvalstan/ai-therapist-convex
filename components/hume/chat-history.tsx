@@ -3,7 +3,7 @@
 import { api } from "@/convex/_generated/api";
 import { useQuery, useMutation } from "convex/react";
 import { formatDistanceToNow } from "date-fns";
-import { MessageCircle, Trash2, Pencil, Home, Loader2 } from "lucide-react";
+import { MessageCircle, Trash2, Pencil, Home, Loader2, Download } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "../ui/button";
@@ -19,6 +19,7 @@ import {
 import { Input } from "../ui/input";
 import { useState } from "react";
 import { Skeleton } from "../ui/skeleton";
+import { generateAndDownloadTranscript } from "@/lib/transcript";
 
 export function ChatHistory() {
     const sessions = useQuery(api.chat.getChatSessions);
@@ -31,6 +32,7 @@ export function ChatHistory() {
     const [newTitle, setNewTitle] = useState("");
     const [isDeleting, setIsDeleting] = useState(false);
     const [isRenaming, setIsRenaming] = useState(false);
+    const [isGeneratingTranscript, setIsGeneratingTranscript] = useState(false);
 
     const handleDelete = async (e: React.MouseEvent, id: Id<"chatHistory">, title: string) => {
         e.preventDefault(); // Prevent navigation
@@ -41,6 +43,20 @@ export function ChatHistory() {
         e.preventDefault(); // Prevent navigation
         setChatToRename({ id, title: currentTitle });
         setNewTitle(currentTitle);
+    };
+
+    const handleGenerateTranscript = async (e: React.MouseEvent, session: any) => {
+        e.preventDefault(); // Prevent navigation
+        setIsGeneratingTranscript(true);
+        try {
+            await generateAndDownloadTranscript(session);
+            // Optionally show a success message to the user
+        } catch (error) {
+            console.error("Failed to generate transcript:", error);
+            // Optionally show an error message to the user
+        } finally {
+            setIsGeneratingTranscript(false);
+        }
     };
 
     const confirmDelete = async () => {
@@ -101,7 +117,7 @@ export function ChatHistory() {
                             msg => msg.role === "user" || msg.role === "assistant"
                         );
                         const title = session.title || 
-                            (firstMessage?.content.slice(0, 30) + "...") || 
+                            (firstMessage?.content?.slice(0, 30) + "...") || 
                             "New conversation";
 
                         return (
@@ -125,6 +141,15 @@ export function ChatHistory() {
                                     )}
                                 </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={(e) => handleGenerateTranscript(e, session)}
+                                        disabled={isGeneratingTranscript}
+                                    >
+                                        <Download className="h-4 w-4" />
+                                    </Button>
                                     <Button
                                         variant="ghost"
                                         size="icon"

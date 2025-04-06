@@ -5,6 +5,26 @@ import { internal } from "./_generated/api";
 import { QueryCtx } from "./_generated/server";
 import { api } from "./_generated/api";
 
+// Helper function to normalize data between Hume and Convex
+function normalizeHumeEvent(event: any): Message {
+  return {
+    type: event.type || "SYSTEM_MESSAGE",
+    role: (typeof event.role === 'string' ? event.role.toUpperCase() : event.role) || "SYSTEM",
+    messageText: event.messageText || event.content || "",
+    content: event.content || event.messageText || "",
+    timestamp: event.timestamp || Date.now(),
+    emotionFeatures: event.emotionFeatures,
+    chatId: event.chatId,
+    chatGroupId: event.chatGroupId,
+    metadata: event.metadata || (event.chatId && event.chatGroupId ? {
+      chat_id: event.chatId,
+      chat_group_id: event.chatGroupId,
+      request_id: crypto.randomUUID(),
+      timestamp: new Date(event.timestamp || Date.now()).toISOString()
+    } : undefined)
+  };
+}
+
 // Helper function to check if user has access to chat
 async function checkUserChatAccess(ctx: QueryCtx, userId: string) {
     // Get user details
@@ -390,17 +410,13 @@ export const addMessageToSession = mutation({
             args.message.role.toUpperCase() as MessageRole : 
             args.message.role as MessageRole;
 
-        // Normalize the message and ensure all required fields are present
-        const normalizedMessage: Message = {
-            type: args.message.type as MessageType,
-            role: role,
-            messageText: args.message.messageText,
-            content: args.message.content || args.message.messageText,
-            timestamp: args.message.timestamp,
-            emotionFeatures: args.message.emotionFeatures,
+        // Normalize the message using our helper function
+        const normalizedMessage: Message = normalizeHumeEvent({
+            ...args.message,
+            role,
             chatId: args.message.chatId || session.chatId,
             chatGroupId: args.message.chatGroupId || session.chatGroupId,
-        };
+        });
 
         // Add metadata if chatId and chatGroupId are available
         if (normalizedMessage.chatId && normalizedMessage.chatGroupId) {
@@ -1057,6 +1073,8 @@ export const updateMetadata = mutation({
         const messages = session.messages || [];
         const events = session.events || [];
 
+        console.log(`📝 Updating ${messages.length} messages and ${events.length} events`);
+
         const updatedMessages = messages.map(msg => ({
             ...msg,
             chatId: args.chatId,
@@ -1240,51 +1258,12 @@ export const updateAndVerifyMetadata = mutation({
             messages: updatedMessages,
             events: updatedEvents
         });
-        
-        // Get the chat session AFTER update to verify
-        const sessionAfter = await ctx.db
-            .query("chatHistory")
-            .filter((q) => q.eq(q.field("userId"), userId))
-            .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
-            .first();
-        
-        if (!sessionAfter) {
-            console.error(`❌ Session not found AFTER update: ${args.sessionId}`);
-            return {
-                success: false,
-                error: "Session not found after update",
-                sessionId: args.sessionId,
-                before: {
-                    chatId: sessionBefore.chatId,
-                    chatGroupId: sessionBefore.chatGroupId
-                },
-                after: null
-            };
-        }
-        
-        console.log(`✅ Session AFTER update:`, {
-            sessionId: sessionAfter.sessionId,
-            chatId: sessionAfter.chatId,
-            chatGroupId: sessionAfter.chatGroupId,
-            firstMessageChatId: sessionAfter.messages[0]?.chatId,
-            firstMessageChatGroupId: sessionAfter.messages[0]?.chatGroupId,
-            firstMessageMetadataChatId: sessionAfter.messages[0]?.metadata?.chat_id,
-            firstMessageMetadataChatGroupId: sessionAfter.messages[0]?.metadata?.chat_group_id,
-        });
 
         return {
             success: true,
             sessionId: args.sessionId,
-            before: {
-                chatId: sessionBefore.chatId,
-                chatGroupId: sessionBefore.chatGroupId
-            },
-            after: {
-                chatId: sessionAfter.chatId,
-                chatGroupId: sessionAfter.chatGroupId
-            }
         };
-    }
+    },
 });
 
 // Debug function to get chat session info
@@ -1450,22 +1429,16 @@ export const createSessionWithHumeIds = mutation({
         console.log(`Creating new session with Hume IDs: chatId=${args.chatId}, chatGroupId=${args.chatGroupId}`);
 
         // Create a message with the Hume IDs included
-        const message: Message = {
-            type: args.initialMessage.type as MessageType,
-            role: args.initialMessage.role as MessageRole,
+        const message = normalizeHumeEvent({
+            type: args.initialMessage.type,
+            role: args.initialMessage.role,
             messageText: args.initialMessage.messageText,
             content: args.initialMessage.content || args.initialMessage.messageText,
             timestamp: args.initialMessage.timestamp,
             emotionFeatures: args.initialMessage.emotionFeatures,
             chatId: args.chatId,
-            chatGroupId: args.chatGroupId,
-            metadata: {
-                chat_id: args.chatId,
-                chat_group_id: args.chatGroupId,
-                request_id: crypto.randomUUID(),
-                timestamp: new Date().toISOString()
-            }
-        };
+            chatGroupId: args.chatGroupId
+        });
 
         // Insert the new session
         const id = await ctx.db.insert("chatHistory", {
@@ -1491,336 +1464,3 @@ export const createSessionWithHumeIds = mutation({
         };
     },
 });
-
-export const saveHumeChatHistory = mutation({
-  args: { 
-    chatId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const userId = identity.subject;
-    
-    try {
-      // Fetch chat events from Hume API
-      // Note: This code needs to be adjusted based on your server-side implementation
-      // as mutations cannot directly import server-side code. You should use an action instead.
-      const response = await fetch(
-        `https://api.hume.ai/v0/evi/chats/${args.chatId}/events`,
-        {
-          method: 'POST',
-          headers: {
-            "Content-Type": "application/json",
-            "X-Hume-Api-Key": process.env.HUME_API_KEY || "",
-          },
-          body: JSON.stringify({}),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch chat events: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (!data.events || !Array.isArray(data.events)) {
-        throw new Error("Invalid response format from Hume API");
-      }
-
-      // Define the type for chat events
-      type HumeChatEvent = {
-        type: string;
-        role: string;
-        messageText?: string;
-        content?: string;
-        timestamp: number;
-        emotionFeatures?: string;
-        chatId: string;
-        chatGroupId: string;
-        metadata?: {
-          chat_id: string;
-          chat_group_id: string;
-          request_id: string;
-          timestamp: string;
-        };
-      };
-
-      // Filter for user_message and assistant_message events only
-      const conversationEvents = data.events.filter((event: HumeChatEvent) => 
-        event.type === "USER_MESSAGE" || 
-        event.type === "AGENT_MESSAGE" || 
-        event.type === "ASSISTANT_MESSAGE"
-      );
-
-      if (conversationEvents.length === 0) {
-        return { success: false, message: "No conversation messages found" };
-      }
-
-      // Check if we already have a chat session for this chatId
-      const existingSession = await ctx.db
-        .query("chatHistory")
-        .filter((q) => 
-          q.and(
-            q.eq(q.field("userId"), userId),
-            q.or(
-              q.eq(q.field("chatId"), args.chatId),
-              q.eq(q.field("sessionId"), args.chatId)
-            )
-          )
-        )
-        .first();
-
-      // Format messages for storage
-      const formattedMessages = conversationEvents.map((event: HumeChatEvent) => ({
-        type: event.type,
-        role: event.role,
-        content: event.messageText || event.content,
-        messageText: event.messageText || event.content,
-        timestamp: event.timestamp,
-        emotionFeatures: event.emotionFeatures,
-        chatId: event.chatId,
-        chatGroupId: event.chatGroupId,
-        metadata: event.metadata || {
-          chat_id: event.chatId,
-          chat_group_id: event.chatGroupId,
-          request_id: crypto.randomUUID(),
-          timestamp: new Date(event.timestamp).toISOString()
-        }
-      }));
-
-      if (existingSession) {
-        // Update existing session
-        await ctx.db.patch(existingSession._id, {
-          messages: formattedMessages,
-          events: formattedMessages,
-          updatedAt: Date.now(),
-        });
-
-        return { 
-          success: true, 
-          sessionId: existingSession.sessionId || existingSession.chatId,
-          messageCount: formattedMessages.length
-        };
-      } else {
-        // Create a new session
-        const chatGroupId = conversationEvents[0]?.chatGroupId || args.chatId;
-        
-        // Generate a title from the first few messages
-        let title = "Chat Session";
-        const firstUserMessage = conversationEvents.find((e: HumeChatEvent) => e.role === "USER");
-        if (firstUserMessage && firstUserMessage.messageText) {
-          title = firstUserMessage.messageText.substring(0, 30);
-          if (firstUserMessage.messageText.length > 30) title += "...";
-        }
-
-        // Create new chat history entry
-        const chatId = await ctx.db.insert("chatHistory", {
-          userId,
-          chatId: args.chatId,
-          sessionId: args.chatId,
-          chatGroupId,
-          messages: formattedMessages,
-          events: formattedMessages,
-          title,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        });
-
-        return { 
-          success: true, 
-          sessionId: args.chatId,
-          chatId: chatId,
-          messageCount: formattedMessages.length
-        };
-      }
-    } catch (error: any) {
-      console.error("Error saving Hume chat history:", error);
-      return { 
-        success: false, 
-        message: error.message || "Unknown error occurred"
-      };
-    }
-  },
-});
-
-/**
- * Action to fetch and save Hume chat history and handle any network requests
- * This should be called instead of saveHumeChatHistory from client components
- */
-export const fetchAndSaveHumeChatWithErrorHandling = action({
-  args: {
-    sessionId: v.string(),
-    chatId: v.string(),
-    chatGroupId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { sessionId, chatId, chatGroupId } = args;
-    
-    try {
-      // First, try to save chat history using the provided chatId
-      const saveResult = await ctx.runMutation(internal.chat.saveHumeChatHistory, { 
-        chatId 
-      });
-      
-      if (saveResult.success) {
-        // Also update user's remaining minutes
-        try {
-          await ctx.runMutation(internal.chat.updateUserRemainingMinutes, {
-            sessionDurationMinutes: 1 // Default to 1 minute
-          });
-        } catch (minutesError) {
-          console.warn("Error updating minutes, but transcript was saved:", minutesError);
-        }
-        
-        return {
-          success: true,
-          messageCount: saveResult.messageCount,
-          sessionId: saveResult.sessionId || sessionId,
-          chatId: saveResult.chatId || chatId
-        };
-      } else {
-        // If saving failed but we have an error that suggests session ID mismatch,
-        // try to look up the correct session
-        if (saveResult.message?.includes("Chat session not found")) {
-          try {
-            // Attempt to lookup the session using the Hume IDs
-            // This is where fetch() is used, which is now safe because we're in an action
-            const response = await fetch(
-              `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/api/session-lookup?chatId=${chatId}&chatGroupId=${chatGroupId || chatId}`
-            );
-            
-            if (response.ok) {
-              const data = await response.json();
-              
-              if (data.sessionId) {
-                // Try saving again with the correct session ID
-                const retryResult = await ctx.runMutation(internal.chat.saveHumeChatHistory, { 
-                  chatId: data.chatId || chatId 
-                });
-                
-                if (retryResult.success) {
-                  return {
-                    success: true,
-                    messageCount: retryResult.messageCount,
-                    sessionId: data.sessionId,
-                    chatId: retryResult.chatId || data.chatId || chatId,
-                    sessionCorrected: true
-                  };
-                }
-              }
-            }
-          } catch (lookupError) {
-            console.error("Error looking up session:", lookupError);
-          }
-        }
-        
-        // If we get here, all attempts failed
-        return {
-          success: false,
-          message: saveResult.message || "Failed to save chat history",
-        };
-      }
-    } catch (error: any) {
-      console.error("Error in fetchAndSaveHumeChatWithErrorHandling:", error);
-      return {
-        success: false,
-        message: error.message || "Unknown error occurred"
-      };
-    }
-  }
-});
-
-/**
- * Internal mutation to save formatted chat history to the database
- * This is called by the fetchAndSaveHumeChatHistory action
- */
-export const saveFormattedChatHistory = internalMutation({
-  args: { 
-    userId: v.string(),
-    chatId: v.string(),
-    conversationEvents: v.array(
-      v.object({
-        type: v.string(),
-        role: v.string(),
-        content: v.optional(v.string()),
-        messageText: v.optional(v.string()),
-        timestamp: v.number(),
-        emotionFeatures: v.optional(v.string()),
-        chatId: v.string(),
-        chatGroupId: v.string(),
-        metadata: v.optional(v.object({
-          chat_id: v.string(),
-          chat_group_id: v.string(),
-          request_id: v.string(),
-          timestamp: v.string()
-        }))
-      })
-    )
-  },
-  handler: async (ctx, args) => {
-    const { userId, chatId, conversationEvents } = args;
-    
-    // Check if we already have a chat session for this chatId
-    const existingSession = await ctx.db
-      .query("chatHistory")
-      .filter((q) => 
-        q.and(
-          q.eq(q.field("userId"), userId),
-          q.or(
-            q.eq(q.field("chatId"), chatId),
-            q.eq(q.field("sessionId"), chatId)
-          )
-        )
-      )
-      .first();
-
-    if (existingSession) {
-      // Update existing session
-      await ctx.db.patch(existingSession._id, {
-        messages: conversationEvents,
-        events: conversationEvents,
-        updatedAt: Date.now(),
-      });
-
-      return { 
-        success: true, 
-        sessionId: existingSession.sessionId || existingSession.chatId,
-        messageCount: conversationEvents.length
-      };
-    } else {
-      // Create a new session
-      const chatGroupId = conversationEvents[0]?.chatGroupId || chatId;
-      
-      // Generate a title from the first few messages
-      let title = "Chat Session";
-      const firstUserMessage = conversationEvents.find(e => e.role === "USER");
-      if (firstUserMessage && firstUserMessage.messageText) {
-        title = firstUserMessage.messageText.substring(0, 30);
-        if (firstUserMessage.messageText.length > 30) title += "...";
-      }
-
-      // Create new chat history entry
-      const newChatId = await ctx.db.insert("chatHistory", {
-        userId,
-        chatId,
-        sessionId: chatId,
-        chatGroupId,
-        messages: conversationEvents,
-        events: conversationEvents,
-        title,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-
-      return { 
-        success: true, 
-        sessionId: chatId,
-        chatId: newChatId,
-        messageCount: conversationEvents.length
-      };
-    }
-  },
-}); 
