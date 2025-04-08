@@ -1,38 +1,13 @@
-import { Analytics } from "@vercel/analytics/react";
-import { GeistSans } from "geist/font/sans";
-import type { Metadata } from "next";
-import ClientProviders from "./client-providers";
+import { Inter } from "next/font/google";
+import { Providers } from "./providers";
+import { cn } from "@/lib/utils";
 import "./globals.css";
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  metadataBase: new URL("https://www.sereni.day"),
-  title: {
-    default: 'Sereni | AI Therapist',
-    template: `%s | Sereni`
-  },
-  description:
-    "Your AI-powered companion for mental wellness and personal growth. Experience empathetic conversations and emotional support anytime, anywhere.",
-  openGraph: {
-    description:
-      "Your AI-powered companion for mental wellness and personal growth. Experience empathetic conversations and emotional support anytime, anywhere.",
-    images: [
-      "https://www.sereni.day/og-image.png",
-    ],
-    url: "https://www.sereni.day",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Sereni | AI Therapist",
-    description:
-      "Your AI-powered companion for mental wellness and personal growth. Experience empathetic conversations and emotional support anytime, anywhere.",
-    creator: "@serenidayai",
-    images: [
-      "https://www.sereni.day/og-image.png",
-    ],
-  },
+export const metadata = {
+  title: "Sereni - AI Therapy Assistant",
+  description: "Your AI therapist, ready to listen and help you process your thoughts and feelings.",
 };
 
 export default function RootLayout({
@@ -42,9 +17,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={GeistSans.className}>
-        <ClientProviders>{children}</ClientProviders>
-        <Analytics />
+      <body className={cn(inter.className, "min-h-screen bg-background")}>
+        <Providers>
+          <div className="flex flex-col min-h-screen">
+            <main className="flex-1 flex flex-col overflow-hidden">
+              {children}
+            </main>
+          </div>
+        </Providers>
       </body>
     </html>
   );

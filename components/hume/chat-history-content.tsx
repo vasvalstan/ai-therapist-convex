@@ -256,20 +256,22 @@ export function ChatHistoryContent() {
   // If we're on the chat history page without a specific chat ID, show start conversation
   if (pathname === '/chat/history') {
     return (
-      <div className="flex h-screen">
-        <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
-          <ChatHistory />
-        </Suspense>
-        <div className="flex-1 flex flex-col">
-          <Tabs defaultValue="start" className="flex-1">
-            <ChatNav />
-            <TabsContent value="start" className="mt-0 h-[calc(100%-48px)]">
-              <StartConversationPanel />
-            </TabsContent>
-            <TabsContent value="progress" className="mt-0 h-[calc(100%-48px)] overflow-auto">
-              <TherapyProgress />
-            </TabsContent>
-          </Tabs>
+      <div className="flex h-screen flex-col">
+        <ChatNav />
+        <div className="flex flex-1 overflow-hidden">
+          <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
+            <ChatHistory />
+          </Suspense>
+          <div className="flex-1 flex flex-col">
+            <Tabs value={searchParams?.get("tab") || "start"} className="flex-1">
+              <TabsContent value="start" className="mt-0 h-[calc(100%-48px)]">
+                <StartConversationPanel />
+              </TabsContent>
+              <TabsContent value="progress" className="mt-0 h-[calc(100%-48px)] overflow-auto">
+                <TherapyProgress />
+              </TabsContent>
+            </Tabs>
+          </div>
         </div>
       </div>
     );
@@ -278,12 +280,15 @@ export function ChatHistoryContent() {
   // If we have a chat ID but no conversation data yet, show brief loading
   if (activeChatId && activeConversation === undefined) {
     return (
-      <div className="flex h-screen">
-        <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
-          <ChatHistory />
-        </Suspense>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex h-screen flex-col">
+        <ChatNav />
+        <div className="flex flex-1 overflow-hidden">
+          <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
+            <ChatHistory />
+          </Suspense>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
         </div>
       </div>
     );
@@ -305,35 +310,54 @@ export function ChatHistoryContent() {
       (activeConversation as any).sessionId : activeChatId;
     
     return (
-      <div className="flex h-screen">
-        <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
-          <ChatHistory />
-        </Suspense>
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <ChatNav title={activeConversation.title || "Conversation"} />
-          <Tabs value={activeTab} className="flex-1 overflow-hidden">
-            <TabsContent value="chat" className="flex-1 overflow-auto p-4 space-y-4">
-              {activeTab === "chat" ? (
-                <>
-                  <VoiceController 
-                    initialMessages={activeConversation.messages || []} 
-                  />
-                  <MessageHistory 
-                    conversation={activeConversation as unknown as ChatSession} 
-                    key={`message-history-${sessionId}`}
-                  />
-                </>
-              ) : (
-                <MessageHistory conversation={activeConversation as unknown as ChatSession} />
-              )}
-            </TabsContent>
-            <TabsContent value="transcript" className="flex-1 overflow-auto p-4">
-              <TranscriptView conversation={activeConversation as unknown as ChatSession} />
-            </TabsContent>
-            <TabsContent value="emotions" className="flex-1 overflow-auto p-4">
-              <EmotionAnalysis conversation={activeConversation as unknown as ChatSession} />
-            </TabsContent>
-          </Tabs>
+      <div className="flex h-screen flex-col">
+        <ChatNav title={activeConversation.title || "Conversation"} />
+        <div className="flex flex-1 overflow-hidden">
+          <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
+            <ChatHistory />
+          </Suspense>
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <Tabs value={activeTab} className="flex-1 overflow-hidden">
+              <TabsContent value="start" className="mt-0 h-[calc(100%-48px)]">
+                <StartConversationPanel />
+              </TabsContent>
+              <TabsContent value="progress" className="mt-0 h-[calc(100%-48px)] overflow-auto">
+                <TherapyProgress />
+              </TabsContent>
+              <TabsContent value="chat" className="flex-1 overflow-auto p-4 space-y-4">
+                {activeTab === "chat" ? (
+                  <>
+                    <VoiceController 
+                      initialMessages={activeConversation.messages?.filter(msg => 
+                        msg.role !== "SYSTEM"
+                      ).map(msg => ({
+                        role: msg.role.toLowerCase() as "user" | "assistant",
+                        content: msg.content || msg.messageText || "",
+                        timestamp: msg.timestamp,
+                        emotions: msg.emotionFeatures ? 
+                          (typeof msg.emotionFeatures === 'string' ? 
+                            JSON.parse(msg.emotionFeatures) : 
+                            msg.emotionFeatures) : 
+                          undefined
+                      })) || []} 
+                    />
+                    <MessageHistory 
+                      conversation={activeConversation as unknown as ChatSession} 
+                      key={`message-history-${sessionId}`}
+                    />
+                  </>
+                ) : (
+                  <MessageHistory conversation={activeConversation as unknown as ChatSession} />
+                )}
+              </TabsContent>
+              <TabsContent value="transcript" className="flex-1 overflow-auto p-4">
+                <TranscriptView conversation={activeConversation as unknown as ChatSession} />
+              </TabsContent>
+              <TabsContent value="emotions" className="flex-1 overflow-auto p-4">
+                <EmotionAnalysis conversation={activeConversation as unknown as ChatSession} />
+              </TabsContent>
+            </Tabs>
+          </div>
         </div>
       </div>
     );
@@ -341,20 +365,22 @@ export function ChatHistoryContent() {
 
   // Default catch-all condition
   return (
-    <div className="flex h-screen">
-      <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
-        <ChatHistory />
-      </Suspense>
-      <div className="flex-1 flex flex-col">
-        <Tabs defaultValue={searchParams?.get("tab") || "start"} className="flex-1">
-          <ChatNav />
-          <TabsContent value="start" className="mt-0 h-[calc(100%-48px)]">
-            <StartConversationPanel />
-          </TabsContent>
-          <TabsContent value="progress" className="mt-0 h-[calc(100%-48px)] overflow-auto">
-            <TherapyProgress />
-          </TabsContent>
-        </Tabs>
+    <div className="flex h-screen flex-col">
+      <ChatNav />
+      <div className="flex flex-1 overflow-hidden">
+        <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
+          <ChatHistory />
+        </Suspense>
+        <div className="flex-1 flex flex-col">
+          <Tabs value={searchParams?.get("tab") || "start"} className="flex-1">
+            <TabsContent value="start" className="mt-0 h-[calc(100%-48px)]">
+              <StartConversationPanel />
+            </TabsContent>
+            <TabsContent value="progress" className="mt-0 h-[calc(100%-48px)] overflow-auto">
+              <TherapyProgress />
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </div>
   );

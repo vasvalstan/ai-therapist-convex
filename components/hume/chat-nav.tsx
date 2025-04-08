@@ -1,6 +1,8 @@
-import { TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useEffect } from "react";
+import { MessageCircle, FileText, BarChart2, Home } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ChatNavProps {
   title?: string;
@@ -36,7 +38,9 @@ export function ChatNav({ title }: ChatNavProps) {
       return;
     }
     
-    if (value === "start") {
+    if (value === "history") {
+      router.push("/chat/history");
+    } else if (value === "start") {
       // Going to start tab - always go to history page first
       router.push("/chat/history?tab=start");
     } else if (value === "progress") {
@@ -50,34 +54,65 @@ export function ChatNav({ title }: ChatNavProps) {
         // If not on a specific chat page, redirect to chat history
         router.push("/chat/history");
       }
-    } else if (value === "transcript" || value === "emotions") {
-      // These tabs are only applicable for specific chat pages
-      if (isOnSpecificChatPage) {
-        router.push(`${pathname}?tab=${value}`);
-      } else {
-        // If not on a specific chat, first go to chat history
-        router.push("/chat/history");
-      }
+    } else if (value === "transcript" && isOnSpecificChatPage) {
+      router.push(`${pathname}?tab=transcript`);
+    } else if (value === "emotions" && isOnSpecificChatPage) {
+      router.push(`${pathname}?tab=emotions`);
     }
   };
 
+  const NavButton = ({ value, icon: Icon, children }: { value: string; icon: any; children: React.ReactNode }) => {
+    const isActive = currentTab === value || (!currentTab && value === "history");
+    return (
+      <button
+        onClick={() => handleTabChange(value)}
+        className={cn(
+          "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors",
+          isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <Icon className="h-4 w-4" />
+        {children}
+      </button>
+    );
+  };
+
   return (
-    <div className="border-b">
-      <div className="flex justify-between items-center px-4">
-        <TabsList className="w-full justify-start rounded-none">
-          <TabsTrigger value="start" onClick={() => handleTabChange("start")}>Start New Chat</TabsTrigger>
-          <TabsTrigger value="progress" onClick={() => handleTabChange("progress")}>Therapy Progress</TabsTrigger>
+    <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="flex h-14 items-center px-4">
+        <div className="flex items-center gap-2 w-full">
+          <NavButton value="history" icon={Home}>
+            Chat History
+          </NavButton>
+          
+          <NavButton value="start" icon={MessageCircle}>
+            Start New Chat
+          </NavButton>
+          
+          <NavButton value="progress" icon={BarChart2}>
+            Therapy Progress
+          </NavButton>
+
           {isOnSpecificChatPage && (
             <>
-              <TabsTrigger value="chat" onClick={() => handleTabChange("chat")}>Current Chat</TabsTrigger>
-              <TabsTrigger value="transcript" onClick={() => handleTabChange("transcript")}>Transcript</TabsTrigger>
-              <TabsTrigger value="emotions" onClick={() => handleTabChange("emotions")}>Emotions</TabsTrigger>
+              <NavButton value="chat" icon={MessageCircle}>
+                Current Chat
+              </NavButton>
+              
+              <NavButton value="transcript" icon={FileText}>
+                Transcript
+              </NavButton>
+              
+              <NavButton value="emotions" icon={BarChart2}>
+                Emotions
+              </NavButton>
             </>
           )}
-        </TabsList>
-        {title && (
-          <div className="text-sm font-medium truncate max-w-[200px]">{title}</div>
-        )}
+
+          {title && (
+            <div className="ml-auto text-sm font-medium truncate max-w-[200px]">{title}</div>
+          )}
+        </div>
       </div>
     </div>
   );

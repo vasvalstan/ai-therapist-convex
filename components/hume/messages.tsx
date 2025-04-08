@@ -62,10 +62,12 @@ export const Messages = forwardRef<
   const dbMessages = (chat?.messages || []) as DatabaseMessage[];
   
   // Normalize database messages to our internal format
-  const persistedMessages: PersistedMessage[] = dbMessages.map(msg => ({
-    ...msg,
-    role: msg.role.toLowerCase() as "user" | "assistant"
-  }));
+  const persistedMessages: PersistedMessage[] = (dbMessages as DatabaseMessage[])
+    .filter(msg => msg.role !== "SYSTEM") // Filter out system messages
+    .map(msg => ({
+      ...msg,
+      role: msg.role.toLowerCase() as "user" | "assistant"
+    }));
 
   // Create a map to deduplicate messages
   const messageMap = new Map<string, MessageWithTimestamp>();

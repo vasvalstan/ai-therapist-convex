@@ -50,18 +50,14 @@ export interface ChatViewProps {
 }
 
 export function ChatView({ sessionId, accessToken }: ChatViewProps) {
-    // Don't fetch from Convex here, we rely on the parent component passing it
-    // This avoids double fetching and allows the parent component to handle errors
     const conversation = useQuery(api.chat.getActiveConversation, { chatId: sessionId });
     const containerRef = useRef<HTMLDivElement>(null);
     
-    // Always initialize hooks at the top level
     const router = useRouter();
     const searchParams = useSearchParams();
     const pathname = usePathname();
     const currentTab = searchParams?.get("tab") || "chat";
     
-    const [isSendingTestMessages, setIsSendingTestMessages] = useState(false);
     const [routerError, setRouterError] = useState(false);
     const [isCallEnding, setIsCallEnding] = useState(false);
     
@@ -70,7 +66,6 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
 
     // Parse messages with proper emotion handling
     const parsedMessages: ParsedMessage[] = conversation?.messages?.map((msg: any) => {
-        // Parse emotion features if they exist
         let emotions: Record<string, number> | undefined;
         if (msg.emotionFeatures) {
             try {
@@ -115,65 +110,13 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
         }
     };
 
-    const handleSendTestMessages = async () => {
-        if (!sessionId) return;
-        
-        try {
-            setIsSendingTestMessages(true);
-            
-            const userMessage = {
-                type: "USER_MESSAGE" as const,
-                role: "USER" as const,
-                messageText: "This is a test user message",
-                content: "This is a test user message",
-                timestamp: Date.now(),
-                emotionFeatures: JSON.stringify({ happiness: 0.8, neutral: 0.2 })
-            };
-            
-            await addMessage({
-                sessionId,
-                message: userMessage
-            });
-            
-            const assistantMessage = {
-                type: "AGENT_MESSAGE" as const,
-                role: "ASSISTANT" as const,
-                messageText: "This is a test assistant response",
-                content: "This is a test assistant response",
-                timestamp: Date.now()
-            };
-            
-            await addMessage({
-                sessionId,
-                message: assistantMessage
-            });
-            
-            toast({
-                title: "Success",
-                description: "Test messages sent. Refresh the page to see them.",
-            });
-            
-            router.refresh();
-        } catch (error) {
-            toast({
-                title: "Error",
-                description: "Failed to send test messages",
-                variant: "destructive"
-            });
-        } finally {
-            setIsSendingTestMessages(false);
-        }
-    };
-
     // Render loading state if call is ending
     if (isCallEnding) {
         return (
             <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
-                {/* Background matching the main view */}
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-indigo-50/30 dark:from-blue-950/10 dark:to-indigo-950/10" />
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]" />
                 
-                {/* Content Card */}
                 <Card className="w-full max-w-md z-10">
                     <CardHeader>
                         <CardTitle className="text-center">Ending Session</CardTitle>
@@ -233,23 +176,10 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                     </TabsContent>
                     
                     <TabsContent value="chat" className="mt-0 h-[calc(100%-48px)] flex flex-col">
-                        {/* Voice Controller - only render if accessToken is NOT provided (since HumeChat will render its own) */}
                         {!accessToken && <VoiceController sessionId={sessionId} />}
                         
-                        {/* Header */}
                         <div className="p-4 bg-gradient-to-r from-blue-50/30 to-indigo-50/30 dark:from-blue-950/10 dark:to-indigo-950/10 border-b flex justify-between items-center">
                             <h1 className="text-lg font-medium">Chat with Sereni</h1>
-                            
-                            {/* Test Messages Button - only in development */}
-                            {process.env.NODE_ENV === "development" && (
-                                <button
-                                    onClick={handleSendTestMessages}
-                                    disabled={isSendingTestMessages}
-                                    className="py-1 px-3 bg-red-500 hover:bg-red-600 text-white text-sm rounded-md disabled:opacity-50 transition-colors"
-                                >
-                                    {isSendingTestMessages ? "Sending..." : "Test Messages"}
-                                </button>
-                            )}
                         </div>
                         
                         {!parsedMessages || parsedMessages.length === 0 ? (

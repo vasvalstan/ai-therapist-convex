@@ -1,6 +1,5 @@
 'use client';
 
-import { ChatHistory } from "@/components/hume/chat-history";
 import { ChatClientView } from "@/components/hume/chat-client-view";
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
@@ -12,13 +11,14 @@ export default function ChatPage() {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
-  const sessionId = typeof params.sessionId === 'string' 
-    ? params.sessionId 
-    : Array.isArray(params.sessionId) 
-      ? params.sessionId[0] 
-      : '';
+  const rawSessionId = params?.sessionId;
+  if (!rawSessionId) {
+    router.push('/chat/history');
+    return null;
+  }
   
-  const tab = searchParams.get('tab');
+  const sessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
+  const tab = searchParams?.get('tab');
   
   // Handle redirection to chat tab if no tab is specified
   useEffect(() => {
@@ -32,8 +32,7 @@ export default function ChatPage() {
   
   if (isLoading || isRedirecting) {
     return (
-      <div className="flex h-screen">
-        <ChatHistory />
+      <div className="flex h-screen flex-col">
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
           Loading conversation...
         </div>
@@ -42,8 +41,7 @@ export default function ChatPage() {
   }
   
   return (
-    <div className="flex h-screen">
-      <ChatHistory />
+    <div className="flex h-screen flex-col">
       <Suspense fallback={
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
           Loading conversation...

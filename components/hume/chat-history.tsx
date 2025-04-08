@@ -97,10 +97,7 @@ export function ChatHistory() {
     return (
         <>
             <div className="w-64 h-full border-r border-border flex flex-col">
-                <div className="p-4 border-b border-border flex items-center justify-between">
-                    <Link href="/" className="p-2 rounded-full hover:bg-gray-100 transition-colors">
-                        <Home className="w-5 h-5" />
-                    </Link>
+                <div className="p-4 border-b border-border">
                     <h2 className="font-semibold">Chat History</h2>
                 </div>
                 <div className="flex-1 overflow-auto p-2 space-y-2">
@@ -114,7 +111,7 @@ export function ChatHistory() {
                     {sessions?.map((session) => {
                         // Find the first user or assistant message to use as title
                         const firstMessage = session.messages && session.messages.find(
-                            msg => msg.role === "user" || msg.role === "assistant"
+                            msg => msg.role === "USER" || msg.role === "ASSISTANT"
                         );
                         const title = session.title || 
                             (firstMessage?.content?.slice(0, 30) + "...") || 
