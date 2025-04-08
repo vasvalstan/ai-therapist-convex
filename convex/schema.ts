@@ -140,17 +140,75 @@ export default defineSchema({
         sessionId: v.string(),
         chatId: v.optional(v.string()),
         chatGroupId: v.optional(v.string()),
-        messages: v.array(messageValidator),
-        events: v.optional(v.array(eventValidator)),
+        messages: v.array(
+            v.object({
+                type: v.union(
+                    v.literal("USER_MESSAGE"),
+                    v.literal("AGENT_MESSAGE"),
+                    v.literal("SYSTEM_MESSAGE"),
+                    v.literal("CHAT_METADATA")
+                ),
+                role: v.union(
+                    v.literal("USER"),
+                    v.literal("ASSISTANT"),
+                    v.literal("SYSTEM")
+                ),
+                messageText: v.string(),
+                content: v.optional(v.string()),
+                timestamp: v.number(),
+                emotionFeatures: v.optional(v.string()),
+                chatId: v.optional(v.string()),
+                chatGroupId: v.optional(v.string()),
+                metadata: v.optional(
+                    v.object({
+                        chat_id: v.string(),
+                        chat_group_id: v.string(),
+                        request_id: v.string(),
+                        timestamp: v.string(),
+                    })
+                ),
+            })
+        ),
+        events: v.array(
+            v.object({
+                type: v.union(
+                    v.literal("USER_MESSAGE"),
+                    v.literal("AGENT_MESSAGE"),
+                    v.literal("SYSTEM_MESSAGE"),
+                    v.literal("CHAT_METADATA")
+                ),
+                role: v.union(
+                    v.literal("USER"),
+                    v.literal("ASSISTANT"),
+                    v.literal("SYSTEM")
+                ),
+                messageText: v.string(),
+                content: v.optional(v.string()),
+                timestamp: v.number(),
+                emotionFeatures: v.optional(v.string()),
+                chatId: v.optional(v.string()),
+                chatGroupId: v.optional(v.string()),
+                metadata: v.optional(
+                    v.object({
+                        chat_id: v.string(),
+                        chat_group_id: v.string(),
+                        request_id: v.string(),
+                        timestamp: v.string(),
+                    })
+                ),
+            })
+        ),
         createdAt: v.number(),
         updatedAt: v.number(),
         title: v.optional(v.string()),
-        metadata: v.optional(v.object({
-            chat_id: v.string(),
-            chat_group_id: v.string(),
-            request_id: v.string(),
-            timestamp: v.string(),
-        })),
+        metadata: v.optional(
+            v.object({
+                chat_id: v.string(),
+                chat_group_id: v.string(),
+                request_id: v.string(),
+                timestamp: v.string(),
+            })
+        ),
     })
         .index("by_user", ["userId"])
         .index("by_session", ["sessionId"])
@@ -173,4 +231,23 @@ export default defineSchema({
         .index("by_user", ["userId"])
         .index("by_token", ["tokenIdentifier"])
         .index("by_session", ["sessionId"]),
+    therapyProgress: defineTable({
+        userId: v.string(),
+        sessionIds: v.array(v.id("chatHistory")),
+        transcripts: v.array(
+            v.object({
+                sessionId: v.id("chatHistory"),
+                content: v.string(),
+                timestamp: v.number(),
+            })
+        ),
+        progressSummary: v.string(),
+        emotionalProgress: v.object({
+            mainThemes: v.array(v.string()),
+            improvements: v.array(v.string()),
+            challenges: v.array(v.string()),
+            recommendations: v.array(v.string()),
+        }),
+        lastUpdated: v.number(),
+    }).index("by_user", ["userId"]),
 })

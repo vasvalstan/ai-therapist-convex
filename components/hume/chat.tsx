@@ -8,6 +8,9 @@ import { ComponentRef, useEffect, useRef, useState, useCallback } from "react";
 import { api } from "@/convex/_generated/api";
 import { useMutation } from "convex/react";
 import { ChatSaveHandler } from "./voice-controller";
+import { Id } from "@/convex/_generated/dataModel";
+
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 interface HumeChatProps {
   accessToken: string;
@@ -110,6 +113,7 @@ export default function HumeChat({
   onEndCallStart 
 }: HumeChatProps) {
   const timeout = useRef<number | null>(null);
+  const inactivityTimeout = useRef<NodeJS.Timeout | null>(null);
   const ref = useRef<ComponentRef<typeof Messages> | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(initialSessionId);
   const voice = useVoice(); // Use the existing voice connection
@@ -121,15 +125,43 @@ export default function HumeChat({
   
   // Use a ref to track whether metadata has been processed
   const metadataProcessedRef = useRef<boolean>(false);
+  const lastActivityRef = useRef<number>(Date.now());
 
   const createSession = useMutation(api.chat.createChatSession);
   const addMessage = useMutation(api.chat.addMessageToSession);
   const updateChatMetadata = useMutation(api.chat.updateMetadata);
   const updateAndVerifyMetadata = useMutation(api.chat.updateAndVerifyMetadata);
+  const updateTherapyProgress = useMutation(api.summary.updateTherapyProgress);
+
+  // Function to handle session end
+  const handleSessionEnd = useCallback(async (sessionId: string) => {
+    try {
+      // Use the session ID directly since we know it's the correct one from the database
+      await updateTherapyProgress({ sessionId });
+      console.log("✅ Updated therapy progress for session:", sessionId);
+    } catch (error) {
+      console.error("❌ Failed to update therapy progress:", error);
+    }
+  }, [updateTherapyProgress]);
+
+  // Reset inactivity timer
+  const resetInactivityTimer = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    if (inactivityTimeout.current) {
+      clearTimeout(inactivityTimeout.current);
+    }
+    if (currentSessionId) {
+      inactivityTimeout.current = setTimeout(() => {
+        handleSessionEnd(currentSessionId);
+      }, INACTIVITY_TIMEOUT);
+    }
+  }, [currentSessionId, handleSessionEnd]);
 
   // Set up message handler for the existing voice connection
   const handleMessage = useCallback(
     async (message: any) => {
+      resetInactivityTimer(); // Reset timer on any message
+      
       console.log("⚡ handleMessage called with message type:", message.type);
       
       // Stringent type checking
@@ -352,7 +384,7 @@ export default function HumeChat({
         }
       }, 200);
     },
-    [currentSessionId, createSession, addMessage, updateChatMetadata, humeChatId, humeGroupChatId, metadata]
+    [currentSessionId, createSession, addMessage, updateChatMetadata, humeChatId, humeGroupChatId, metadata, resetInactivityTimer]
   );
 
   useEffect(() => {
@@ -485,6 +517,23 @@ export default function HumeChat({
     }
   }, [initialSessionId]);
 
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (inactivityTimeout.current) {
+        clearTimeout(inactivityTimeout.current);
+      }
+      if (currentSessionId) {
+        handleSessionEnd(currentSessionId);
+      }
+    };
+  }, [currentSessionId, handleSessionEnd]);
+
+  // Initialize inactivity timer
+  useEffect(() => {
+    resetInactivityTimer();
+  }, [resetInactivityTimer]);
+
   if (!accessToken) {
     return <div>Loading...</div>;
   }
@@ -548,6 +597,7 @@ export default function HumeChat({
           <div>ChatID: {humeChatId || 'not set'}</div>
           <div>GroupID: {humeGroupChatId || 'not set'}</div>
           <div>MetadataProcessed: {metadataProcessedRef.current ? 'Yes' : 'No'}</div>
+          <div>Last Activity: {new Date(lastActivityRef.current).toLocaleTimeString()}</div>
         </div>
       )}
     </div>

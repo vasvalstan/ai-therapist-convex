@@ -1,13 +1,15 @@
 import { v } from "convex/values";
-import { mutation, query, action } from "./_generated/server";
+import { mutation, query, action, internalMutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { api } from "./_generated/api";
 import { ActionCtx, MutationCtx, QueryCtx } from "./_generated/server";
 import { ChatEvent } from "./chat"; // Import ChatEvent type from chat.ts
+import { Doc } from "./_generated/dataModel";
+import { OpenAI } from "openai";
 
 interface Message {
-  role: "user" | "assistant";
+  role: "USER" | "ASSISTANT" | "SYSTEM";
   content: string;
   timestamp?: number;
   emotions?: Record<string, unknown>;
@@ -20,6 +22,53 @@ interface ChatSession {
   createdAt: number;
   updatedAt: number;
   title?: string;
+}
+
+// Define the schema for emotional progress
+interface EmotionalProgress {
+    mainThemes: string[];
+    improvements: string[];
+    challenges: string[];
+    recommendations: string[];
+}
+
+interface TherapyProgress {
+    userId: string;
+    sessionIds: Id<"chatHistory">[];
+    transcripts: {
+        sessionId: Id<"chatHistory">;
+        content: string;
+        timestamp: number;
+    }[];
+    progressSummary: string;
+    emotionalProgress: EmotionalProgress;
+    lastUpdated: number;
+}
+
+interface ChatMessage {
+    type: "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE" | "CHAT_METADATA";
+    role: "USER" | "ASSISTANT" | "SYSTEM";
+    messageText: string;
+    content?: string;
+    timestamp: number;
+    emotionFeatures?: string;
+    chatId?: string;
+    chatGroupId?: string;
+    metadata?: {
+        chat_id: string;
+        chat_group_id: string;
+        request_id: string;
+        timestamp: string;
+    };
+}
+
+// Add this type definition near the top of the file with other types
+interface TherapyAnalysis {
+  mainThemes: string[];
+  improvements: string[];
+  challenges: string[];
+  recommendations: string[];
+  progressSummary: string;
 }
 
 // Function to get the conversation summary for a user
@@ -48,7 +97,7 @@ export const generateSummary = action({
   args: {
     sessionId: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx: ActionCtx, args) => {
     // Get the chat history for the session
     const session = await ctx.runQuery(api.chat.getChatSession, { sessionId: args.sessionId });
 
@@ -100,7 +149,7 @@ export const generateSummary = action({
     } else {
       // Fall back to using messages array if no events
       conversationText = messages
-        .map((message) => `${message.role === "user" ? "User" : "Therapist"}: ${message.content}`)
+        .map((message) => `${message.role === "USER" ? "User" : "Therapist"}: ${message.content}`)
         .join("\n");
     }
 
@@ -155,6 +204,11 @@ export const generateSummary = action({
       // Use DeepSeek API for generating the summary
       const { default: axios } = await import("axios");
       
+      const deepseekApiKey = process.env.DEEPSEEK_API_KEY;
+      if (!deepseekApiKey) {
+        throw new Error("DEEPSEEK_API_KEY environment variable is not set");
+      }
+      
       // Use DeepSeek API
       const response = await axios.post(
         "https://api.deepseek.com/v1/chat/completions",
@@ -176,7 +230,7 @@ export const generateSummary = action({
         {
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+            "Authorization": `Bearer ${deepseekApiKey}`,
           },
         }
       );
@@ -286,4 +340,286 @@ export const endConversationAndSummarize = mutation({
       message: "Conversation summary generation initiated",
     };
   },
+});
+
+// Query to get a user's therapy progress
+export const getTherapyProgress = query({
+    args: {},
+    handler: async (ctx) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) throw new Error("Not authenticated");
+
+        console.log("🔍 Getting therapy progress for user:", identity.subject);
+
+        const userId = identity.subject;
+        const progress = await ctx.db
+            .query("therapyProgress")
+            .filter((q) => q.eq(q.field("userId"), userId))
+            .first();
+
+        console.log("📊 Found therapy progress:", progress ? {
+            id: progress._id,
+            sessionCount: progress.sessionIds.length,
+            transcriptCount: progress.transcripts.length,
+            mainThemes: progress.emotionalProgress.mainThemes.length,
+            improvements: progress.emotionalProgress.improvements.length,
+            challenges: progress.emotionalProgress.challenges.length,
+            recommendations: progress.emotionalProgress.recommendations.length,
+            summaryLength: progress.progressSummary.length
+        } : "No progress found");
+
+        return progress;
+    },
+});
+
+// Action to update progress with analysis results
+export const updateProgressWithAnalysis = internalMutation({
+  args: {
+    progressId: v.id("therapyProgress"),
+    analysis: v.object({
+      mainThemes: v.array(v.string()),
+      improvements: v.array(v.string()),
+      challenges: v.array(v.string()),
+      recommendations: v.array(v.string()),
+      progressSummary: v.string(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const progress = await ctx.db.get(args.progressId);
+    if (!progress) {
+      throw new Error("Progress record not found");
+    }
+
+    return await ctx.db.patch(args.progressId, {
+      emotionalProgress: {
+        mainThemes: args.analysis.mainThemes,
+        improvements: args.analysis.improvements,
+        challenges: args.analysis.challenges,
+        recommendations: args.analysis.recommendations,
+      },
+      progressSummary: args.analysis.progressSummary,
+      lastUpdated: Date.now(),
+    });
+  },
+});
+
+// Action to analyze session with DeepSeek API
+export const analyzeSessionWithDeepSeek = action({
+  args: { progressId: v.id("therapyProgress") },
+  handler: async (ctx: ActionCtx, args) => {
+    console.log("Starting analysis for progress record:", args.progressId);
+    
+    const progress = await ctx.runMutation(internal.summary.getProgressById, { 
+      progressId: args.progressId 
+    });
+    
+    if (!progress) {
+      throw new Error("Progress record not found");
+    }
+
+    console.log("Found progress record with", progress.transcripts.length, "transcripts");
+    
+    const combinedTranscript = progress.transcripts
+      .map(t => t.content)
+      .join("\n\n");
+
+    console.log("Combined transcript length:", combinedTranscript.length);
+
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      throw new Error("DEEPSEEK_API_KEY not set");
+    }
+
+    console.log("Initializing OpenAI client with DeepSeek API key");
+    const client = new OpenAI({
+      apiKey,
+      baseURL: "https://api.deepseek.com/v1",
+    });
+
+    const analysisPrompt = `Based on the following therapy session transcript, provide a structured analysis with the following sections:
+1. Main emotional themes (list 3-5 key themes)
+2. Improvements observed (list 2-3 points)
+3. Challenges identified (list 2-3 points)
+4. Recommendations for future sessions (list 2-3 specific suggestions)
+5. A brief progress summary (2-3 sentences)
+
+Please format your response in JSON with the following structure:
+{
+  "mainThemes": ["theme1", "theme2", ...],
+  "improvements": ["improvement1", "improvement2", ...],
+  "challenges": ["challenge1", "challenge2", ...],
+  "recommendations": ["recommendation1", "recommendation2", ...],
+  "progressSummary": "summary text here"
+}
+
+Transcript:
+${combinedTranscript}`;
+
+    console.log("Sending request to DeepSeek API");
+    const response = await client.chat.completions.create({
+      model: "deepseek-chat",
+      messages: [
+        {
+          role: "user",
+          content: analysisPrompt,
+        },
+      ],
+      temperature: 0.7,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error("No response content from DeepSeek API");
+    }
+
+    console.log("Received response from DeepSeek API");
+    const analysis = JSON.parse(content);
+
+    console.log("Analysis results:", {
+      mainThemesCount: analysis.mainThemes.length,
+      improvementsCount: analysis.improvements.length,
+      challengesCount: analysis.challenges.length,
+      recommendationsCount: analysis.recommendations.length,
+      summarylength: analysis.progressSummary.length,
+    });
+
+    // Update the progress record with the analysis
+    await ctx.runMutation(internal.summary.updateProgressWithAnalysis, {
+      progressId: args.progressId,
+      analysis: {
+        mainThemes: analysis.mainThemes,
+        improvements: analysis.improvements,
+        challenges: analysis.challenges,
+        recommendations: analysis.recommendations,
+        progressSummary: analysis.progressSummary,
+      },
+    });
+
+    console.log("Successfully updated progress record with analysis");
+    return analysis;
+  },
+});
+
+// Internal mutation to get a progress record by ID
+export const getProgressById = internalMutation({
+  args: { progressId: v.id("therapyProgress") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.progressId);
+  },
+});
+
+// Internal mutation to update therapy progress when a session ends
+export const updateTherapyProgress = mutation({
+    args: {
+        sessionId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) throw new Error("Not authenticated");
+        const userId = identity.subject;
+
+        console.log("🔍 Looking for session with ID:", args.sessionId);
+
+        // First try to find the session by chatId
+        let session = await ctx.db
+            .query("chatHistory")
+            .filter((q) => q.eq(q.field("userId"), userId))
+            .filter((q) => 
+                q.or(
+                    q.eq(q.field("chatId"), args.sessionId),
+                    q.eq(q.field("sessionId"), args.sessionId)
+                )
+            )
+            .first();
+        
+        if (!session) {
+            console.error("❌ Session not found with ID:", args.sessionId);
+            throw new Error(`Session not found with ID: ${args.sessionId}`);
+        }
+
+        console.log("✅ Found session:", {
+            id: session._id,
+            chatId: session.chatId,
+            sessionId: session.sessionId,
+            messageCount: session.messages?.length || 0
+        });
+
+        const convexSessionId = session._id;
+
+        // 2. Get or create therapy progress record
+        let progress = await ctx.db
+            .query("therapyProgress")
+            .filter((q) => q.eq(q.field("userId"), userId))
+            .first();
+
+        console.log("🔍 Existing progress record:", progress ? {
+            id: progress._id,
+            sessionCount: progress.sessionIds.length,
+            transcriptCount: progress.transcripts.length
+        } : "None found");
+
+        // Generate transcript from session messages
+        const transcript = (session.messages as Doc<"chatHistory">["messages"])
+            .map((msg) => {
+                const displayRole = msg.role === "USER" ? "User" : 
+                                  msg.role === "ASSISTANT" ? "Assistant" : 
+                                  "System";
+                return `[${new Date(msg.timestamp).toISOString()}] ${displayRole}: ${msg.content || msg.messageText}`;
+            })
+            .join("\n");
+
+        console.log("📝 Generated transcript with", transcript.split('\n').length, "lines");
+
+        // First, store the basic record without analysis
+        if (!progress) {
+            console.log("➕ Creating new therapy progress record");
+            const progressId = await ctx.db.insert("therapyProgress", {
+                userId,
+                sessionIds: [convexSessionId],
+                transcripts: [{
+                    sessionId: convexSessionId,
+                    content: transcript,
+                    timestamp: Date.now()
+                }],
+                progressSummary: "Session completed. Analysis in progress...",
+                emotionalProgress: {
+                    mainThemes: [],
+                    improvements: [],
+                    challenges: [],
+                    recommendations: []
+                },
+                lastUpdated: Date.now()
+            });
+            progress = await ctx.db.get(progressId);
+            console.log("✅ Created new progress record:", progressId);
+        } else {
+            console.log("📝 Updating existing progress record");
+            const updatedTranscripts = [
+                ...progress.transcripts,
+                {
+                    sessionId: convexSessionId,
+                    content: transcript,
+                    timestamp: Date.now()
+                }
+            ];
+
+            await ctx.db.patch(progress._id, {
+                sessionIds: [...progress.sessionIds, convexSessionId],
+                transcripts: updatedTranscripts,
+                lastUpdated: Date.now()
+            });
+            console.log("✅ Updated progress record with new transcript");
+        }
+
+        // Schedule the analysis to run after
+        if (progress) {
+            console.log("🔄 Scheduling DeepSeek analysis for progress:", progress._id);
+            await ctx.scheduler.runAfter(0, api.summary.analyzeSessionWithDeepSeek, {
+                progressId: progress._id,
+            });
+            console.log("✅ Analysis scheduled successfully");
+        }
+
+        return { success: true };
+    }
 }); 
