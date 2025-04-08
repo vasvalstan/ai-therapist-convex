@@ -168,69 +168,79 @@ export function StartConversationPanel() {
   };
   
   return (
-    <div className="flex flex-col items-center justify-center gap-8 p-8">
-      {/* Plan information */}
-      <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold tracking-tight">
+    <div className="flex flex-col items-center justify-center gap-6 px-4 py-8 md:gap-8 md:p-8">
+      {/* Welcome heading */}
+      <div className="text-center space-y-2 max-w-[600px]">
+        <h1 className="text-2xl md:text-4xl font-bold tracking-tight">
           Welcome to Sereni
         </h1>
-        <p className="text-xl text-muted-foreground max-w-[600px] mx-auto">
-          Your AI therapist, ready to listen and help you process your thoughts and feelings.
+        <p className="text-base md:text-xl text-muted-foreground">
+          Your AI therapist, ready to listen and help process your thoughts and feelings.
         </p>
       </div>
       
-      {/* Plan features */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-[900px] w-full">
-        <div className="flex flex-col items-center gap-2 p-6 rounded-lg border bg-card text-card-foreground">
-          <MessageCircle className="size-8 text-blue-500" />
-          <h3 className="font-medium">Natural Conversation</h3>
-          <p className="text-sm text-center text-muted-foreground">
-            Have a natural voice conversation with an empathetic AI therapist
+      {/* Features */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-[900px]">
+        <div className="flex flex-col items-center gap-2 p-4 rounded-lg border bg-card text-card-foreground">
+          <MessageCircle className="h-6 w-6 md:h-8 md:w-8 text-blue-500" />
+          <h3 className="font-medium text-center">Natural Conversation</h3>
+          <p className="text-xs md:text-sm text-center text-muted-foreground">
+            Voice conversations with an empathetic AI therapist
           </p>
         </div>
         
-        <div className="flex flex-col items-center gap-2 p-6 rounded-lg border bg-card text-card-foreground">
-          <Sparkles className="size-8 text-blue-500" />
-          <h3 className="font-medium">Emotion Analysis</h3>
-          <p className="text-sm text-center text-muted-foreground">
-            Get insights into your emotional state during conversations
+        <div className="flex flex-col items-center gap-2 p-4 rounded-lg border bg-card text-card-foreground">
+          <Sparkles className="h-6 w-6 md:h-8 md:w-8 text-blue-500" />
+          <h3 className="font-medium text-center">Emotion Analysis</h3>
+          <p className="text-xs md:text-sm text-center text-muted-foreground">
+            Get insights into your emotional state
           </p>
         </div>
         
-        <div className="flex flex-col items-center gap-2 p-6 rounded-lg border bg-card text-card-foreground">
-          <Shield className="size-8 text-blue-500" />
-          <h3 className="font-medium">Private & Secure</h3>
-          <p className="text-sm text-center text-muted-foreground">
-            Your conversations are private and encrypted
+        <div className="flex flex-col items-center gap-2 p-4 rounded-lg border bg-card text-card-foreground">
+          <Shield className="h-6 w-6 md:h-8 md:w-8 text-blue-500" />
+          <h3 className="font-medium text-center">Private & Secure</h3>
+          <p className="text-xs md:text-sm text-center text-muted-foreground">
+            Your conversations are private and secure
           </p>
         </div>
       </div>
       
-      {/* Start conversation button */}
-      <div className="flex flex-col items-center gap-4">
-        <Button
-          size="lg"
-          onClick={handleStartConversation}
-          disabled={isStarting || !isSignedIn || status.value === "connecting"}
-          className="min-w-[200px]"
-        >
-          {isStarting ? (
-            <>
-              <Loader2 className="mr-2 size-4 animate-spin" />
-              {status.value === "connecting" ? "Connecting..." : "Starting..."}
-            </>
-          ) : (
-            "Start a conversation"
-          )}
-        </Button>
-        
-        {userDetails?.currentPlanKey === "free" && (
-          <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-            <Clock className="size-4" />
-            {userPlan?.maxSessionDurationMinutes} minutes per session on Free plan
-          </p>
+      {/* Start button */}
+      <Button 
+        size="lg"
+        onClick={handleStartConversation}
+        disabled={isStarting || !isSignedIn}
+        className="mt-4 px-8"
+      >
+        {isStarting ? (
+          <>
+            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-r-transparent" />
+            Starting...
+          </>
+        ) : (
+          <>
+            <MessageCircle className="mr-2 h-5 w-5" />
+            Start New Conversation
+          </>
         )}
-      </div>
+      </Button>
+      
+      {/* User plan info */}
+      {userDetails && (
+        <div className="text-sm text-muted-foreground text-center">
+          {userPlan?.name && (
+            <div className="font-medium">{userPlan.name} Plan</div>
+          )}
+          {userDetails?.minutesRemaining !== undefined && (
+            <div className="mt-1">
+              {userDetails.minutesRemaining > 0 
+                ? `${userDetails.minutesRemaining} minutes remaining` 
+                : "No minutes remaining"}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 } 

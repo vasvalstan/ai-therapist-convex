@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSaveTranscript } from "@/lib/hooks/useSaveTranscript";
 import { ReactNode } from "react";
+import { formatDistanceToNow } from "date-fns";
 
 export function ChatHistoryContentWrapper() {
   const { isLoading, isAuthenticated } = useConvexAuth();
@@ -198,10 +199,12 @@ export function ChatHistoryContent() {
   // If user is not authenticated, show loading state
   if (!userId) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <div>Loading...</div>
+      <div className="flex h-screen flex-col">
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div>Loading...</div>
+          </div>
         </div>
       </div>
     );
@@ -210,10 +213,12 @@ export function ChatHistoryContent() {
   // If storing user, show loading state
   if (isStoringUser) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <div>Initializing your account...</div>
+      <div className="flex h-screen flex-col">
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div>Initializing your account...</div>
+          </div>
         </div>
       </div>
     );
@@ -222,14 +227,21 @@ export function ChatHistoryContent() {
   // If initial data is loading, show loading state
   if (!user || !plans || !chatSessions) {
     return (
-      <div className="flex h-screen">
-        <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
-          <ChatHistory />
-        </Suspense>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <div>Loading your chat history...</div>
+      <div className="flex h-screen flex-col">
+        <div className="flex flex-1 overflow-hidden">
+          <div className="hidden md:block w-64 h-full border-r border-border">
+            <div className="p-4 border-b border-border">
+              <h2 className="font-semibold">Recent Chats</h2>
+            </div>
+            <div className="p-4 flex justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div>Loading your chat history...</div>
+            </div>
           </div>
         </div>
       </div>
@@ -239,149 +251,119 @@ export function ChatHistoryContent() {
   // If user doesn't have access, show upgrade prompt
   if (!accessStatus.hasAccess && accessStatus.reason) {
     return (
-      <div className="flex h-screen">
-        <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
-          <ChatHistory />
-        </Suspense>
-        <div className="flex-1 flex items-center justify-center">
-          <UpgradePrompt 
-            reason={accessStatus.reason} 
-            chatId={chatSessions && chatSessions.length > 0 ? chatSessions[0].chatId : undefined} 
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // If we're on the chat history page without a specific chat ID, show start conversation
-  if (pathname === '/chat/history') {
-    return (
       <div className="flex h-screen flex-col">
-        <ChatNav />
         <div className="flex flex-1 overflow-hidden">
-          <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
+          <div className="hidden md:block">
             <ChatHistory />
-          </Suspense>
-          <div className="flex-1 flex flex-col">
-            <Tabs value={searchParams?.get("tab") || "start"} className="flex-1">
-              <TabsContent value="start" className="mt-0 h-[calc(100%-48px)]">
-                <StartConversationPanel />
-              </TabsContent>
-              <TabsContent value="progress" className="mt-0 h-[calc(100%-48px)] overflow-auto">
-                <TherapyProgress />
-              </TabsContent>
-            </Tabs>
+          </div>
+          <div className="flex-1 flex items-center justify-center p-4">
+            <UpgradePrompt 
+              reason={accessStatus.reason} 
+              chatId={chatSessions && chatSessions.length > 0 ? chatSessions[0].chatId : undefined} 
+            />
           </div>
         </div>
       </div>
     );
   }
 
-  // If we have a chat ID but no conversation data yet, show brief loading
-  if (activeChatId && activeConversation === undefined) {
-    return (
-      <div className="flex h-screen flex-col">
-        <ChatNav />
-        <div className="flex flex-1 overflow-hidden">
-          <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
-            <ChatHistory />
-          </Suspense>
-          <div className="flex-1 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // If chat not found, log and redirect to chat history
-  if (activeChatId && activeConversation === null) {
-    router.push('/chat/history');
-    return null;
-  }
-
-  // If there's an active conversation to display
-  if (activeChatId && activeConversation) {
-    // Get the active tab from URL params
-    const activeTab = searchParams?.get("tab") || "chat";
-    
-    // Extract the sessionId from the conversation
-    const sessionId = 'sessionId' in activeConversation ? 
-      (activeConversation as any).sessionId : activeChatId;
-    
-    return (
-      <div className="flex h-screen flex-col">
-        <ChatNav title={activeConversation.title || "Conversation"} />
-        <div className="flex flex-1 overflow-hidden">
-          <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
-            <ChatHistory />
-          </Suspense>
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <Tabs value={activeTab} className="flex-1 overflow-hidden">
-              <TabsContent value="start" className="mt-0 h-[calc(100%-48px)]">
-                <StartConversationPanel />
-              </TabsContent>
-              <TabsContent value="progress" className="mt-0 h-[calc(100%-48px)] overflow-auto">
-                <TherapyProgress />
-              </TabsContent>
-              <TabsContent value="chat" className="flex-1 overflow-auto p-4 space-y-4">
-                {activeTab === "chat" ? (
-                  <>
-                    <VoiceController 
-                      initialMessages={activeConversation.messages?.filter(msg => 
-                        msg.role !== "SYSTEM"
-                      ).map(msg => ({
-                        role: msg.role.toLowerCase() as "user" | "assistant",
-                        content: msg.content || msg.messageText || "",
-                        timestamp: msg.timestamp,
-                        emotions: msg.emotionFeatures ? 
-                          (typeof msg.emotionFeatures === 'string' ? 
-                            JSON.parse(msg.emotionFeatures) : 
-                            msg.emotionFeatures) : 
-                          undefined
-                      })) || []} 
-                    />
-                    <MessageHistory 
-                      conversation={activeConversation as unknown as ChatSession} 
-                      key={`message-history-${sessionId}`}
-                    />
-                  </>
-                ) : (
-                  <MessageHistory conversation={activeConversation as unknown as ChatSession} />
-                )}
-              </TabsContent>
-              <TabsContent value="transcript" className="flex-1 overflow-auto p-4">
-                <TranscriptView conversation={activeConversation as unknown as ChatSession} />
-              </TabsContent>
-              <TabsContent value="emotions" className="flex-1 overflow-auto p-4">
-                <EmotionAnalysis conversation={activeConversation as unknown as ChatSession} />
-              </TabsContent>
-            </Tabs>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Default catch-all condition
+  // Main content for chat history page
+  const activeTab = searchParams?.get("tab") || "start";
+  
   return (
     <div className="flex h-screen flex-col">
-      <ChatNav />
       <div className="flex flex-1 overflow-hidden">
-        <Suspense fallback={<div className="w-64 h-full border-r border-border" />}>
+        {/* Chat history sidebar - hidden on mobile */}
+        <div className="hidden md:block">
           <ChatHistory />
-        </Suspense>
-        <div className="flex-1 flex flex-col">
-          <Tabs value={searchParams?.get("tab") || "start"} className="flex-1">
-            <TabsContent value="start" className="mt-0 h-[calc(100%-48px)]">
-              <StartConversationPanel />
-            </TabsContent>
-            <TabsContent value="progress" className="mt-0 h-[calc(100%-48px)] overflow-auto">
-              <TherapyProgress />
-            </TabsContent>
-          </Tabs>
         </div>
+        
+        {/* Mobile chat history view - shown only when activeTab is "history" */}
+        {activeTab === "history" && (
+          <div className="md:hidden flex-1 flex flex-col">
+            <div className="p-4 border-b border-border">
+              <h2 className="font-semibold">Recent Chats</h2>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <MobileChatHistory />
+            </div>
+          </div>
+        )}
+        
+        {/* Main content area - shown when not viewing chat history on mobile */}
+        {activeTab !== "history" && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <Tabs value={activeTab} className="flex-1">
+              <TabsContent value="start" className="mt-0 h-full overflow-auto">
+                <StartConversationPanel />
+              </TabsContent>
+              <TabsContent value="progress" className="mt-0 h-full overflow-auto">
+                <TherapyProgress />
+              </TabsContent>
+            </Tabs>
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+// Mobile-optimized chat history component
+function MobileChatHistory() {
+  const sessions = useQuery(api.chat.getChatSessions);
+  const router = useRouter();
+  
+  if (sessions === undefined) {
+    return (
+      <div className="p-4 flex justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+  
+  if (!sessions || sessions.length === 0) {
+    return (
+      <div className="p-4 text-center text-muted-foreground">
+        <p>No conversations yet</p>
+        <p className="text-sm mt-2">Start a new chat to begin</p>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="divide-y">
+      {sessions.map((session) => {
+        // Find the first user or assistant message to use as title
+        const firstMessage = session.messages && session.messages.find(
+          msg => msg.role === "USER" || msg.role === "ASSISTANT"
+        );
+        const title = session.title || 
+          (firstMessage?.content?.slice(0, 30) + "...") || 
+          "New conversation";
+          
+        return (
+          <div
+            key={session._id}
+            className="p-4 flex flex-col gap-2 active:bg-muted"
+            onClick={() => router.push(`/chat/${session.sessionId}?tab=chat`)}
+          >
+            <div className="flex items-start gap-2">
+              <MessageCircle className="w-5 h-5 mt-0.5 text-muted-foreground" />
+              <div className="flex-1">
+                <div className="font-medium">{title}</div>
+                <div className="text-sm text-muted-foreground">
+                  {formatDistanceToNow(session.updatedAt, { addSuffix: true })}
+                </div>
+              </div>
+            </div>
+            {session.messages && session.messages.length > 0 && (
+              <div className="text-sm text-muted-foreground ml-7">
+                {session.messages.length} messages
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -8,6 +8,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata = {
   title: "Sereni - AI Therapy Assistant",
   description: "Your AI therapist, ready to listen and help you process your thoughts and feelings.",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
 };
 
 export default function RootLayout({
@@ -17,7 +18,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={cn(inter.className, "min-h-screen bg-background")}>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+      </head>
+      <body className={cn(inter.className, "min-h-screen bg-background antialiased")}>
         <Providers>
           <div className="flex flex-col min-h-screen">
             <main className="flex-1 flex flex-col overflow-hidden">

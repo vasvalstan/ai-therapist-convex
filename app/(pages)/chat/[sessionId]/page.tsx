@@ -40,15 +40,5 @@ export default function ChatPage() {
     );
   }
   
-  return (
-    <div className="flex h-screen flex-col">
-      <Suspense fallback={
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          Loading conversation...
-        </div>
-      }>
-        <ChatClientView sessionId={sessionId} />
-      </Suspense>
-    </div>
-  );
+  return <ChatClientView sessionId={sessionId} />;
 } 

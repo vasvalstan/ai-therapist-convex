@@ -1,8 +1,12 @@
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+'use client';
+
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useEffect } from "react";
-import { MessageCircle, FileText, BarChart2, Home } from "lucide-react";
+import { useEffect, useState } from "react";
+import { MessageCircle, BarChart2, Home, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 interface ChatNavProps {
   title?: string;
@@ -11,64 +15,88 @@ interface ChatNavProps {
 export function ChatNav({ title }: ChatNavProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeButton, setActiveButton] = useState<string | null>(null);
   
-  // Check if we're on a specific chat page (not the history page)
-  const isOnSpecificChatPage = pathname && pathname !== "/chat/history" && pathname.startsWith("/chat/");
+  // Get the current tab, defaulting to "start"
+  const currentTab = searchParams?.get("tab") || "start";
   
-  // Get the current chat ID from the URL
-  const chatId = isOnSpecificChatPage ? pathname?.split('/chat/')[1]?.split('?')[0] : null;
+  // Get session ID from pathname if we're on a chat page
+  const pathSegments = pathname.split('/');
+  const onChatPage = pathname.startsWith('/chat/') && pathSegments.length >= 3 && pathSegments[2] !== 'history';
+  const sessionId = onChatPage ? pathSegments[2] : null;
   
-  // Get the current tab, defaulting to "chat" if we're on a specific chat page,
-  // otherwise default to "start"
-  const currentTab = searchParams?.get("tab") || (isOnSpecificChatPage ? "chat" : "start");
+  // Fetch conversation title if on a chat page
+  const conversation = useQuery(api.chat.getActiveConversation, 
+    sessionId ? { chatId: sessionId } : "skip"
+  );
   
-  // If we're on a specific chat page and no tab is specified, default to "chat" tab
+  // Determine the display title
+  const displayTitle = onChatPage && conversation ? 
+    (conversation.title || "Conversation") : title || "Sereni";
+  
+  // Set initial active button based on route
   useEffect(() => {
-    if (isOnSpecificChatPage && !searchParams?.get("tab")) {
-      // Force navigation to the chat tab to ensure the chat content is displayed
-      router.push(`${pathname}?tab=chat`);
+    if (onChatPage) {
+      setActiveButton("history");
+    } else if (pathname === "/chat/history") {
+      if (currentTab === "progress") {
+        setActiveButton("progress");
+      } else if (currentTab === "start" && searchParams?.get("tab") !== null) {
+        setActiveButton("new-chat");
+      } else {
+        setActiveButton("home");
+      }
     }
-  }, [isOnSpecificChatPage, pathname, router, searchParams, chatId]);
-
+  }, [pathname, currentTab, onChatPage, searchParams]);
+  
   // Handle tab changes
   const handleTabChange = (value: string) => {
+    // Set active button
+    setActiveButton(value);
+    
+    // Close mobile menu when navigating
+    setMobileMenuOpen(false);
+    
     // If we're already on the selected tab, don't do anything to avoid unnecessary navigation
-    if (value === currentTab) {
+    if (value === activeButton && pathname === "/chat/history") {
       return;
     }
     
-    if (value === "history") {
-      router.push("/chat/history");
-    } else if (value === "start") {
-      // Going to start tab - always go to history page first
+    if (value === "home") {
+      router.push("/");
+    } else if (value === "new-chat") {
       router.push("/chat/history?tab=start");
+    } else if (value === "history") {
+      router.push("/chat/history");
     } else if (value === "progress") {
-      // For progress tab, stay on current page but update tab
-      router.push(`${isOnSpecificChatPage ? pathname : "/chat/history"}?tab=progress`);
-    } else if (value === "chat") {
-      if (isOnSpecificChatPage) {
-        // For chat tab on specific chat page
-        router.push(`${pathname}?tab=chat`);
-      } else {
-        // If not on a specific chat page, redirect to chat history
-        router.push("/chat/history");
-      }
-    } else if (value === "transcript" && isOnSpecificChatPage) {
-      router.push(`${pathname}?tab=transcript`);
-    } else if (value === "emotions" && isOnSpecificChatPage) {
-      router.push(`${pathname}?tab=emotions`);
+      router.push("/chat/history?tab=progress");
     }
   };
 
-  const NavButton = ({ value, icon: Icon, children }: { value: string; icon: any; children: React.ReactNode }) => {
-    const isActive = currentTab === value || (!currentTab && value === "history");
+  const NavButton = ({ value, icon: Icon, children, isMobile = false }: { 
+    value: string; 
+    icon: any; 
+    children: React.ReactNode;
+    isMobile?: boolean;
+  }) => {
+    // Button is active if it matches the active button state
+    const isActive = activeButton === value;
+    
     return (
       <button
         onClick={() => handleTabChange(value)}
         className={cn(
-          "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors",
-          isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+          "flex items-center gap-2 transition-colors",
+          isMobile ? "py-4 px-3 text-base w-full justify-start" : "px-3 py-2 rounded-full text-sm font-medium",
+          isActive 
+            ? isMobile 
+              ? "bg-muted font-medium" 
+              : "bg-primary text-primary-foreground" 
+            : isMobile 
+              ? "text-foreground hover:bg-muted" 
+              : "text-muted-foreground hover:text-foreground"
         )}
       >
         <Icon className="h-4 w-4" />
@@ -78,41 +106,71 @@ export function ChatNav({ title }: ChatNavProps) {
   };
 
   return (
-    <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-14 items-center px-4">
-        <div className="flex items-center gap-2 w-full">
-          <NavButton value="history" icon={Home}>
-            Chat History
+    <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+      {/* Mobile navigation */}
+      <div className="flex lg:hidden items-center justify-between h-14 px-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </Button>
+        
+        <div className="text-lg font-medium truncate">
+          {displayTitle}
+        </div>
+        
+        <div className="w-9"></div> {/* Empty space for alignment */}
+      </div>
+      
+      {/* Mobile menu dropdown */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden absolute top-14 left-0 right-0 bg-background border-b z-20">
+          <div className="flex flex-col p-2">
+            <NavButton value="home" icon={Home} isMobile>
+              Home
+            </NavButton>
+            <NavButton value="new-chat" icon={MessageCircle} isMobile>
+              New Chat
+            </NavButton>
+            <NavButton value="history" icon={MessageCircle} isMobile>
+              Chat History
+            </NavButton>
+            <NavButton value="progress" icon={BarChart2} isMobile>
+              Therapy Progress
+            </NavButton>
+          </div>
+        </div>
+      )}
+      
+      {/* Desktop navigation */}
+      <div className="hidden lg:flex h-14 items-center px-4">
+        <div className="flex items-center gap-1 mr-auto">
+          <NavButton value="home" icon={Home}>
+            Home
           </NavButton>
           
-          <NavButton value="start" icon={MessageCircle}>
-            Start New Chat
+          <NavButton value="new-chat" icon={MessageCircle}>
+            New Chat
+          </NavButton>
+          
+          <NavButton value="history" icon={MessageCircle}>
+            Chat History
           </NavButton>
           
           <NavButton value="progress" icon={BarChart2}>
             Therapy Progress
           </NavButton>
-
-          {isOnSpecificChatPage && (
-            <>
-              <NavButton value="chat" icon={MessageCircle}>
-                Current Chat
-              </NavButton>
-              
-              <NavButton value="transcript" icon={FileText}>
-                Transcript
-              </NavButton>
-              
-              <NavButton value="emotions" icon={BarChart2}>
-                Emotions
-              </NavButton>
-            </>
-          )}
-
-          {title && (
-            <div className="ml-auto text-sm font-medium truncate max-w-[200px]">{title}</div>
-          )}
         </div>
+        
+        {/* Title, if provided */}
+        {displayTitle && (
+          <div className="text-sm font-medium truncate max-w-[200px]">
+            {displayTitle}
+          </div>
+        )}
       </div>
     </div>
   );
