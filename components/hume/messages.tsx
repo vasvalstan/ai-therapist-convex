@@ -9,25 +9,40 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useParams } from "next/navigation";
 
-interface EmotionScores {
-  [key: string]: number;
+interface DatabaseMessage {
+  role: "USER" | "ASSISTANT" | "SYSTEM";
+  content: string;
+  timestamp: number;
+  emotions?: Record<string, number>;
+  metadata?: {
+    chat_id: string;
+    chat_group_id: string;
+    request_id: string;
+    timestamp: string;
+  };
 }
 
-interface Message {
+interface PersistedMessage {
   role: "user" | "assistant";
   content: string;
-  timestamp?: number;
+  timestamp: number;
   emotions?: Record<string, number>;
+  metadata?: {
+    chat_id: string;
+    chat_group_id: string;
+    request_id: string;
+    timestamp: string;
+  };
 }
 
-interface ChatMessage {
+interface MessageWithTimestamp {
   type: "user_message" | "assistant_message";
   message: {
     role: "user" | "assistant";
     content: string;
   };
-  models: {
-    prosody: {
+  models?: {
+    prosody?: {
       scores?: Record<string, number>;
     };
   };
@@ -44,12 +59,22 @@ export const Messages = forwardRef<
   
   // Get persisted chat messages
   const chat = useQuery(api.chat.getActiveConversation, { chatId: sessionId });
-  const persistedMessages = (chat?.messages || []) as Message[];
+  const dbMessages = (chat?.messages || []) as DatabaseMessage[];
+  
+  // Normalize database messages to our internal format
+  const persistedMessages: PersistedMessage[] = dbMessages.map(msg => ({
+    ...msg,
+    role: msg.role.toLowerCase() as "user" | "assistant"
+  }));
 
-  // Combine and sort all messages by timestamp
-  const allMessages = [
-    ...persistedMessages.map(msg => ({
-      type: msg.role === "user" ? "user_message" as const : "assistant_message" as const,
+  // Create a map to deduplicate messages
+  const messageMap = new Map<string, MessageWithTimestamp>();
+
+  // First add persisted messages to the map
+  persistedMessages.forEach(msg => {
+    const key = `${msg.timestamp}-${msg.content}`;
+    messageMap.set(key, {
+      type: msg.role === "user" ? "user_message" : "assistant_message",
       message: {
         role: msg.role,
         content: msg.content
@@ -60,20 +85,31 @@ export const Messages = forwardRef<
         }
       },
       timestamp: msg.timestamp
-    })),
-    ...voiceMessages.filter(msg => 
-      msg.type === "user_message" || 
-      msg.type === "assistant_message"
-    )
-  ].sort((a, b) => {
-    // For persisted messages
-    if ("timestamp" in a && "timestamp" in b) {
-      return (a.timestamp || 0) - (b.timestamp || 0);
-    }
-    // For voice messages without timestamp, add them at the end
-    if (!("timestamp" in a)) return 1;
-    if (!("timestamp" in b)) return -1;
-    return 0;
+    });
+  });
+
+  // Then add voice messages, only if they don't exist
+  voiceMessages
+    .filter(msg => msg.type === "user_message" || msg.type === "assistant_message")
+    .forEach(msg => {
+      const timestamp = Date.now(); // Voice messages might not have timestamps
+      const content = msg.message?.content || '';
+      const key = `${timestamp}-${content}`;
+      if (!messageMap.has(key)) {
+        messageMap.set(key, {
+          type: msg.type,
+          message: msg.message,
+          models: msg.models,
+          timestamp
+        } as MessageWithTimestamp);
+      }
+    });
+
+  // Convert map back to array and sort by timestamp
+  const allMessages = Array.from(messageMap.values()).sort((a, b) => {
+    const aTime = a.timestamp || 0;
+    const bTime = b.timestamp || 0;
+    return aTime - bTime;
   });
 
   return (
@@ -117,7 +153,7 @@ export const Messages = forwardRef<
                     {msg.message.role}
                   </div>
                   <div className="pb-3 px-3">{msg.message.content}</div>
-                  <Expressions values={msg.models.prosody?.scores as Record<string, number> | undefined} />
+                  <Expressions values={msg.models?.prosody?.scores as Record<string, number> | undefined} />
                 </motion.div>
               );
             }

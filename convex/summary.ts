@@ -443,7 +443,7 @@ export const analyzeSessionWithDeepSeek = action({
 4. Recommendations for future sessions (list 2-3 specific suggestions)
 5. A brief progress summary (2-3 sentences)
 
-Please format your response in JSON with the following structure:
+Return ONLY a JSON object with this exact structure, no markdown or other formatting:
 {
   "mainThemes": ["theme1", "theme2", ...],
   "improvements": ["improvement1", "improvement2", ...],
@@ -472,31 +472,52 @@ ${combinedTranscript}`;
       throw new Error("No response content from DeepSeek API");
     }
 
-    console.log("Received response from DeepSeek API");
-    const analysis = JSON.parse(content);
+    console.log("Received response from DeepSeek API:", content);
 
-    console.log("Analysis results:", {
-      mainThemesCount: analysis.mainThemes.length,
-      improvementsCount: analysis.improvements.length,
-      challengesCount: analysis.challenges.length,
-      recommendationsCount: analysis.recommendations.length,
-      summarylength: analysis.progressSummary.length,
-    });
+    // Clean up the response content to extract only the JSON part
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("Could not find JSON object in response");
+    }
 
-    // Update the progress record with the analysis
-    await ctx.runMutation(internal.summary.updateProgressWithAnalysis, {
-      progressId: args.progressId,
-      analysis: {
-        mainThemes: analysis.mainThemes,
-        improvements: analysis.improvements,
-        challenges: analysis.challenges,
-        recommendations: analysis.recommendations,
-        progressSummary: analysis.progressSummary,
-      },
-    });
+    try {
+      const analysis = JSON.parse(jsonMatch[0]);
 
-    console.log("Successfully updated progress record with analysis");
-    return analysis;
+      // Validate the analysis structure
+      if (!analysis.mainThemes || !Array.isArray(analysis.mainThemes) ||
+          !analysis.improvements || !Array.isArray(analysis.improvements) ||
+          !analysis.challenges || !Array.isArray(analysis.challenges) ||
+          !analysis.recommendations || !Array.isArray(analysis.recommendations) ||
+          !analysis.progressSummary || typeof analysis.progressSummary !== 'string') {
+        throw new Error("Invalid analysis structure");
+      }
+
+      console.log("Analysis results:", {
+        mainThemesCount: analysis.mainThemes.length,
+        improvementsCount: analysis.improvements.length,
+        challengesCount: analysis.challenges.length,
+        recommendationsCount: analysis.recommendations.length,
+        summarylength: analysis.progressSummary.length,
+      });
+
+      // Update the progress record with the analysis
+      await ctx.runMutation(internal.summary.updateProgressWithAnalysis, {
+        progressId: args.progressId,
+        analysis: {
+          mainThemes: analysis.mainThemes,
+          improvements: analysis.improvements,
+          challenges: analysis.challenges,
+          recommendations: analysis.recommendations,
+          progressSummary: analysis.progressSummary,
+        },
+      });
+
+      console.log("Successfully updated progress record with analysis");
+      return analysis;
+    } catch (error: any) {
+      console.error("Error parsing analysis:", error);
+      throw new Error(`Failed to parse analysis: ${error?.message || 'Unknown error'}`);
+    }
   },
 });
 

@@ -540,35 +540,6 @@ export default function HumeChat({
 
   return (
     <div className="relative flex-1 flex flex-col mx-auto w-full overflow-hidden">
-      {/* Debug panel for development */}
-      {process.env.NODE_ENV !== 'production' && (
-        <div className="fixed top-20 right-4 bg-black/80 text-white p-2 rounded shadow-md z-50 text-xs font-mono max-w-xs">
-          <div className="font-bold mb-1">Debug Info:</div>
-          <div>Session ID: {initialSessionId}</div>
-          <div>
-            <button 
-              onClick={() => {
-                try {
-                  const metadata = localStorage.getItem('hume_metadata');
-                  if (metadata) {
-                    console.log("localStorage metadata:", JSON.parse(metadata));
-                    alert("Metadata found in localStorage! Check console.");
-                  } else {
-                    alert("No metadata in localStorage");
-                  }
-                } catch (e) {
-                  console.error("Error reading localStorage:", e);
-                  alert("Error reading localStorage: " + e);
-                }
-              }}
-              className="mt-1 bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs"
-            >
-              Check localStorage
-            </button>
-          </div>
-        </div>
-      )}
-      
       {/* Use the components without wrapping in another VoiceProvider */}
       <Messages ref={ref} />
       <Controls 
@@ -579,26 +550,11 @@ export default function HumeChat({
       
       {/* Add the ChatSaveHandler component to save transcripts when the chat ends */}
       {currentSessionId && (
-        <>
-          <div className="hidden">DEBUG: ChatID: {humeChatId || 'undefined'}, GroupID: {humeGroupChatId || 'undefined'}</div>
-          <ChatSaveHandler 
-            sessionId={currentSessionId}
-            humeChatId={humeChatId}
-            humeGroupChatId={humeGroupChatId}
-          />
-        </>
-      )}
-      
-      {/* Add debug info display */}
-      {process.env.NODE_ENV !== 'production' && (
-        <div className="fixed bottom-4 left-4 bg-white/80 text-black p-2 rounded shadow-md z-50 text-xs font-mono">
-          <div>HumeChat Debug Info:</div>
-          <div>Session: {currentSessionId}</div>
-          <div>ChatID: {humeChatId || 'not set'}</div>
-          <div>GroupID: {humeGroupChatId || 'not set'}</div>
-          <div>MetadataProcessed: {metadataProcessedRef.current ? 'Yes' : 'No'}</div>
-          <div>Last Activity: {new Date(lastActivityRef.current).toLocaleTimeString()}</div>
-        </div>
+        <ChatSaveHandler 
+          sessionId={currentSessionId}
+          humeChatId={humeChatId}
+          humeGroupChatId={humeGroupChatId}
+        />
       )}
     </div>
   );
