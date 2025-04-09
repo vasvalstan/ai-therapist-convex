@@ -1,15 +1,25 @@
 {
   "extends": [
     "next/core-web-vitals",
-    "next/typescript"
+    "plugin:@typescript-eslint/recommended"
   ],
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint"],
   "rules": {
-    "@typescript-eslint/no-unused-vars": "warn",
-    "@typescript-eslint/no-explicit-any": "warn",
-    "@typescript-eslint/no-non-null-asserted-optional-chain": "warn",
-    "react/no-unescaped-entities": "warn",
-    "react-hooks/exhaustive-deps": "warn",
-    "@typescript-eslint/no-empty-object-type": "warn",
-    "@typescript-eslint/no-unused-expressions": "warn"
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/no-unused-vars": ["warn", {
+      "argsIgnorePattern": "^_",
+      "varsIgnorePattern": "^_",
+      "caughtErrorsIgnorePattern": "^_",
+      "destructuredArrayIgnorePattern": "^_",
+      "ignoreRestSiblings": true
+    }],
+    "react/no-unescaped-entities": "off",
+    "react-hooks/exhaustive-deps": ["warn", {
+      "additionalHooks": "(useRecoilCallback|useRecoilTransaction_UNSTABLE)"
+    }],
+    "@typescript-eslint/no-empty-interface": "warn",
+    "@typescript-eslint/ban-ts-comment": "warn",
+    "no-console": ["warn", { "allow": ["warn", "error"] }]
   }
 }
