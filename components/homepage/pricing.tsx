@@ -18,6 +18,7 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { Doc } from "@/convex/_generated/dataModel";
 
 type PricingCardProps = {
   user: {
@@ -26,7 +27,7 @@ type PricingCardProps = {
   } | null | undefined;
   planKey: string;
   title: string;
-  monthlyPrice?: number;
+  monthlyPrice?: number | null;
   description: string;
   features: string[];
   actionLabel: string;
@@ -37,6 +38,8 @@ type PricingCardProps = {
   totalMinutes?: number;
   maxSessionDurationMinutes?: number;
   maxSessions?: number;
+  getProCheckoutUrl?: any;
+  getProCheckoutUrlTest?: any;
 };
 
 const PricingHeader = ({
@@ -79,15 +82,13 @@ const PricingCard = ({
   totalMinutes,
   maxSessionDurationMinutes,
   maxSessions,
+  getProCheckoutUrl,
+  getProCheckoutUrlTest,
 }: PricingCardProps) => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
-
-  // Move Convex hooks into useEffect to ensure they only run on client
-  const getProCheckoutUrl = useAction(api.subscriptions.getOnboardingCheckoutUrl);
-  const getProCheckoutUrlTest = useAction(api.subscriptions.getProOnboardingCheckoutUrlTest);
 
   // Mark component as mounted on client
   useEffect(() => {
@@ -402,73 +403,69 @@ const PricingCard = ({
   );
 };
 
-// Create a dynamic version of the Pricing component
+// Create a client-only wrapper for Convex hooks
+function PricingCardWithHooks(props: PricingCardProps) {
+  const getProCheckoutUrl = useAction(api.subscriptions.getOnboardingCheckoutUrl);
+  const getProCheckoutUrlTest = useAction(api.subscriptions.getProOnboardingCheckoutUrlTest);
+  
+  return <PricingCard {...props} getProCheckoutUrl={getProCheckoutUrl} getProCheckoutUrlTest={getProCheckoutUrlTest} />;
+}
+
+// Use dynamic import for the pricing card
+const DynamicPricingCard = dynamic(() => Promise.resolve(PricingCardWithHooks), {
+  ssr: false,
+  loading: () => <div>Loading...</div>
+});
+
 function PricingContent() {
   const { user } = useUser();
-  const router = useRouter();
+  const plans = useQuery(api.plans.getPlans) || [];
+  const userPlan = useQuery(api.users.getUser);
 
   return (
-    <div className="mx-auto max-w-7xl px-6 lg:px-8">
-      <PricingHeader
-        title="Simple, transparent pricing"
-        subtitle="Choose the plan that best fits your needs."
-      />
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="mx-auto mt-16 grid max-w-lg grid-cols-1 items-center gap-y-6 sm:mt-20 sm:gap-y-0 lg:max-w-4xl lg:grid-cols-2"
-      >
-        {/* Free Plan */}
-        <PricingCard
-          user={user}
-          planKey="free"
-          title="Free"
-          description="Perfect for trying out our service"
-          features={[
-            "5 minutes per session",
-            "1 session per day",
-            "Basic emotion analysis",
-            "Text chat only",
-          ]}
-          actionLabel="Get Started Free"
-          isFree={true}
-          totalMinutes={5}
-          maxSessionDurationMinutes={5}
-          maxSessions={1}
-        />
-
-        {/* Pro Plan */}
-        <PricingCard
-          user={user}
-          planKey="pro"
-          title="Pro"
-          monthlyPrice={9.99}
-          description="For users who want the full experience"
-          features={[
-            "60 minutes per session",
-            "Unlimited sessions",
-            "Advanced emotion analysis",
-            "Voice chat",
-            "Priority support",
-          ]}
-          actionLabel="Get Pro"
-          popular={true}
-          totalMinutes={60}
-          maxSessionDurationMinutes={60}
-          maxSessions={-1}
-        />
-      </motion.div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+      {plans.map((plan: Doc<"plans">) => {
+        const isFree = !plan.prices?.month?.usd?.amount;
+        const isCurrentPlan = typeof userPlan === 'object' && userPlan !== null && 'currentPlanKey' in userPlan ? userPlan.currentPlanKey === plan.key : false;
+        
+        return (
+          <DynamicPricingCard
+            key={plan.key}
+            user={user}
+            planKey={plan.key}
+            title={plan.name}
+            monthlyPrice={plan.prices?.month?.usd?.amount || null}
+            description={plan.description}
+            features={plan.features || []}
+            actionLabel={isFree ? "Get Started Free" : "Get Pro"}
+            popular={plan.key === "pro"}
+            exclusive={plan.key === "enterprise"}
+            isFree={isFree}
+            currentPlan={isCurrentPlan}
+            totalMinutes={plan.totalMinutes}
+            maxSessionDurationMinutes={plan.maxSessionDurationMinutes}
+            maxSessions={plan.maxSessions}
+          />
+        );
+      })}
     </div>
   );
 }
 
-// Use dynamic import with SSR disabled
-const DynamicPricing = dynamic(() => Promise.resolve(PricingContent), {
+// Use dynamic import for the entire pricing content
+const DynamicPricingContent = dynamic(() => Promise.resolve(PricingContent), {
   ssr: false,
+  loading: () => <div>Loading pricing plans...</div>
 });
 
 export default function Pricing() {
-  return <DynamicPricing />;
+  return (
+    <div className="w-full">
+      <PricingHeader
+        title="Simple, Transparent Pricing"
+        subtitle="Choose the plan that best fits your needs. All plans include our core features."
+      />
+      <DynamicPricingContent />
+    </div>
+  );
 }

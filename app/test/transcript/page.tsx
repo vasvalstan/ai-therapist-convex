@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 
+// Add dynamic configuration
+export const dynamic = "force-dynamic";
+
 export default function TestTranscriptPage() {
     const [chatId, setChatId] = useState("");
     const [transcript, setTranscript] = useState("");

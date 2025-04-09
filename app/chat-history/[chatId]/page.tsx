@@ -29,6 +29,7 @@ function getEmotionSummary(emotionFeatures?: string) {
       .map(([emotion, value]) => `${emotion}: ${(Number(value) * 100).toFixed(0)}%`)
       .join(", ");
   } catch (e) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     return "Error parsing emotions";
   }
 }
@@ -48,15 +49,13 @@ function getEventTypeDisplay(type: string) {
   }
 }
 
-interface PageProps {
-  params: {
-    chatId: string;
-  };
-  searchParams: { [key: string]: string | string[] | undefined };
-}
-
-export default async function ChatHistory({ params, searchParams }: PageProps) {
-  const { chatId } = params;
+export default async function ChatHistory({
+  params,
+}: {
+  params: Promise<{ chatId: string }>;
+}) {
+  const resolvedParams = await params;
+  const { chatId } = resolvedParams;
   const events = await fetchChatEvents(chatId);
 
   if (!events) {

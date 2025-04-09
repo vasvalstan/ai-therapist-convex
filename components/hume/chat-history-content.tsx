@@ -351,7 +351,7 @@ function MobileChatHistory() {
               <div className="flex-1">
                 <div className="font-medium">{title}</div>
                 <div className="text-sm text-muted-foreground">
-                  {formatDistanceToNow(session.updatedAt, { addSuffix: true })}
+                  {formatDistanceToNow(session.updatedAt || session._creationTime, { addSuffix: true })}
                 </div>
               </div>
             </div>

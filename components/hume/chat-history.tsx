@@ -143,7 +143,7 @@ export function ChatHistory() {
                                         <div className="flex-1 overflow-hidden">
                                             <div className="truncate font-medium">{title}</div>
                                             <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                                <span>{formatDistanceToNow(session.updatedAt, { addSuffix: true })}</span>
+                                                <span>{formatDistanceToNow(session.updatedAt || session._creationTime, { addSuffix: true })}</span>
                                                 {session.messages && session.messages.length > 0 && (
                                                     <>
                                                         <span>•</span>
