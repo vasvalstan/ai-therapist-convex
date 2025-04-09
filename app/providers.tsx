@@ -9,6 +9,7 @@ import { VoiceProvider } from "@humeai/voice-react";
 import { ConvexReactClient } from "convex/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import dynamic from "next/dynamic";
 
 // Initialize Convex client outside of component
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -18,10 +19,26 @@ if (!convexUrl) {
 
 const convex = new ConvexReactClient(convexUrl);
 
+// Split into separate components for better hydration
+function AuthProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <ClerkProvider>
+      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+        {children}
+      </ConvexProviderWithClerk>
+    </ClerkProvider>
+  );
+}
+
+// Wrap AuthProvider in a client-only component
+const DynamicAuthProvider = dynamic(() => Promise.resolve(AuthProvider), {
+  ssr: false,
+  loading: () => <div>Loading auth...</div>
+});
+
 export function VoiceWrapper({ children }: { children: React.ReactNode }) {
   const configId = process.env.NEXT_PUBLIC_HUME_CONFIG_ID || "fallback_config_id";
   const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [messages, setMessages] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchToken = async () => {
@@ -69,8 +86,6 @@ export function VoiceWrapper({ children }: { children: React.ReactNode }) {
           console.warn("⚠️ Received chat metadata but missing required fields:", data);
         }
       }
-      
-      setMessages(prev => [...prev, data]);
     };
 
     window.addEventListener("hume:message", handleEvent);
@@ -165,23 +180,21 @@ export function VoiceWrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export default function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider>
-      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <VoiceWrapper>
-            {children}
-          </VoiceWrapper>
-          <Toaster />
-          <Analytics />
-        </ThemeProvider>
-      </ConvexProviderWithClerk>
-    </ClerkProvider>
+    <DynamicAuthProvider>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="dark"
+        enableSystem
+        disableTransitionOnChange
+      >
+        <VoiceWrapper>
+          {children}
+        </VoiceWrapper>
+        <Toaster />
+        <Analytics />
+      </ThemeProvider>
+    </DynamicAuthProvider>
   );
 } 
