@@ -48,7 +48,14 @@ function getEventTypeDisplay(type: string) {
   }
 }
 
-export default async function ChatHistory({ params }: { params: { chatId: string } }) {
+interface PageProps {
+  params: {
+    chatId: string;
+  };
+  searchParams: { [key: string]: string | string[] | undefined };
+}
+
+export default async function ChatHistory({ params, searchParams }: PageProps) {
   const { chatId } = params;
   const events = await fetchChatEvents(chatId);
 
