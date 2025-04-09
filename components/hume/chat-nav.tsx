@@ -89,10 +89,10 @@ export function ChatNav({ title }: ChatNavProps) {
         onClick={() => handleTabChange(value)}
         className={cn(
           "flex items-center gap-2 transition-colors",
-          isMobile ? "py-4 px-3 text-base w-full justify-start" : "px-3 py-2 rounded-full text-sm font-medium",
+          isMobile ? "py-2 px-4 text-sm whitespace-nowrap" : "px-3 py-2 rounded-full text-sm font-medium",
           isActive 
             ? isMobile 
-              ? "bg-muted font-medium" 
+              ? "bg-primary text-primary-foreground" 
               : "bg-primary text-primary-foreground" 
             : isMobile 
               ? "text-foreground hover:bg-muted" 
@@ -106,7 +106,7 @@ export function ChatNav({ title }: ChatNavProps) {
   };
 
   return (
-    <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+    <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-[100]">
       {/* Mobile navigation */}
       <div className="flex lg:hidden items-center justify-between h-14 px-4">
         <Button
@@ -127,8 +127,8 @@ export function ChatNav({ title }: ChatNavProps) {
       
       {/* Mobile menu dropdown */}
       {mobileMenuOpen && (
-        <div className="lg:hidden absolute top-14 left-0 right-0 bg-background border-b z-20">
-          <div className="flex flex-col p-2">
+        <div className="lg:hidden fixed top-14 left-0 right-0 bg-background border-b z-[100] shadow-lg overflow-x-auto">
+          <div className="flex p-2 space-x-2">
             <NavButton value="home" icon={Home} isMobile>
               Home
             </NavButton>

@@ -50,6 +50,7 @@ const nextConfig: NextConfig = {
   env: {
     // Include Hume API variables to be accessible in API routes
     HUME_API_KEY: process.env.HUME_API_KEY,
+    HUME_SECRET_KEY: process.env.HUME_SECRET_KEY,
     HUME_API_URL: process.env.HUME_API_URL || 'https://api.hume.ai',
     NEXT_PUBLIC_HUME_CONFIG_ID: process.env.NEXT_PUBLIC_HUME_CONFIG_ID,
   },

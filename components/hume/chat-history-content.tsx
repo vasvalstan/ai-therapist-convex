@@ -17,7 +17,6 @@ import { Message, ChatSession } from "@/lib/types";
 import { FileText, BarChart2, MessageCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSaveTranscript } from "@/lib/hooks/useSaveTranscript";
 import { ReactNode } from "react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -373,8 +372,6 @@ export default ChatHistoryContentWrapper;
 
 // Component to display message history
 function MessageHistory({ conversation }: { conversation: ChatSession }): ReactNode {
-  const { saveTranscript } = useSaveTranscript();
-  
   const renderMessage = (item: Message, index: number) => {
     const isUser = item.role === 'USER';
     const content = item.content;
@@ -394,20 +391,12 @@ function MessageHistory({ conversation }: { conversation: ChatSession }): ReactN
     return (
       <div className="text-center">
         <div className="text-muted-foreground mb-4">No messages in this conversation.</div>
-        <Button onClick={() => saveTranscript("manualSave")} variant="outline" size="sm">
-          Save Transcript
-        </Button>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col space-y-4">
-      <div className="flex justify-end mb-4">
-        <Button onClick={() => saveTranscript("manualSave")} variant="outline" size="sm">
-          Save Transcript
-        </Button>
-      </div>
       {conversation.messages.map((item, index) => renderMessage(item, index))}
     </div>
   );
@@ -415,15 +404,10 @@ function MessageHistory({ conversation }: { conversation: ChatSession }): ReactN
 
 // Component to display transcript
 function TranscriptView({ conversation }: { conversation: ChatSession }): ReactNode {
-  const { saveTranscript } = useSaveTranscript();
-
   if (!conversation.messages?.length) {
     return (
       <div className="text-center">
         <div className="text-muted-foreground mb-4">No transcript available for this conversation.</div>
-        <Button onClick={() => saveTranscript("manualSave")} variant="outline" size="sm">
-          Save Transcript
-        </Button>
       </div>
     );
   }
@@ -435,9 +419,6 @@ function TranscriptView({ conversation }: { conversation: ChatSession }): ReactN
           <FileText className="h-5 w-5" />
           Conversation Transcript
         </CardTitle>
-        <Button onClick={() => saveTranscript("manualSave")} variant="outline" size="sm">
-          Save Transcript
-        </Button>
       </CardHeader>
       <CardContent>
         <pre className="text-sm whitespace-pre-wrap bg-muted p-4 rounded-md">
@@ -469,8 +450,6 @@ function TranscriptView({ conversation }: { conversation: ChatSession }): ReactN
 
 // Component to display emotion analysis
 function EmotionAnalysis({ conversation }: { conversation: ChatSession }): ReactNode {
-  const { saveTranscript } = useSaveTranscript();
-
   const emotionMessages = conversation.messages?.filter(
     message => message.type === "USER_MESSAGE" && message.emotionFeatures
   );
@@ -481,9 +460,6 @@ function EmotionAnalysis({ conversation }: { conversation: ChatSession }): React
         <div className="text-muted-foreground mb-4">
           No emotion data available for this conversation.
         </div>
-        <Button onClick={() => saveTranscript("manualSave")} variant="outline" size="sm">
-          Save Transcript
-        </Button>
       </div>
     );
   }
@@ -523,12 +499,6 @@ function EmotionAnalysis({ conversation }: { conversation: ChatSession }): React
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end mb-4">
-        <Button onClick={() => saveTranscript("manualSave")} variant="outline" size="sm">
-          Save Transcript
-        </Button>
-      </div>
-    
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

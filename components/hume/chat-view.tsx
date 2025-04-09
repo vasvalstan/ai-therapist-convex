@@ -9,7 +9,6 @@ import { Controls } from "./controls";
 import { toast } from "@/components/ui/use-toast";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import HumeChat from "./chat";
-import { ChatNav } from "./chat-nav";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { StartConversationPanel } from "./start-conversation-panel";
 import { TherapyProgress } from "./therapy-progress";

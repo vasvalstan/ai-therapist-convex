@@ -8,7 +8,6 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata = {
   title: "Sereni - AI Therapy Assistant",
   description: "Your AI therapist, ready to listen and help you process your thoughts and feelings.",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
 };
 
 export default function RootLayout({

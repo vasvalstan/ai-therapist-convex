@@ -34,8 +34,7 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
   const { saveTranscript } = useSaveTranscript();
   
   const updateUserMinutes = useMutation(api.chat.updateUserRemainingMinutes);
-  // We'll add this mutation once the summary API is available
-  // const endConversation = useMutation(api.summary.endConversationAndSummarize);
+  const updateTherapyProgress = useMutation(api.summary.updateTherapyProgress);
   
   // Get user's plan to check if they're on the free plan
   const userInfo = useQuery(api.users.getUser);
@@ -78,7 +77,7 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
       saveMessage.textContent = 'Saving your chat...';
       document.body.appendChild(saveMessage);
       
-      if (sessionStartTime) {
+      if (sessionStartTime && sessionId) {
         const sessionEndTime = Date.now();
         const sessionDurationMs = sessionEndTime - sessionStartTime;
         const sessionDurationMinutes = Math.ceil(sessionDurationMs / (1000 * 60)); // Round up to nearest minute
@@ -88,6 +87,10 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
         try {
           // Use the saveTranscript hook to save the chat
           saveTranscript(timeExpired ? "timeExpired" : "userEnded");
+          
+          // Update therapy progress
+          await updateTherapyProgress({ sessionId });
+          console.log("✅ Updated therapy progress for session:", sessionId);
           
           // For free plan users, we don't need to update minutes since they have unlimited time
           if (isFreePlan) {
@@ -309,6 +312,10 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
       
       // Use the saveTranscript hook
       saveTranscript("userEnded");
+      
+      // Update therapy progress
+      await updateTherapyProgress({ sessionId });
+      console.log("✅ Updated therapy progress for session:", sessionId);
       
       // Wait a bit to ensure data is saved then redirect
       setTimeout(() => {

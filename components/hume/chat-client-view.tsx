@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { ChatView } from "./chat-view";
-import { ChatNav } from "./chat-nav";
 import { ChatHistory } from "./chat-history";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";

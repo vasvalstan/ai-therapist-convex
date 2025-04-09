@@ -3,7 +3,7 @@
 import { api } from "@/convex/_generated/api";
 import { useQuery, useMutation } from "convex/react";
 import { formatDistanceToNow } from "date-fns";
-import { MessageCircle, Trash2, Pencil, Download } from "lucide-react";
+import { MessageCircle, Trash2, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "../ui/button";
@@ -19,7 +19,6 @@ import {
 import { Input } from "../ui/input";
 import { useState } from "react";
 import { Skeleton } from "../ui/skeleton";
-import { generateAndDownloadTranscript } from "@/lib/transcript";
 
 export function ChatHistory() {
     const sessions = useQuery(api.chat.getChatSessions);
@@ -32,7 +31,6 @@ export function ChatHistory() {
     const [newTitle, setNewTitle] = useState("");
     const [isDeleting, setIsDeleting] = useState(false);
     const [isRenaming, setIsRenaming] = useState(false);
-    const [isGeneratingTranscript, setIsGeneratingTranscript] = useState(false);
 
     const handleDelete = async (e: React.MouseEvent, id: Id<"chatHistory">, title: string) => {
         e.preventDefault(); // Prevent navigation
@@ -45,21 +43,6 @@ export function ChatHistory() {
         e.stopPropagation(); // Prevent clicking the parent link
         setChatToRename({ id, title: currentTitle });
         setNewTitle(currentTitle);
-    };
-
-    const handleGenerateTranscript = async (e: React.MouseEvent, session: any) => {
-        e.preventDefault(); // Prevent navigation
-        e.stopPropagation(); // Prevent clicking the parent link
-        setIsGeneratingTranscript(true);
-        try {
-            await generateAndDownloadTranscript(session);
-            // Optionally show a success message to the user
-        } catch (error) {
-            console.error("Failed to generate transcript:", error);
-            // Optionally show an error message to the user
-        } finally {
-            setIsGeneratingTranscript(false);
-        }
     };
 
     const confirmDelete = async () => {
@@ -176,16 +159,6 @@ export function ChatHistory() {
                                         variant="ghost"
                                         size="sm"
                                         className="h-10 flex-1 rounded-none text-xs"
-                                        onClick={(e) => handleGenerateTranscript(e, session)}
-                                        disabled={isGeneratingTranscript}
-                                    >
-                                        <Download className="h-3.5 w-3.5 mr-1" />
-                                        Save
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-10 flex-1 rounded-none text-xs"
                                         onClick={(e) => handleRename(e, session._id, title)}
                                     >
                                         <Pencil className="h-3.5 w-3.5 mr-1" />
@@ -207,24 +180,20 @@ export function ChatHistory() {
                 </div>
             </div>
 
-            <Dialog open={chatToDelete !== null} onOpenChange={(open) => !open && setChatToDelete(null)}>
+            {/* Delete confirmation dialog */}
+            <Dialog open={chatToDelete !== null} onOpenChange={() => setChatToDelete(null)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Delete Conversation</DialogTitle>
+                        <DialogTitle>Delete Chat</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to delete this conversation? This action cannot be undone.
+                            Are you sure you want to delete "{chatToDelete?.title}"? This action cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
-                    {chatToDelete && (
-                        <div className="py-3">
-                            <p className="text-sm font-medium">Conversation:</p>
-                            <p className="text-sm text-muted-foreground">{chatToDelete.title}</p>
-                        </div>
-                    )}
                     <DialogFooter>
                         <Button
                             variant="outline"
                             onClick={() => setChatToDelete(null)}
+                            disabled={isDeleting}
                         >
                             Cancel
                         </Button>
@@ -233,36 +202,26 @@ export function ChatHistory() {
                             onClick={confirmDelete}
                             disabled={isDeleting}
                         >
-                            {isDeleting && <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-r-transparent" />}
-                            Delete
+                            {isDeleting ? "Deleting..." : "Delete"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={chatToRename !== null} onOpenChange={(open) => !open && setChatToRename(null)}>
+            {/* Rename dialog */}
+            <Dialog open={chatToRename !== null} onOpenChange={() => setChatToRename(null)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Rename Conversation</DialogTitle>
+                        <DialogTitle>Rename Chat</DialogTitle>
                         <DialogDescription>
-                            Enter a new name for this conversation.
+                            Enter a new name for the chat.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-3">
-                        <Input
-                            value={newTitle}
-                            onChange={(e) => setNewTitle(e.target.value)}
-                            placeholder="Enter conversation name"
-                            className="w-full"
-                            autoFocus
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    confirmRename();
-                                }
-                            }}
-                        />
-                    </div>
+                    <Input
+                        value={newTitle}
+                        onChange={(e) => setNewTitle(e.target.value)}
+                        placeholder="Enter chat name"
+                    />
                     <DialogFooter>
                         <Button
                             variant="outline"
@@ -270,15 +229,16 @@ export function ChatHistory() {
                                 setChatToRename(null);
                                 setNewTitle("");
                             }}
+                            disabled={isRenaming}
                         >
                             Cancel
                         </Button>
                         <Button
+                            variant="default"
                             onClick={confirmRename}
-                            disabled={!newTitle.trim() || isRenaming}
+                            disabled={isRenaming || !newTitle.trim()}
                         >
-                            {isRenaming && <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-r-transparent" />}
-                            Rename
+                            {isRenaming ? "Saving..." : "Save"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
