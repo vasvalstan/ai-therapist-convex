@@ -140,6 +140,9 @@ export default defineSchema({
         sessionId: v.string(),
         chatId: v.optional(v.string()),
         chatGroupId: v.optional(v.string()),
+        title: v.optional(v.string()),
+        createdAt: v.number(),
+        updatedAt: v.optional(v.number()),
         messages: v.array(
             v.object({
                 type: v.union(
@@ -198,21 +201,10 @@ export default defineSchema({
                 ),
             })
         ),
-        createdAt: v.number(),
-        updatedAt: v.number(),
-        title: v.optional(v.string()),
-        metadata: v.optional(
-            v.object({
-                chat_id: v.string(),
-                chat_group_id: v.string(),
-                request_id: v.string(),
-                timestamp: v.string(),
-            })
-        ),
     })
-        .index("by_user", ["userId"])
+        .index("by_chat_id", ["chatId"])
         .index("by_session", ["sessionId"])
-        .index("by_chat", ["chatId"]),
+        .index("by_user", ["userId"]),
     conversationSummaries: defineTable({
         userId: v.string(),
         summary: v.string(),

@@ -684,12 +684,6 @@ export const updateHumeChatIds = mutation({
         await ctx.db.patch(chatSession._id, {
             chatId: args.chatId,
             chatGroupId: args.chatGroupId,
-            metadata: args.metadata || {
-                chat_id: args.chatId,
-                chat_group_id: args.chatGroupId,
-                request_id: crypto.randomUUID(),
-                timestamp: new Date().toISOString(),
-            },
             updatedAt: Date.now(),
         });
 
@@ -1057,12 +1051,6 @@ export const updateMetadata = mutation({
         const updateData = {
             chatId: args.chatId,
             chatGroupId: args.chatGroupId,
-            metadata: {
-                chat_id: args.chatId, // Keep underscore format in metadata
-                chat_group_id: args.chatGroupId, // Keep underscore format in metadata
-                request_id: args.requestId,
-                timestamp: timestamp.toString()
-            },
             updatedAt: Date.now()
         };
 
@@ -1079,24 +1067,12 @@ export const updateMetadata = mutation({
             ...msg,
             chatId: args.chatId,
             chatGroupId: args.chatGroupId,
-            metadata: {
-                chat_id: args.chatId,
-                chat_group_id: args.chatGroupId,
-                request_id: args.requestId, // Use the new request ID consistently
-                timestamp: timestamp.toString() // Use the new timestamp consistently
-            }
         }));
 
         const updatedEvents = events.map(event => ({
             ...event,
             chatId: args.chatId,
             chatGroupId: args.chatGroupId,
-            metadata: {
-                chat_id: args.chatId,
-                chat_group_id: args.chatGroupId,
-                request_id: args.requestId, // Use the new request ID consistently
-                timestamp: timestamp.toString() // Use the new timestamp consistently
-            }
         }));
 
         // Update messages and events
@@ -1209,12 +1185,6 @@ export const updateAndVerifyMetadata = mutation({
         const updateData = {
             chatId: args.chatId,
             chatGroupId: args.chatGroupId,
-            metadata: {
-                chat_id: args.chatId, // Keep underscore format in metadata
-                chat_group_id: args.chatGroupId, // Keep underscore format in metadata
-                request_id: args.requestId,
-                timestamp: timestamp.toString()
-            },
             updatedAt: Date.now()
         };
 
@@ -1233,24 +1203,12 @@ export const updateAndVerifyMetadata = mutation({
             ...msg,
             chatId: args.chatId,
             chatGroupId: args.chatGroupId,
-            metadata: {
-                chat_id: args.chatId,
-                chat_group_id: args.chatGroupId,
-                request_id: args.requestId, // Use the new request ID consistently
-                timestamp: timestamp.toString() // Use the new timestamp consistently
-            }
         }));
 
         const updatedEvents = events.map(event => ({
             ...event,
             chatId: args.chatId,
             chatGroupId: args.chatGroupId,
-            metadata: {
-                chat_id: args.chatId,
-                chat_group_id: args.chatGroupId,
-                request_id: args.requestId, // Use the new request ID consistently
-                timestamp: timestamp.toString() // Use the new timestamp consistently
-            }
         }));
 
         // Update messages and events
@@ -1463,4 +1421,43 @@ export const createSessionWithHumeIds = mutation({
             chatGroupId: args.chatGroupId
         };
     },
+});
+
+// Save Hume chat history
+export const saveHumeChatHistory = mutation({
+  args: {
+    chatId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userId = identity.subject;
+
+    // Get existing chat history or create new one
+    const chatHistory = await ctx.db
+      .query("chatHistory")
+      .withIndex("by_chat_id", (q) => q.eq("chatId", args.chatId))
+      .unique();
+
+    if (!chatHistory) {
+      return {
+        success: false,
+        message: "Chat history not found"
+      };
+    }
+
+    // Update the history with any new metadata
+    await ctx.db.patch(chatHistory._id, {
+      updatedAt: Date.now(),
+    });
+
+    return {
+      success: true,
+      messageCount: chatHistory.events?.length || 0,
+      sessionId: chatHistory._id,
+    };
+  },
 });
