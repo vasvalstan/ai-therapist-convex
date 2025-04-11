@@ -1,7 +1,7 @@
 "use client";
 
 import { ChatHistory } from "@/components/hume/chat-history";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useRef, useCallback } from "react";
 import { useAuth as useClerkAuth } from "@clerk/nextjs";
 import { api } from "@/convex/_generated/api";
 import { useQuery, Authenticated, useConvexAuth, useMutation } from "convex/react";
@@ -372,6 +372,18 @@ export default ChatHistoryContentWrapper;
 
 // Component to display message history
 function MessageHistory({ conversation }: { conversation: ChatSession }): ReactNode {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [conversation.messages?.length, scrollToBottom]);
+
   const renderMessage = (item: Message, index: number) => {
     const isUser = item.role === 'USER';
     const content = item.content;
@@ -396,8 +408,9 @@ function MessageHistory({ conversation }: { conversation: ChatSession }): ReactN
   }
 
   return (
-    <div className="flex flex-col space-y-4">
+    <div className="flex flex-col space-y-4 overflow-auto scroll-smooth">
       {conversation.messages.map((item, index) => renderMessage(item, index))}
+      <div ref={messagesEndRef} />
     </div>
   );
 }

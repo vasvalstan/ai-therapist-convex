@@ -24,42 +24,16 @@ export function ChatHistory() {
     const sessions = useQuery(api.chat.getChatSessions);
     const params = useParams();
     const router = useRouter();
-    const deleteChat = useMutation(api.chat.deleteChat);
     const renameChat = useMutation(api.chat.renameChat);
-    const [chatToDelete, setChatToDelete] = useState<{ id: Id<"chatHistory">, title: string } | null>(null);
     const [chatToRename, setChatToRename] = useState<{ id: Id<"chatHistory">, title: string } | null>(null);
     const [newTitle, setNewTitle] = useState("");
-    const [isDeleting, setIsDeleting] = useState(false);
     const [isRenaming, setIsRenaming] = useState(false);
-
-    const handleDelete = async (e: React.MouseEvent, id: Id<"chatHistory">, title: string) => {
-        e.preventDefault(); // Prevent navigation
-        e.stopPropagation(); // Prevent clicking the parent link
-        setChatToDelete({ id, title });
-    };
 
     const handleRename = async (e: React.MouseEvent, id: Id<"chatHistory">, currentTitle: string) => {
         e.preventDefault(); // Prevent navigation
         e.stopPropagation(); // Prevent clicking the parent link
         setChatToRename({ id, title: currentTitle });
         setNewTitle(currentTitle);
-    };
-
-    const confirmDelete = async () => {
-        if (!chatToDelete) return;
-
-        setIsDeleting(true);
-        try {
-            await deleteChat({ id: chatToDelete.id });
-            if (params?.sessionId === chatToDelete.id) {
-                router.push("/chat/history");
-            }
-            setChatToDelete(null);
-        } catch (error) {
-            console.error("Failed to delete chat:", error);
-        } finally {
-            setIsDeleting(false);
-        }
     };
 
     const confirmRename = async () => {
@@ -158,20 +132,11 @@ export function ChatHistory() {
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-10 flex-1 rounded-none text-xs"
+                                        className="h-10 w-full rounded-none text-xs"
                                         onClick={(e) => handleRename(e, session._id, title)}
                                     >
                                         <Pencil className="h-3.5 w-3.5 mr-1" />
                                         Edit
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-10 flex-1 rounded-none text-xs text-destructive hover:text-destructive"
-                                        onClick={(e) => handleDelete(e, session._id, title)}
-                                    >
-                                        <Trash2 className="h-3.5 w-3.5 mr-1" />
-                                        Delete
                                     </Button>
                                 </div>
                             </div>
@@ -179,34 +144,6 @@ export function ChatHistory() {
                     })}
                 </div>
             </div>
-
-            {/* Delete confirmation dialog */}
-            <Dialog open={chatToDelete !== null} onOpenChange={() => setChatToDelete(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Delete Chat</DialogTitle>
-                        <DialogDescription>
-                            Are you sure you want to delete "{chatToDelete?.title}"? This action cannot be undone.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setChatToDelete(null)}
-                            disabled={isDeleting}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={confirmDelete}
-                            disabled={isDeleting}
-                        >
-                            {isDeleting ? "Deleting..." : "Delete"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
 
             {/* Rename dialog */}
             <Dialog open={chatToRename !== null} onOpenChange={() => setChatToRename(null)}>

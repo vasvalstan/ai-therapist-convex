@@ -4,7 +4,7 @@ import { api } from "@/convex/_generated/api";
 import { useQuery, useMutation } from "convex/react";
 import { formatDistanceToNow } from "date-fns";
 import { Bot, User, Loader2, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Controls } from "./controls";
 import { toast } from "@/components/ui/use-toast";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChatHistory } from "./chat-history";
 import { Suspense } from "react";
+import { Messages } from "./messages";
 
 // Define a consistent Message interface
 interface Message {
@@ -53,6 +54,7 @@ export interface ChatViewProps {
 export function ChatView({ sessionId, accessToken }: ChatViewProps) {
     const conversation = useQuery(api.chat.getActiveConversation, { chatId: sessionId });
     const containerRef = useRef<HTMLDivElement>(null);
+    const chatContentRef = useRef<HTMLDivElement>(null);
     
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -87,11 +89,27 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
         };
     }) || [];
 
-    useEffect(() => {
-        if (containerRef.current) {
-            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    const scrollToBottom = useCallback(() => {
+        if (chatContentRef.current) {
+            const scrollHeight = chatContentRef.current.scrollHeight;
+            chatContentRef.current.scrollTo({
+                top: scrollHeight,
+                behavior: "smooth"
+            });
         }
-    }, [parsedMessages.length]);
+    }, []);
+
+    // Scroll to bottom when messages change or on initial load
+    useEffect(() => {
+        scrollToBottom();
+    }, [parsedMessages.length, scrollToBottom]);
+
+    // Scroll to bottom when switching to chat tab
+    useEffect(() => {
+        if (currentTab === "chat") {
+            scrollToBottom();
+        }
+    }, [currentTab, scrollToBottom]);
     
     useEffect(() => {
         if (!searchParams?.get("tab")) {
@@ -192,101 +210,44 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
             </div>
             
             {/* Main chat content */}
-            <div className={`flex-1 flex flex-col relative h-full ${showSidebar ? 'hidden md:flex' : 'flex'}`}>
-                {/* Background */}
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-indigo-50/30 dark:from-blue-950/10 dark:to-indigo-950/10" />
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]" />
-                
-                {/* Content */}
-                <div className="relative z-10 flex-1 flex flex-col">
-                    <Tabs defaultValue={currentTab} className="flex-1">
-                        <TabsContent value="start" className="mt-0 h-[calc(100%-48px)]">
-                            <StartConversationPanel />
-                        </TabsContent>
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <Tabs value={currentTab} className="flex-1">
+                    <TabsContent value="chat" className="mt-0 h-[calc(100%-48px)] flex flex-col">
+                        {!accessToken && <VoiceController sessionId={sessionId} />}
                         
-                        <TabsContent value="progress" className="mt-0 h-[calc(100%-48px)] overflow-auto">
-                            <TherapyProgress />
-                        </TabsContent>
+                        <div className="p-4 bg-gradient-to-r from-blue-50/30 to-indigo-50/30 dark:from-blue-950/10 dark:to-indigo-950/10 border-b flex justify-between items-center">
+                            <h1 className="text-lg font-medium">Chat with Sereni</h1>
+                        </div>
                         
-                        <TabsContent value="chat" className="mt-0 h-[calc(100%-48px)] flex flex-col">
-                            {!accessToken && <VoiceController sessionId={sessionId} />}
-                            
-                            <div className="p-4 bg-gradient-to-r from-blue-50/30 to-indigo-50/30 dark:from-blue-950/10 dark:to-indigo-950/10 border-b flex justify-between items-center">
-                                <h1 className="text-lg font-medium">Chat with Sereni</h1>
+                        {!parsedMessages || parsedMessages.length === 0 ? (
+                            <div className="flex-1 flex flex-col">
+                                {accessToken ? (
+                                    <HumeChat 
+                                        accessToken={accessToken} 
+                                        sessionId={sessionId} 
+                                        onEndCallStart={() => setIsCallEnding(true)}
+                                    />
+                                ) : (
+                                    <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                                        <p className="text-muted-foreground text-center">No messages in this conversation yet.</p>
+                                    </div>
+                                )}
                             </div>
-                            
-                            {!parsedMessages || parsedMessages.length === 0 ? (
-                                <div className="flex-1 flex flex-col">
-                                    {accessToken ? (
-                                        <HumeChat 
-                                            accessToken={accessToken} 
-                                            sessionId={sessionId} 
-                                            onEndCallStart={() => setIsCallEnding(true)}
-                                        />
-                                    ) : (
-                                        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-                                            <p className="text-muted-foreground text-center">No messages in this conversation yet.</p>
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="flex-1 flex flex-col">
-                                    {accessToken ? (
-                                        <HumeChat 
-                                            accessToken={accessToken} 
-                                            sessionId={sessionId} 
-                                            onEndCallStart={() => setIsCallEnding(true)}
-                                        />
-                                    ) : (
-                                        <>
-                                            {/* Messages */}
-                                            <div ref={containerRef} className="flex-1 overflow-y-auto p-4">
-                                                {parsedMessages.map((msg, index) => {
-                                                    return (
-                                                        <div
-                                                            key={index}
-                                                            className={`mb-4 max-w-[80%] rounded-lg p-4 ${
-                                                                msg.role.toLowerCase() === "assistant" ? "ml-auto bg-blue-50 dark:bg-blue-950/50" : 
-                                                                "mr-auto bg-white dark:bg-gray-900/50"
-                                                            }`}
-                                                        >
-                                                            <div className="flex items-start gap-2">
-                                                                {msg.role.toLowerCase() === "assistant" ? (
-                                                                    <Bot className="mt-1 size-4 text-blue-500" />
-                                                                ) : (
-                                                                    <User className="mt-1 size-4 text-gray-500" />
-                                                                )}
-                                                                <div>
-                                                                    <p>{msg.content}</p>
-                                                                    {msg.emotions && (
-                                                                        <div className="mt-2 flex flex-wrap gap-1">
-                                                                            {Object.entries(msg.emotions)
-                                                                                .sort(([, a], [, b]) => b - a)
-                                                                                .slice(0, 3)
-                                                                                .map(([emotion, score]) => (
-                                                                                    <span
-                                                                                        key={emotion}
-                                                                                        className="inline-flex items-center rounded-full bg-blue-50/50 dark:bg-blue-950/50 px-2 py-0.5 text-xs text-blue-600 dark:text-blue-400"
-                                                                                    >
-                                                                                        {emotion} ({Math.round(score * 100)}%)
-                                                                                    </span>
-                                                                                ))}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                            <Controls />
-                                        </>
-                                    )}
-                                </div>
-                            )}
-                        </TabsContent>
-                    </Tabs>
-                </div>
+                        ) : (
+                            <div className="flex-1 flex flex-col overflow-hidden" ref={chatContentRef}>
+                                {accessToken ? (
+                                    <HumeChat 
+                                        accessToken={accessToken} 
+                                        sessionId={sessionId} 
+                                        onEndCallStart={() => setIsCallEnding(true)}
+                                    />
+                                ) : (
+                                    <Messages ref={containerRef} />
+                                )}
+                            </div>
+                        )}
+                    </TabsContent>
+                </Tabs>
             </div>
         </div>
     );

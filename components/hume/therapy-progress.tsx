@@ -120,23 +120,6 @@ export function TherapyProgress() {
           </ul>
         </Card>
       </div>
-
-      {/* Session History */}
-      {summary.transcripts && summary.transcripts.length > 0 && (
-        <div className="mt-6">
-          <h3 className="font-semibold mb-4">Session History</h3>
-          <div className="space-y-4">
-            {summary.transcripts.map((transcript, index) => (
-              <Card key={index} className="p-4 bg-card border border-border rounded-lg">
-                <div className="text-sm text-muted-foreground mb-2">
-                  {formatDistanceToNow(transcript.timestamp, { addSuffix: true })}
-                </div>
-                <div className="text-sm line-clamp-3">{transcript.content}</div>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 } 

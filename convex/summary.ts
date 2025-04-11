@@ -71,6 +71,41 @@ interface TherapyAnalysis {
   progressSummary: string;
 }
 
+interface TopicAnalysis {
+  topic: string;
+  emotionalSignificance: string;
+  frequency: "high" | "medium" | "low";
+}
+
+interface SessionAnalysis {
+  mainTopics: TopicAnalysis[];
+  emotionalState: {
+    primaryEmotions: string[];
+    triggers: string[];
+    patterns: string[];
+  };
+  therapeuticProgress: {
+    improvements: string[];
+    insights: string[];
+    copingStrategies: string[];
+  };
+  concernAreas: {
+    challenges: string[];
+    underlyingIssues: string[];
+    riskFactors: string[];
+  };
+  recommendations: {
+    actionableSteps: string[];
+    futureTopics: string[];
+    suggestedStrategies: string[];
+  };
+  sessionSummary: {
+    mainFocus: string;
+    breakthroughs: string[];
+    therapeuticGoals: string[];
+  };
+}
+
 // Function to get the conversation summary for a user
 export const getUserSummary = query({
   args: {},
@@ -348,29 +383,51 @@ export const getTherapyProgress = query({
     handler: async (ctx) => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) throw new Error("Not authenticated");
-
-        console.log("🔍 Getting therapy progress for user:", identity.subject);
-
         const userId = identity.subject;
+
+        console.log("🔍 Getting therapy progress for user:", userId);
+
+        // Get all chat sessions for this user from chatHistory
+        const chatSessions = await ctx.db
+            .query("chatHistory")
+            .withIndex("by_user", (q) => q.eq("userId", userId))
+            .order("desc")
+            .collect();
+
+        if (!chatSessions || chatSessions.length === 0) {
+            console.log("No chat sessions found for user");
+            return null;
+        }
+
+        // Get existing progress record or create new one
         const progress = await ctx.db
             .query("therapyProgress")
-            .filter((q) => q.eq(q.field("userId"), userId))
+            .withIndex("by_user", (q) => q.eq("userId", userId))
             .first();
 
-        console.log("📊 Found therapy progress:", progress ? {
-            id: progress._id,
-            sessionCount: progress.sessionIds.length,
-            transcriptCount: progress.transcripts.length,
-            mainThemes: progress.emotionalProgress.mainThemes.length,
-            improvements: progress.emotionalProgress.improvements.length,
-            challenges: progress.emotionalProgress.challenges.length,
-            recommendations: progress.emotionalProgress.recommendations.length,
-            summaryLength: progress.progressSummary.length
-        } : "No progress found");
+        if (!progress) {
+            return null;
+        }
 
         return progress;
     },
 });
+
+// Helper function to format transcript from messages
+function formatTranscript(messages: any[]): string {
+    return messages
+        .map((msg) => {
+            const displayRole = msg.role === "USER" ? "User" : 
+                              msg.role === "ASSISTANT" ? "Assistant" : 
+                              "System";
+            const timestamp = msg.timestamp ? new Date(msg.timestamp).toISOString() : new Date().toISOString();
+            const content = msg.content || msg.messageText || "";
+            const emotions = msg.emotions ? `\nEmotions: ${JSON.stringify(msg.emotions)}` : "";
+            
+            return `[${timestamp}] ${displayRole}: ${content}${emotions}`;
+        })
+        .join("\n");
+}
 
 // Action to update progress with analysis results
 export const updateProgressWithAnalysis = internalMutation({
@@ -417,48 +474,116 @@ export const analyzeSessionWithDeepSeek = action({
       throw new Error("Progress record not found");
     }
 
-    console.log("Found progress record with", progress.transcripts.length, "transcripts");
-    
-    const combinedTranscript = progress.transcripts
-      .map(t => t.content)
-      .join("\n\n");
+    // Sort transcripts by timestamp to maintain chronological order
+    const sortedTranscripts = [...progress.transcripts].sort((a, b) => a.timestamp - b.timestamp);
+    const combinedTranscript = sortedTranscripts.map(t => t.content).join("\n\n");
 
-    console.log("Combined transcript length:", combinedTranscript.length);
+    console.log("Analyzing", sortedTranscripts.length, "transcripts");
 
     const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey) {
       throw new Error("DEEPSEEK_API_KEY not set");
     }
 
-    console.log("Initializing OpenAI client with DeepSeek API key");
     const client = new OpenAI({
       apiKey,
       baseURL: "https://api.deepseek.com/v1",
     });
 
-    const analysisPrompt = `Based on the following therapy session transcript, provide a structured analysis with the following sections:
-1. Main emotional themes (list 3-5 key themes)
-2. Improvements observed (list 2-3 points)
-3. Challenges identified (list 2-3 points)
-4. Recommendations for future sessions (list 2-3 specific suggestions)
-5. A brief progress summary (2-3 sentences)
+    const analysisPrompt = `You are an experienced AI therapist analyzing a series of therapy sessions. 
+As a therapeutic professional, analyze these sessions chronologically, focusing on the client's journey and progress.
 
-Return ONLY a JSON object with this exact structure, no markdown or other formatting:
+Based on the following therapy transcripts, provide a comprehensive therapeutic analysis focusing on:
+
+1. Main Discussion Topics (3-4 topics)
+   - Identify the primary concerns and themes discussed across sessions
+   - Note which topics triggered strong emotional responses
+   - Track how these topics evolved over time
+   - Highlight recurring patterns or themes
+
+2. Client's Emotional Journey
+   - Key emotional themes and their progression
+   - How emotions evolved across different sessions
+   - Notable emotional patterns or triggers
+   - Changes in emotional responses over time
+
+3. Therapeutic Progress
+   - Concrete improvements observed across sessions
+   - Growth in self-awareness and insight
+   - Development of coping strategies
+   - Changes in thought patterns or behaviors
+
+4. Areas of Ongoing Work
+   - Current challenges and struggles
+   - Underlying themes needing attention
+   - Potential risk factors or concerns
+   - Resistance or barriers to progress
+
+5. Therapeutic Recommendations
+   - Specific, actionable next steps
+   - Key areas to explore further
+   - Suggested coping strategies or exercises
+   - Long-term therapeutic goals
+
+6. Progress Summary
+   - Overall therapeutic journey
+   - Key breakthroughs and insights
+   - Current stage in therapy
+   - Future focus areas
+
+Return ONLY a JSON object with this exact structure:
 {
-  "mainThemes": ["theme1", "theme2", ...],
-  "improvements": ["improvement1", "improvement2", ...],
-  "challenges": ["challenge1", "challenge2", ...],
-  "recommendations": ["recommendation1", "recommendation2", ...],
-  "progressSummary": "summary text here"
+  "mainTopics": [
+    {
+      "topic": "string",
+      "emotionalSignificance": "string",
+      "frequency": "high/medium/low",
+      "progression": "string"
+    }
+  ],
+  "emotionalState": {
+    "primaryEmotions": ["string"],
+    "triggers": ["string"],
+    "patterns": ["string"],
+    "evolution": "string"
+  },
+  "therapeuticProgress": {
+    "improvements": ["string"],
+    "insights": ["string"],
+    "copingStrategies": ["string"],
+    "progressionNotes": "string"
+  },
+  "concernAreas": {
+    "challenges": ["string"],
+    "underlyingIssues": ["string"],
+    "riskFactors": ["string"],
+    "priorityLevel": "high/medium/low"
+  },
+  "recommendations": {
+    "actionableSteps": ["string"],
+    "futureTopics": ["string"],
+    "suggestedStrategies": ["string"],
+    "longTermGoals": ["string"]
+  },
+  "sessionSummary": {
+    "mainFocus": "string",
+    "breakthroughs": ["string"],
+    "therapeuticGoals": ["string"],
+    "currentStage": "string"
+  }
 }
 
-Transcript:
+Transcripts (in chronological order):
 ${combinedTranscript}`;
 
     console.log("Sending request to DeepSeek API");
     const response = await client.chat.completions.create({
       model: "deepseek-chat",
       messages: [
+        {
+          role: "system",
+          content: "You are an experienced AI therapist with expertise in analyzing therapy sessions and providing insightful therapeutic recommendations. Focus on identifying patterns, emotional themes, and actionable insights that will be valuable for both the client and future therapy sessions."
+        },
         {
           role: "user",
           content: analysisPrompt,
@@ -484,31 +609,38 @@ ${combinedTranscript}`;
       const analysis = JSON.parse(jsonMatch[0]);
 
       // Validate the analysis structure
-      if (!analysis.mainThemes || !Array.isArray(analysis.mainThemes) ||
-          !analysis.improvements || !Array.isArray(analysis.improvements) ||
-          !analysis.challenges || !Array.isArray(analysis.challenges) ||
-          !analysis.recommendations || !Array.isArray(analysis.recommendations) ||
-          !analysis.progressSummary || typeof analysis.progressSummary !== 'string') {
+      if (!analysis.mainTopics || !Array.isArray(analysis.mainTopics) ||
+          !analysis.emotionalState || !analysis.emotionalState.primaryEmotions ||
+          !analysis.therapeuticProgress || !analysis.therapeuticProgress.improvements ||
+          !analysis.concernAreas || !analysis.concernAreas.challenges ||
+          !analysis.recommendations || !analysis.recommendations.actionableSteps ||
+          !analysis.sessionSummary || !analysis.sessionSummary.mainFocus) {
         throw new Error("Invalid analysis structure");
       }
 
       console.log("Analysis results:", {
-        mainThemesCount: analysis.mainThemes.length,
-        improvementsCount: analysis.improvements.length,
-        challengesCount: analysis.challenges.length,
-        recommendationsCount: analysis.recommendations.length,
-        summarylength: analysis.progressSummary.length,
+        topicsCount: analysis.mainTopics.length,
+        emotionsCount: analysis.emotionalState.primaryEmotions.length,
+        recommendationsCount: analysis.recommendations.actionableSteps.length,
+        summaryLength: analysis.sessionSummary.mainFocus.length,
       });
+
+      // Create a more detailed progress summary
+      const progressSummary = `Main focus: ${analysis.sessionSummary.mainFocus}\n\n` +
+        `Key topics discussed: ${analysis.mainTopics.map((t: TopicAnalysis) => t.topic).join(", ")}\n\n` +
+        `Emotional themes: ${analysis.emotionalState.primaryEmotions.join(", ")}\n\n` +
+        `Progress: ${analysis.therapeuticProgress.improvements.join("; ")}\n\n` +
+        `Recommendations for next session:\n${analysis.recommendations.actionableSteps.join("\n")}`;
 
       // Update the progress record with the analysis
       await ctx.runMutation(internal.summary.updateProgressWithAnalysis, {
         progressId: args.progressId,
         analysis: {
-          mainThemes: analysis.mainThemes,
-          improvements: analysis.improvements,
-          challenges: analysis.challenges,
-          recommendations: analysis.recommendations,
-          progressSummary: analysis.progressSummary,
+          mainThemes: analysis.mainTopics.map((t: TopicAnalysis) => `${t.topic} (${t.emotionalSignificance})`),
+          improvements: analysis.therapeuticProgress.improvements,
+          challenges: analysis.concernAreas.challenges,
+          recommendations: analysis.recommendations.actionableSteps,
+          progressSummary: progressSummary,
         },
       });
 

@@ -187,27 +187,29 @@ export const baseMessageFields = {
   role: v.union(
     v.literal("USER"),
     v.literal("ASSISTANT"),
-    v.literal("SYSTEM")
+    v.literal("SYSTEM"),
+    v.literal("user"),
+    v.literal("assistant")
   ),
   messageText: v.string(),
   content: v.optional(v.string()),
-  timestamp: v.number(),
+  timestamp: v.float64(),
   emotionFeatures: v.optional(v.string()),
   chatId: v.optional(v.string()),
   chatGroupId: v.optional(v.string()),
-};
-
-// Define message validator matches schema
-export const messageValidator = v.object({
-  ...baseMessageFields,
   metadata: v.optional(
     v.object({
       chat_id: v.string(),
       chat_group_id: v.string(),
       request_id: v.string(),
-      timestamp: v.string(),
+      timestamp: v.string()
     })
-  ),
+  )
+};
+
+// Define message validator matches schema
+export const messageValidator = v.object({
+  ...baseMessageFields,
 });
 
 // Helper function to format a message
@@ -1031,15 +1033,52 @@ export const updateMetadata = mutation({
 
         const userId = identity.subject;
 
-        // Get the chat session
-        const session = await ctx.db
+        // Get the chat session - try multiple approaches
+        let session;
+
+        // 1. Try by sessionId
+        session = await ctx.db
             .query("chatHistory")
             .filter((q) => q.eq(q.field("userId"), userId))
             .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
             .first();
 
+        // 2. If not found, try by chatId
         if (!session) {
-            throw new Error("Chat session not found");
+            session = await ctx.db
+                .query("chatHistory")
+                .filter((q) => q.eq(q.field("userId"), userId))
+                .filter((q) => q.eq(q.field("chatId"), args.chatId))
+                .first();
+        }
+
+        // 3. If still not found, try by chatGroupId
+        if (!session) {
+            session = await ctx.db
+                .query("chatHistory")
+                .filter((q) => q.eq(q.field("userId"), userId))
+                .filter((q) => q.eq(q.field("chatGroupId"), args.chatGroupId))
+                .first();
+        }
+
+        // 4. If still not found, create a new session
+        if (!session) {
+            const newSessionId = await ctx.db.insert("chatHistory", {
+                userId,
+                sessionId: args.sessionId,
+                chatId: args.chatId,
+                chatGroupId: args.chatGroupId,
+                messages: [],
+                events: [],
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            });
+            session = await ctx.db.get(newSessionId);
+            
+            // If we still don't have a session after creating it, something went wrong
+            if (!session) {
+                throw new Error("Failed to create or retrieve chat session");
+            }
         }
 
         // Convert receivedAt string to a timestamp number if it's an ISO string

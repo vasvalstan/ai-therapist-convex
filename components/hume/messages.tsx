@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useVoice } from "@humeai/voice-react";
 import { Expressions } from "./expressions";
 import { AnimatePresence, motion } from "framer-motion";
-import { ComponentRef, forwardRef } from "react";
+import { ComponentRef, forwardRef, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useParams } from "next/navigation";
@@ -50,79 +50,78 @@ interface MessageWithTimestamp {
 }
 
 export const Messages = forwardRef<
-  ComponentRef<typeof motion.div>,
+  HTMLDivElement,
   Record<never, never>
 >(function Messages(_, ref) {
   const { messages: voiceMessages } = useVoice();
   const params = useParams();
   const sessionId = params?.sessionId as string;
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  // Get persisted chat messages
+  // Get persisted chat messages for history view
   const chat = useQuery(api.chat.getActiveConversation, { chatId: sessionId });
-  const dbMessages = (chat?.messages || []) as DatabaseMessage[];
+  const isLiveChat = !!voiceMessages.length;
+
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [voiceMessages.length, chat?.messages?.length, scrollToBottom]);
   
-  // Normalize database messages to our internal format
-  const persistedMessages: PersistedMessage[] = (dbMessages as DatabaseMessage[])
-    .filter(msg => msg.role !== "SYSTEM") // Filter out system messages
-    .map(msg => ({
-      ...msg,
-      role: msg.role.toLowerCase() as "user" | "assistant"
-    }));
+  // Use voice messages for live chat, database messages for history
+  const allMessages = isLiveChat ? 
+    // Live chat - use voice messages
+    voiceMessages
+      .filter(msg => msg.type === "user_message" || msg.type === "assistant_message")
+      .map(msg => ({
+        type: msg.type,
+        message: {
+          role: msg.type === "user_message" ? "user" : "assistant",
+          content: msg.message?.content || ''
+        },
+        models: msg.models?.prosody?.scores ? {
+          prosody: {
+            scores: msg.models.prosody.scores as unknown as Record<string, number>
+          }
+        } : undefined,
+        timestamp: Date.now()
+      })) :
+    // History view - use database messages
+    (chat?.messages || [])
+      .filter(msg => msg.role !== "SYSTEM")
+      .map(msg => ({
+        type: msg.role.toLowerCase() === "user" ? "user_message" : "assistant_message",
+        message: {
+          role: msg.role.toLowerCase() as "user" | "assistant",
+          content: msg.content || msg.messageText || ''
+        },
+        models: msg.emotionFeatures ? {
+          prosody: {
+            scores: typeof msg.emotionFeatures === 'string' ? 
+              JSON.parse(msg.emotionFeatures) : 
+              msg.emotionFeatures
+          }
+        } : undefined,
+        timestamp: msg.timestamp
+      }));
 
-  // Create a map to deduplicate messages
-  const messageMap = new Map<string, MessageWithTimestamp>();
-
-  // First add persisted messages to the map
-  persistedMessages.forEach(msg => {
-    const key = `${msg.timestamp}-${msg.content}`;
-    messageMap.set(key, {
-      type: msg.role === "user" ? "user_message" : "assistant_message",
-      message: {
-        role: msg.role,
-        content: msg.content
-      },
-      models: {
-        prosody: {
-          scores: msg.emotions
-        }
-      },
-      timestamp: msg.timestamp
-    });
-  });
-
-  // Then add voice messages, only if they don't exist
-  voiceMessages
-    .filter(msg => msg.type === "user_message" || msg.type === "assistant_message")
-    .forEach(msg => {
-      const timestamp = Date.now(); // Voice messages might not have timestamps
-      const content = msg.message?.content || '';
-      const key = `${timestamp}-${content}`;
-      if (!messageMap.has(key)) {
-        messageMap.set(key, {
-          type: msg.type,
-          message: msg.message,
-          models: msg.models,
-          timestamp
-        } as MessageWithTimestamp);
-      }
-    });
-
-  // Convert map back to array and sort by timestamp
-  const allMessages = Array.from(messageMap.values()).sort((a, b) => {
-    const aTime = a.timestamp || 0;
-    const bTime = b.timestamp || 0;
-    return aTime - bTime;
-  });
+  // Sort messages by timestamp
+  const sortedMessages = [...allMessages].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
   return (
     <motion.div
       layoutScroll
-      className="grow rounded-md overflow-auto p-4"
+      className="grow rounded-md overflow-auto p-4 scroll-smooth"
       ref={ref}
     >
-      <motion.div className="max-w-2xl mx-auto w-full flex flex-col gap-4 pb-24">
+      <motion.div className="max-w-2xl mx-auto w-full flex flex-col gap-4">
         <AnimatePresence mode="popLayout">
-          {allMessages.map((msg, index) => {
+          {sortedMessages.map((msg, index) => {
             if (
               msg.type === "user_message" ||
               msg.type === "assistant_message"
@@ -162,6 +161,7 @@ export const Messages = forwardRef<
             return null;
           })}
         </AnimatePresence>
+        <div ref={messagesEndRef} />
       </motion.div>
     </motion.div>
   );
