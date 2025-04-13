@@ -229,7 +229,7 @@ export function StartConversationPanel() {
       {/* User plan info */}
       {userDetails && userPlan?.name && (
         <div className="text-sm text-muted-foreground text-center mt-2">
-          <div className="font-medium">{userPlan.name} Plan</div>
+          <div className="font-medium">{userPlan.name}</div>
         </div>
       )}
     </div>

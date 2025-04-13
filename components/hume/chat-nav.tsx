@@ -93,8 +93,8 @@ export function ChatNav({ title }: ChatNavProps) {
       <button
         onClick={() => handleTabChange(value)}
         className={cn(
-          "flex items-center gap-2 transition-colors",
-          isMobile ? "py-2 px-4 text-sm whitespace-nowrap" : "px-3 py-2 rounded-full text-sm font-medium",
+          "flex items-center gap-1.5 transition-colors",
+          isMobile ? "py-1.5 px-3 text-xs whitespace-nowrap" : "px-3 py-2 rounded-full text-sm font-medium",
           isActive 
             ? isMobile 
               ? "bg-primary text-primary-foreground" 
@@ -104,7 +104,7 @@ export function ChatNav({ title }: ChatNavProps) {
               : "text-muted-foreground hover:text-foreground"
         )}
       >
-        <Icon className="h-4 w-4" />
+        <Icon className={isMobile ? "h-3.5 w-3.5" : "h-4 w-4"} />
         {children}
       </button>
     );
@@ -113,27 +113,28 @@ export function ChatNav({ title }: ChatNavProps) {
   return (
     <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-[100]">
       {/* Mobile navigation */}
-      <div className="flex lg:hidden items-center justify-between h-14 px-4">
+      <div className="flex lg:hidden items-center justify-between h-12 px-3">
         <Button
           variant="ghost"
           size="icon"
+          className="h-8 w-8"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           aria-label="Toggle menu"
         >
-          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
         </Button>
         
-        <div className="text-lg font-medium truncate">
+        <div className="text-base font-medium truncate">
           {displayTitle}
         </div>
         
-        <div className="w-9"></div> {/* Empty space for alignment */}
+        <div className="w-8"></div> {/* Empty space for alignment */}
       </div>
       
       {/* Mobile menu dropdown */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed top-14 left-0 right-0 bg-background border-b z-[100] shadow-lg overflow-x-auto">
-          <div className="flex p-2 space-x-2">
+        <div className="lg:hidden fixed top-12 left-0 right-0 bg-background border-b z-[100] shadow-lg overflow-x-auto">
+          <div className="flex p-1.5 space-x-1.5">
             <NavButton value="home" icon={Home} isMobile>
               Home
             </NavButton>
