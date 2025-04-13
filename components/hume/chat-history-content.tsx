@@ -277,31 +277,32 @@ export function ChatHistoryContent() {
           <ChatHistory />
         </div>
         
-        {/* Mobile chat history view - shown only when activeTab is "history" */}
-        {activeTab === "history" && (
-          <div className="md:hidden flex-1 flex flex-col">
-            <div className="p-4 border-b border-border">
-              <h2 className="font-semibold">Recent Chats</h2>
+        {/* Main content area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Show mobile chat history when activeTab is "history" */}
+          {activeTab === "history" ? (
+            <div className="md:hidden flex-1 flex flex-col">
+              <div className="p-4 border-b border-border">
+                <h2 className="font-semibold">Recent Chats</h2>
+              </div>
+              <div className="flex-1 overflow-auto">
+                <MobileChatHistory />
+              </div>
             </div>
-            <div className="flex-1 overflow-auto">
-              <MobileChatHistory />
-            </div>
-          </div>
-        )}
-        
-        {/* Main content area - shown when not viewing chat history on mobile */}
-        {activeTab !== "history" && (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <Tabs value={activeTab} className="flex-1">
+          ) : (
+            <Tabs defaultValue={activeTab} value={activeTab} className="flex-1">
               <TabsContent value="start" className="mt-0 h-full overflow-auto">
                 <StartConversationPanel />
               </TabsContent>
               <TabsContent value="progress" className="mt-0 h-full overflow-auto">
                 <TherapyProgress />
               </TabsContent>
+              <TabsContent value="history" className="mt-0 h-full overflow-auto md:hidden">
+                <MobileChatHistory />
+              </TabsContent>
             </Tabs>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

@@ -50,7 +50,7 @@ export default function PricingPage() {
               transition={{ duration: 0.5, delay: 0.1 }}
               className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 dark:from-white dark:via-blue-300 dark:to-white animate-gradient-x pb-2"
             >
-              Choose Your Perfect Plan
+              Try For Free
             </motion.h1>
 
             {/* Subtitle */}
@@ -60,7 +60,7 @@ export default function PricingPage() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto"
             >
-              Get started with our powerful AI therapy service and experience meaningful conversations whenever you need them
+              Get started with our powerful AI therapy service today at no cost
             </motion.p>
           </div>
         </section>

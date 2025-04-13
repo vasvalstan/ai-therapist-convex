@@ -227,18 +227,9 @@ export function StartConversationPanel() {
       </Button>
       
       {/* User plan info */}
-      {userDetails && (
-        <div className="text-sm text-muted-foreground text-center">
-          {userPlan?.name && (
-            <div className="font-medium">{userPlan.name} Plan</div>
-          )}
-          {userDetails?.minutesRemaining !== undefined && (
-            <div className="mt-1">
-              {userDetails.minutesRemaining > 0 
-                ? `${userDetails.minutesRemaining} minutes remaining` 
-                : "No minutes remaining"}
-            </div>
-          )}
+      {userDetails && userPlan?.name && (
+        <div className="text-sm text-muted-foreground text-center mt-2">
+          <div className="font-medium">{userPlan.name} Plan</div>
         </div>
       )}
     </div>

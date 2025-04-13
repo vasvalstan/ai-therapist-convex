@@ -43,13 +43,17 @@ export function ChatNav({ title }: ChatNavProps) {
     } else if (pathname === "/chat/history") {
       if (currentTab === "progress") {
         setActiveButton("progress");
-      } else if (currentTab === "start" && searchParams?.get("tab") !== null) {
+      } else if (currentTab === "start") {
         setActiveButton("new-chat");
+      } else if (currentTab === "history") {
+        setActiveButton("history");
       } else {
         setActiveButton("home");
       }
+    } else {
+      setActiveButton("home");
     }
-  }, [pathname, currentTab, onChatPage, searchParams]);
+  }, [pathname, currentTab, onChatPage]);
   
   // Handle tab changes
   const handleTabChange = (value: string) => {
@@ -59,19 +63,20 @@ export function ChatNav({ title }: ChatNavProps) {
     // Close mobile menu when navigating
     setMobileMenuOpen(false);
     
-    // If we're already on the selected tab, don't do anything to avoid unnecessary navigation
-    if (value === activeButton && pathname === "/chat/history") {
-      return;
-    }
-    
-    if (value === "home") {
-      router.push("/");
-    } else if (value === "new-chat") {
-      router.push("/chat/history?tab=start");
-    } else if (value === "history") {
-      router.push("/chat/history");
-    } else if (value === "progress") {
-      router.push("/chat/history?tab=progress");
+    // Handle navigation based on the selected tab
+    switch (value) {
+      case "home":
+        router.push("/");
+        break;
+      case "new-chat":
+        router.push("/chat/history?tab=start");
+        break;
+      case "history":
+        router.push("/chat/history?tab=history");
+        break;
+      case "progress":
+        router.push("/chat/history?tab=progress");
+        break;
     }
   };
 

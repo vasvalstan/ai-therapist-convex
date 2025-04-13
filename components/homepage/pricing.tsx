@@ -309,7 +309,7 @@ const PricingCard = ({
 
           <div className="mt-8 space-y-4">
             {/* Display plan details */}
-            {totalMinutes && (
+            {totalMinutes && isFree && (
               <div className="flex gap-3">
                 <Sparkles className={cn("h-5 w-5 text-blue-500", {
                   "text-blue-400": exclusive,
@@ -317,12 +317,12 @@ const PricingCard = ({
                 <p className={cn("text-base", {
                   "text-gray-300": exclusive,
                 })}>
-                  {isFree ? "Unlimited" : totalMinutes} minutes total
+                  Unlimited time
                 </p>
               </div>
             )}
             
-            {maxSessionDurationMinutes && (
+            {maxSessionDurationMinutes && isFree && (
               <div className="flex gap-3">
                 <Sparkles className={cn("h-5 w-5 text-blue-500", {
                   "text-blue-400": exclusive,
@@ -330,12 +330,12 @@ const PricingCard = ({
                 <p className={cn("text-base", {
                   "text-gray-300": exclusive,
                 })}>
-                  {isFree ? "Unlimited" : maxSessionDurationMinutes} min per session
+                  Unlimited session duration
                 </p>
               </div>
             )}
             
-            {maxSessions && (
+            {maxSessions && isFree && (
               <div className="flex gap-3">
                 <Sparkles className={cn("h-5 w-5 text-blue-500", {
                   "text-blue-400": exclusive,
@@ -343,7 +343,7 @@ const PricingCard = ({
                 <p className={cn("text-base", {
                   "text-gray-300": exclusive,
                 })}>
-                  {isFree ? "Unlimited" : maxSessions} sessions total
+                  Unlimited sessions
                 </p>
               </div>
             )}
@@ -422,9 +422,12 @@ function PricingContent() {
   const plans = useQuery(api.plans.getPlans) || [];
   const userPlan = useQuery(api.users.getUser);
 
+  // Filter to show only the free plan
+  const visiblePlans = plans.filter((plan: Doc<"plans">) => plan.key === "free");
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-      {plans.map((plan: Doc<"plans">) => {
+    <div className="flex justify-center items-center">
+      {visiblePlans.map((plan: Doc<"plans">) => {
         const isFree = !plan.prices?.month?.usd?.amount;
         const isCurrentPlan = typeof userPlan === 'object' && userPlan !== null && 'currentPlanKey' in userPlan ? userPlan.currentPlanKey === plan.key : false;
         
@@ -438,8 +441,8 @@ function PricingContent() {
             description={plan.description}
             features={plan.features || []}
             actionLabel={isFree ? "Get Started Free" : "Get Pro"}
-            popular={plan.key === "pro"}
-            exclusive={plan.key === "enterprise"}
+            popular={false}
+            exclusive={false}
             isFree={isFree}
             currentPlan={isCurrentPlan}
             totalMinutes={plan.totalMinutes}
