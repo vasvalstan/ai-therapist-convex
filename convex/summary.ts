@@ -387,26 +387,27 @@ export const getTherapyProgress = query({
 
         console.log("🔍 Getting therapy progress for user:", userId);
 
-        // Get all chat sessions for this user from chatHistory
-        const chatSessions = await ctx.db
-            .query("chatHistory")
-            .withIndex("by_user", (q) => q.eq("userId", userId))
-            .order("desc")
-            .collect();
-
-        if (!chatSessions || chatSessions.length === 0) {
-            console.log("No chat sessions found for user");
-            return null;
-        }
-
-        // Get existing progress record or create new one
+        // Get existing progress record
         const progress = await ctx.db
             .query("therapyProgress")
             .withIndex("by_user", (q) => q.eq("userId", userId))
             .first();
 
+        // Return empty progress object if no record exists
         if (!progress) {
-            return null;
+            return {
+                userId,
+                sessionIds: [],
+                transcripts: [],
+                progressSummary: "No therapy sessions yet.",
+                emotionalProgress: {
+                    mainThemes: [],
+                    improvements: [],
+                    challenges: [],
+                    recommendations: []
+                },
+                lastUpdated: Date.now()
+            };
         }
 
         return progress;
