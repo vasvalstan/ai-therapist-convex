@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { MessageCircle, BarChart2, Home, Menu, X } from "lucide-react";
+import { MessageCircle, BarChart2, Home, Menu, X, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "convex/react";
@@ -77,6 +77,9 @@ export function ChatNav({ title }: ChatNavProps) {
       case "progress":
         router.push("/chat/history?tab=progress");
         break;
+      case "feedback":
+        router.push("/chat/history?tab=feedback");
+        break;
     }
   };
 
@@ -147,6 +150,9 @@ export function ChatNav({ title }: ChatNavProps) {
             <NavButton value="progress" icon={BarChart2} isMobile>
               Therapy Progress
             </NavButton>
+            <NavButton value="feedback" icon={Send} isMobile>
+              Feedback
+            </NavButton>
           </div>
         </div>
       )}
@@ -168,6 +174,10 @@ export function ChatNav({ title }: ChatNavProps) {
           
           <NavButton value="progress" icon={BarChart2}>
             Therapy Progress
+          </NavButton>
+          
+          <NavButton value="feedback" icon={Send}>
+            Feedback
           </NavButton>
         </div>
         

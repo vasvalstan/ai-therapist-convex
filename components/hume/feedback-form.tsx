@@ -53,6 +53,13 @@ export function FeedbackForm({ sessionId, source = 'trial_end' }: FeedbackFormPr
         <p className="text-sm text-muted-foreground">
           Your input helps us improve our service.
         </p>
+        <Button
+          variant="outline"
+          className="mt-2"
+          onClick={() => setIsSubmitted(false)}
+        >
+          Send more feedback
+        </Button>
       </div>
     );
   }

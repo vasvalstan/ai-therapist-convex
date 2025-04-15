@@ -20,23 +20,8 @@ export default function Footer() {
                         <h3 className="text-sm font-medium mb-4">socials</h3>
                         <ul className="space-y-3">
                             <li>
-                                <Link href="https://instagram.com" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                                <Link href="https://www.instagram.com/sereni.day" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" target="_blank" rel="noopener noreferrer">
                                     instagram
-                                </Link>
-                            </li>
-                            <li>
-                                <Link href="https://tiktok.com" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
-                                    tiktok
-                                </Link>
-                            </li>
-                            <li>
-                                <Link href="https://twitter.com" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
-                                    x (twitter)
-                                </Link>
-                            </li>
-                            <li>
-                                <Link href="https://linkedin.com" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
-                                    linkedin
                                 </Link>
                             </li>
                         </ul>
@@ -66,7 +51,7 @@ export default function Footer() {
 
                     {/* Copyright */}
                     <div className="text-center md:text-right">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">© 2025 Sereni Inc</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400"> 2025 Sereni Inc</p>
                         <p className="text-sm text-gray-600 dark:text-gray-400">by soul devs</p>
                     </div>
                 </div>

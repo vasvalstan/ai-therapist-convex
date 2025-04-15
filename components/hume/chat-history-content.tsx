@@ -9,7 +9,7 @@ import { UpgradePrompt } from "@/components/hume/upgrade-prompt";
 import { StartConversationPanel } from "@/components/hume/start-conversation-panel";
 import { VoiceController } from "@/components/hume/voice-controller";
 import { TherapyProgress } from "@/components/hume/therapy-progress";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
 import { ChatNav } from "@/components/hume/chat-nav";
@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ReactNode } from "react";
 import { formatDistanceToNow } from "date-fns";
+import { FeedbackForm } from "@/components/hume/feedback-form";
 
 export function ChatHistoryContentWrapper() {
   const { isLoading, isAuthenticated } = useConvexAuth();
@@ -276,27 +277,26 @@ export function ChatHistoryContent() {
         <div className="hidden md:block">
           <ChatHistory />
         </div>
-        
         {/* Main content area */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <Tabs defaultValue={activeTab} value={activeTab} className="flex-1">
-            <TabsContent value="start" className="mt-0 h-full overflow-auto">
-              <StartConversationPanel />
-            </TabsContent>
-            <TabsContent value="progress" className="mt-0 h-full overflow-auto">
-              <TherapyProgress />
-            </TabsContent>
-            <TabsContent value="history" className="mt-0 h-full overflow-auto md:hidden">
-              <div className="flex-1 flex flex-col">
-                <div className="p-4 border-b border-border">
-                  <h2 className="font-semibold">Recent Chats</h2>
-                </div>
-                <div className="flex-1 overflow-auto">
-                  <MobileChatHistory />
-                </div>
+          {/* Render content based on activeTab from the URL */}
+          {activeTab === "start" && <StartConversationPanel />}
+          {activeTab === "progress" && <TherapyProgress />}
+          {activeTab === "feedback" && (
+            <div className="max-w-xl mx-auto p-4">
+              <FeedbackForm />
+            </div>
+          )}
+          {activeTab === "history" && (
+            <div className="flex-1 flex flex-col md:hidden">
+              <div className="p-4 border-b border-border">
+                <h2 className="font-semibold">Recent Chats</h2>
               </div>
-            </TabsContent>
-          </Tabs>
+              <div className="flex-1 overflow-auto">
+                <MobileChatHistory />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
