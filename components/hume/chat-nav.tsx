@@ -148,7 +148,7 @@ export function ChatNav({ title }: ChatNavProps) {
               Chat History
             </NavButton>
             <NavButton value="progress" icon={BarChart2} isMobile>
-              Therapy Progress
+              Emotional Resume
             </NavButton>
             <NavButton value="feedback" icon={Send} isMobile>
               Feedback
@@ -173,7 +173,7 @@ export function ChatNav({ title }: ChatNavProps) {
           </NavButton>
           
           <NavButton value="progress" icon={BarChart2}>
-            Therapy Progress
+            Emotional Resume
           </NavButton>
           
           <NavButton value="feedback" icon={Send}>
