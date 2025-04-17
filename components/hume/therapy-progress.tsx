@@ -55,7 +55,7 @@ export function TherapyProgress() {
   return (
     <ScrollArea className="h-[calc(100vh-4rem)]">
       <div className="flex flex-col p-4 md:p-6">
-        <h2 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6">Your Therapy Progress</h2>
+        {/* <h2 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6">Your Therapy Progress</h2> */}
         
         {/* Overview Card */}
         <Card className="bg-card border border-border rounded-lg p-4 md:p-6 mb-6">
