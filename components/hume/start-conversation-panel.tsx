@@ -66,6 +66,8 @@ export function StartConversationPanel() {
         description: "Please sign in to start a conversation.",
         variant: "destructive",
       });
+      // Redirect to Clerk sign-in page using Next.js router
+      router.push('/sign-in');
       return;
     }
     
@@ -210,7 +212,7 @@ export function StartConversationPanel() {
       <Button 
         size="lg"
         onClick={handleStartConversation}
-        disabled={isStarting || !isSignedIn}
+        disabled={isStarting}
         className="mt-4 px-8"
       >
         {isStarting ? (

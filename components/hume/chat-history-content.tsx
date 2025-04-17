@@ -53,7 +53,7 @@ export function ChatHistoryContent() {
     limitType?: string;
   }>({ hasAccess: true });
 
-  const { isAuthenticated } = useConvexAuth();
+  const { isAuthenticated, isLoading } = useConvexAuth();
   const { userId } = useClerkAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -67,10 +67,11 @@ export function ChatHistoryContent() {
     userId ? { tokenIdentifier: userId } : "skip"
   );
 
-  // Get active conversation if we have a valid chat ID
+  // Get active conversation if we have a valid chat ID and user is authenticated
+  const shouldFetchActiveConversation = isAuthenticated && !!activeChatId;
   const activeConversation = useQuery(
     api.chat.getActiveConversation,
-    activeChatId ? { chatId: activeChatId } : "skip"
+    shouldFetchActiveConversation ? { chatId: activeChatId } : "skip"
   );
 
   // Get user's chat sessions
@@ -195,6 +196,12 @@ export function ChatHistoryContent() {
       isMounted = false;
     };
   }, [user, accessStatus.hasAccess]);
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/sign-in?redirectUrl=/");
+    }
+  }, [isAuthenticated, isLoading, router]);
 
   // If user is not authenticated, show loading state
   if (!userId) {
