@@ -2,8 +2,8 @@
 
 import { Button } from "@/components/ui/button";
 import { Video, VideoOff } from "lucide-react";
-import { useHume } from "./HumeProvider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useHume } from "./HumeProvider";
 
 interface FaceTrackingToggleProps {
   className?: string;

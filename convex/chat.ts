@@ -893,7 +893,7 @@ export const saveConversationTranscript = mutation({
         
         // 5. As a last resort, get the most recent session
         if (!chatSession) {
-            console.log(`⚠️ Session not found by any id, trying most recent session`);
+            console.log(`⚠️ Session not found by any ID, trying most recent session`);
             chatSession = await ctx.db
                 .query("chatHistory")
                 .filter((q) => q.eq(q.field("userId"), userId))
@@ -1499,4 +1499,63 @@ export const saveHumeChatHistory = mutation({
       sessionId: chatHistory._id,
     };
   },
+});
+
+// Add a system message about detected emotions
+export const addSystemMessage = mutation({
+  args: {
+    sessionId: v.string(),
+    content: v.string(),
+    emotionContext: v.object({
+      emotionName: v.string(),
+      emotionScore: v.number()
+    })
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userId = identity.subject;
+    console.log(`Adding emotion system message for session ${args.sessionId}`);
+
+    // Get the session
+    const sessionId = args.sessionId;
+    const session = await ctx.db
+      .query("chatHistory")
+      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+      .unique();
+
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    // Verify user has access to this session
+    if (session.userId !== userId) {
+      throw new Error("Unauthorized access to chat session");
+    }
+
+    // Create the system message
+    const message: Message = {
+      type: "SYSTEM_MESSAGE",
+      role: "ASSISTANT",
+      messageText: args.content,
+      content: args.content,
+      timestamp: Date.now(),
+      emotionFeatures: JSON.stringify({
+        emotion: args.emotionContext.emotionName,
+        score: args.emotionContext.emotionScore
+      })
+    };
+
+    // Add the message to the session
+    await ctx.db.patch(session._id, {
+      messages: [...(session.messages || []), message],
+      events: [...(session.events || []), messageToEvent(message, session.chatId, session.chatGroupId)],
+      updatedAt: Date.now()
+    });
+
+    return { success: true, messageId: crypto.randomUUID() };
+  }
 });

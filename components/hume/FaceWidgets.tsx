@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, createContext, useContext } from "react";
 import { FaceTrackedVideo } from "./FaceTrackedVideo";
 import { TopEmotions } from "./TopEmotions";
 import { LoaderSet } from "./LoaderSet";
@@ -12,6 +12,23 @@ import { VideoRecorder } from "@/lib/media/videoRecorder";
 import { blobToBase64 } from "@/lib/utilities/blobUtilities";
 import { Environment, getApiUrlWs } from "@/lib/utilities/environmentUtilities";
 import { toast } from "@/components/ui/use-toast";
+
+// Create an emotion context to share emotion data across components
+export interface EmotionContextType {
+  emotions: Emotion[];
+  dominantEmotion: Emotion | null;
+  emotionHistory: Array<{timestamp: number, emotion: Emotion}>;
+  emotionChanged: boolean;
+}
+
+export const EmotionContext = createContext<EmotionContextType>({
+  emotions: [],
+  dominantEmotion: null,
+  emotionHistory: [],
+  emotionChanged: false
+});
+
+export const useEmotionContext = () => useContext(EmotionContext);
 
 type FaceWidgetsProps = {
   apiKey: string;
@@ -28,6 +45,9 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
   const numReconnects = useRef(0);
   const [trackedFaces, setTrackedFaces] = useState<TrackedFace[]>([]);
   const [emotions, setEmotions] = useState<Emotion[]>([]);
+  const [emotionHistory, setEmotionHistory] = useState<Array<{timestamp: number, emotion: Emotion}>>([]);
+  const [emotionChanged, setEmotionChanged] = useState(false);
+  const [dominantEmotion, setDominantEmotion] = useState<Emotion | null>(null);
   const [status, setStatus] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
   const numLoaderLevels = 5;
@@ -55,6 +75,34 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
       stopEverything();
     };
   }, []);
+
+  // Update dominant emotion when emotions change
+  useEffect(() => {
+    if (emotions.length > 0) {
+      const newDominantEmotion = emotions[0];
+      
+      // Check if the dominant emotion has changed significantly
+      if (!dominantEmotion || 
+          dominantEmotion.name !== newDominantEmotion.name || 
+          Math.abs(dominantEmotion.score - newDominantEmotion.score) > 0.15) {
+        
+        setDominantEmotion(newDominantEmotion);
+        setEmotionChanged(true);
+        
+        // Add to emotion history
+        setEmotionHistory(prev => {
+          const newHistory = [...prev, {timestamp: Date.now(), emotion: newDominantEmotion}];
+          // Keep only the last 10 emotions
+          return newHistory.slice(-10);
+        });
+        
+        // Reset the changed flag after 5 seconds
+        setTimeout(() => {
+          setEmotionChanged(false);
+        }, 5000);
+      }
+    }
+  }, [emotions, dominantEmotion]);
 
   function connect() {
     if (isConnecting) {
@@ -150,7 +198,7 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
           
           // Store emotion data in localStorage for potential later use
           try {
-            localStorage.setItem('hume_metadata', JSON.stringify({
+            localStorage.setItem('hume_emotions', JSON.stringify({
               timestamp: new Date().toISOString(),
               emotions: newEmotions.slice(0, 5).map(e => ({ name: e.name, score: e.score }))
             }));
@@ -312,57 +360,71 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
   const videoSize = compact ? { width: 200, height: 150 } : { width: 500, height: 375 };
   const videoClass = compact ? "mb-0" : "mb-6";
   
-  return (
-    <div className={containerClass}>
-      {!compact && (
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Facial Expression Analysis</h2>
-          {onClose && (
-            <button 
-              onClick={onClose} 
-              className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          )}
-        </div>
-      )}
-      
-      <div className={compact ? "flex items-start gap-2" : "md:flex gap-8"}>
-        <FaceTrackedVideo
-          className={videoClass}
-          onVideoReady={onVideoReady}
-          trackedFaces={trackedFaces}
-          width={videoSize.width}
-          height={videoSize.height}
-        />
-        <div className={compact ? "flex-1" : "flex-1"}>
-          {compact ? (
-            <TopEmotions emotions={emotions} className="min-w-[100px]" />
-          ) : (
-            <>
-              <TopEmotions emotions={emotions} />
-              <LoaderSet
-                className="mt-8"
-                emotionNames={loaderNames}
-                emotions={emotions}
-                numLevels={numLoaderLevels}
-              />
-              <Descriptor className="mt-8" emotions={emotions} />
-            </>
-          )}
-        </div>
-      </div>
+  // Provide the video size based on compact mode
+  const videoWidth = compact ? 180 : 320;
+  const videoHeight = compact ? 135 : 240;
 
-      {status && (
-        <div className={`${compact ? "mt-1 text-xs" : "mt-4"} p-1 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded text-xs`}>
-          {status}
+  // Provide emotion context value
+  const emotionContextValue = {
+    emotions,
+    dominantEmotion,
+    emotionHistory,
+    emotionChanged
+  };
+
+  return (
+    <EmotionContext.Provider value={emotionContextValue}>
+      <div className={containerClass}>
+        {!compact && (
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Facial Expression Analysis</h2>
+            {onClose && (
+              <button 
+                onClick={onClose} 
+                className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
+        
+        <div className={compact ? "flex items-start gap-2" : "md:flex gap-8"}>
+          <FaceTrackedVideo
+            className={videoClass}
+            onVideoReady={onVideoReady}
+            trackedFaces={trackedFaces}
+            width={videoSize.width}
+            height={videoSize.height}
+          />
+          <div className={compact ? "flex-1" : "flex-1"}>
+            {compact ? (
+              <TopEmotions emotions={emotions} className="min-w-[100px]" />
+            ) : (
+              <>
+                <TopEmotions emotions={emotions} />
+                <LoaderSet
+                  className="mt-8"
+                  emotionNames={loaderNames}
+                  emotions={emotions}
+                  numLevels={numLoaderLevels}
+                />
+                <Descriptor className="mt-8" emotions={emotions} />
+              </>
+            )}
+          </div>
         </div>
-      )}
-      <canvas className="hidden" ref={photoRef}></canvas>
-    </div>
+
+        {status && (
+          <div className={`${compact ? "mt-1 text-xs" : "mt-4"} p-1 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded text-xs`}>
+            {status}
+          </div>
+        )}
+        <canvas className="hidden" ref={photoRef}></canvas>
+      </div>
+    </EmotionContext.Provider>
   );
 }

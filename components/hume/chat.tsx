@@ -16,6 +16,7 @@ interface HumeChatProps {
   accessToken: string;
   sessionId?: string;
   onEndCallStart?: () => void;
+  hideStartCall?: boolean;
 }
 
 type MessageRole = "user" | "assistant";
@@ -110,7 +111,8 @@ const safeGetISOString = (value: any): string => {
 export default function HumeChat({ 
   accessToken, 
   sessionId: initialSessionId, 
-  onEndCallStart 
+  onEndCallStart,
+  hideStartCall
 }: HumeChatProps) {
   const timeout = useRef<number | null>(null);
   const inactivityTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -540,12 +542,25 @@ export default function HumeChat({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <Messages ref={ref} />
-      <Controls 
-        sessionId={currentSessionId || undefined} 
-        onEndCallStart={onEndCallStart} 
-      />
-      <StartCall sessionId={currentSessionId || undefined} />
+      {/* Only show StartCall if hideStartCall is false */}
+      {!hideStartCall && (
+        <div className="sticky top-0 z-10 bg-white dark:bg-gray-950">
+          <StartCall sessionId={currentSessionId || undefined} />
+        </div>
+      )}
+      
+      {/* Messages in the middle */}
+      <div className="flex-1 overflow-y-auto">
+        <Messages ref={ref} />
+      </div>
+      
+      {/* Controls at the bottom */}
+      <div className="sticky bottom-0 z-10">
+        <Controls 
+          sessionId={currentSessionId || undefined} 
+          onEndCallStart={onEndCallStart} 
+        />
+      </div>
       
       {/* Add the ChatSaveHandler component to save transcripts when the chat ends */}
       {currentSessionId && (

@@ -99,10 +99,9 @@ export function StartCall({ sessionId }: StartCallProps) {
                 className="flex items-center gap-1.5"
                 onClick={() => {
                   // Simulate a connect action to close the overlay
-                  connect()
-                    .then(() => {})
-                    .catch(() => {})
-                    .finally(() => {});
+                  connect().catch(error => {
+                    console.error("Failed to connect:", error);
+                  });
                 }}
               >
                 <span>
@@ -115,7 +114,7 @@ export function StartCall({ sessionId }: StartCallProps) {
                 <span>Close</span>
               </Button>
             ) : (
-              // If not on chat history, show the go to chat history button
+              // Otherwise, show a button to navigate to chat history
               <Button 
                 variant="outline" 
                 className="flex items-center gap-1.5"
@@ -128,7 +127,7 @@ export function StartCall({ sessionId }: StartCallProps) {
                     stroke="currentColor"
                   />
                 </span>
-                <span>Go to chat history</span>
+                <span>View chat history</span>
               </Button>
             )}
           </motion.div>

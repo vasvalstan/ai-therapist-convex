@@ -227,6 +227,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                                         accessToken={accessToken} 
                                         sessionId={sessionId} 
                                         onEndCallStart={() => setIsCallEnding(true)}
+                                        isHistoryView={false} // This is a live conversation
                                     />
                                 ) : (
                                     <div className="flex-1 flex flex-col items-center justify-center gap-4">
@@ -241,6 +242,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                                         accessToken={accessToken} 
                                         sessionId={sessionId} 
                                         onEndCallStart={() => setIsCallEnding(true)}
+                                        isHistoryView={false} // This is a live conversation
                                     />
                                 ) : (
                                     <Messages ref={containerRef} />
