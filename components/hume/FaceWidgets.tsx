@@ -352,17 +352,7 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
     }
   }
 
-  const containerClass = compact 
-    ? "bg-white dark:bg-gray-900 p-2 rounded-lg shadow-md max-w-full mx-auto" 
-    : "bg-white dark:bg-gray-900 p-6 rounded-lg shadow-lg max-w-4xl mx-auto";
-
-  // Even smaller video size for compact mode
   const videoSize = compact ? { width: 200, height: 150 } : { width: 500, height: 375 };
-  const videoClass = compact ? "mb-0" : "mb-6";
-  
-  // Provide the video size based on compact mode
-  const videoWidth = compact ? 180 : 320;
-  const videoHeight = compact ? 135 : 240;
 
   // Provide emotion context value
   const emotionContextValue = {
@@ -374,55 +364,33 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
 
   return (
     <EmotionContext.Provider value={emotionContextValue}>
-      <div className={containerClass}>
-        {!compact && (
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Facial Expression Analysis</h2>
-            {onClose && (
-              <button 
-                onClick={onClose} 
-                className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
+      <div className="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-md max-w-md mx-auto">
+        <div className="flex flex-col md:flex-row md:items-start gap-4">
+          {/* Video display with larger fixed dimensions */}
+          <div className="relative w-full md:w-80 h-56 md:h-56 rounded-lg overflow-hidden flex-shrink-0">
+            <div className="absolute inset-0">
+              <FaceTrackedVideo
+                className="w-full h-full object-cover"
+                onVideoReady={onVideoReady}
+                trackedFaces={trackedFaces}
+                width={videoSize.width}
+                height={videoSize.height}
+              />
+            </div>
+            {status && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-center p-4">
+                <div>{status}</div>
+              </div>
             )}
           </div>
-        )}
-        
-        <div className={compact ? "flex items-start gap-2" : "md:flex gap-8"}>
-          <FaceTrackedVideo
-            className={videoClass}
-            onVideoReady={onVideoReady}
-            trackedFaces={trackedFaces}
-            width={videoSize.width}
-            height={videoSize.height}
-          />
-          <div className={compact ? "flex-1" : "flex-1"}>
-            {compact ? (
-              <TopEmotions emotions={emotions} className="min-w-[100px]" />
-            ) : (
-              <>
-                <TopEmotions emotions={emotions} />
-                <LoaderSet
-                  className="mt-8"
-                  emotionNames={loaderNames}
-                  emotions={emotions}
-                  numLevels={numLoaderLevels}
-                />
-                <Descriptor className="mt-8" emotions={emotions} />
-              </>
-            )}
+
+          {/* Emotion display - in a fixed height container with scrolling */}
+          <div className="w-full md:w-28 md:h-56 flex-shrink-0 overflow-y-auto">
+            <div className="h-full flex flex-col justify-center">
+              <TopEmotions emotions={emotions} className="w-full" />
+            </div>
           </div>
         </div>
-
-        {status && (
-          <div className={`${compact ? "mt-1 text-xs" : "mt-4"} p-1 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded text-xs`}>
-            {status}
-          </div>
-        )}
         <canvas className="hidden" ref={photoRef}></canvas>
       </div>
     </EmotionContext.Provider>

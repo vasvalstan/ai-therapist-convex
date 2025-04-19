@@ -2,7 +2,6 @@
 
 import { cn } from "@/lib/utils";
 import { useVoice } from "@humeai/voice-react";
-import { Expressions } from "./expressions";
 import { AnimatePresence, motion } from "framer-motion";
 import { ComponentRef, forwardRef, useRef, useCallback, useEffect, useState } from "react";
 import { useQuery } from "convex/react";
@@ -95,8 +94,8 @@ export const Messages = forwardRef<
         models: msg.emotionFeatures ? {
           prosody: {
             scores: typeof msg.emotionFeatures === 'string' ? 
-              JSON.parse(msg.emotionFeatures) : 
-              msg.emotionFeatures
+            JSON.parse(msg.emotionFeatures) : 
+            msg.emotionFeatures
           }
         } : undefined,
         timestamp: msg.timestamp
@@ -135,23 +134,34 @@ export const Messages = forwardRef<
         </motion.div>
       )}
       
-      {/* Message container with fixed position at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 p-4">
-        <div className="max-w-2xl mx-auto w-full space-y-3">
+      {/* Message count indicator - moved to the top with less margin */}
+      {sortedMessages.length > visibleMessageCount && (
+        <div className="absolute top-0 left-0 right-0 flex justify-center">
+          <div className="bg-muted/30 text-muted-foreground text-xs px-2 py-1 rounded-full">
+            {sortedMessages.length - visibleMessageCount} earlier messages
+          </div>
+        </div>
+      )}
+      
+      {/* Message container positioned with top alignment instead of center */}
+      <div className="absolute inset-0 flex flex-col items-center pt-6">
+        <div className="max-w-2xl w-full space-y-3">
           <AnimatePresence mode="popLayout">
             {recentMessages.map((msg, index) => {
               if (
                 msg.type === "user_message" ||
                 msg.type === "assistant_message"
               ) {
+                const isUserMessage = msg.type === "user_message";
+                
                 return (
                   <motion.div
                     key={msg.type + index}
                     className={cn(
-                      "w-[80%]",
+                      "w-[80%]", // Width for all messages
+                      isUserMessage ? "mr-auto" : "ml-auto", // Position user messages left, assistant messages right
                       "bg-card",
-                      "border border-border rounded",
-                      msg.type === "user_message" ? "ml-auto" : ""
+                      "border border-border rounded"
                     )}
                     initial={{
                       opacity: 0,
@@ -172,13 +182,7 @@ export const Messages = forwardRef<
                       damping: 30,
                     }}
                   >
-                    <div className={cn(
-                      "text-xs capitalize font-medium leading-none opacity-50 pt-3 px-3"
-                    )}>
-                      {msg.message.role}
-                    </div>
-                    <div className="pb-3 px-3 text-sm">{msg.message.content}</div>
-                    <Expressions values={msg.models?.prosody?.scores as Record<string, number> | undefined} />
+                    <div className="py-3 px-3 text-sm">{msg.message.content}</div>
                   </motion.div>
                 );
               }
@@ -187,15 +191,6 @@ export const Messages = forwardRef<
           </AnimatePresence>
         </div>
       </div>
-      
-      {/* Message count indicator */}
-      {sortedMessages.length > visibleMessageCount && (
-        <div className="absolute top-2 left-0 right-0 flex justify-center">
-          <div className="bg-muted/30 text-muted-foreground text-xs px-2 py-1 rounded-full">
-            {sortedMessages.length - visibleMessageCount} earlier messages
-          </div>
-        </div>
-      )}
     </div>
   );
 });
