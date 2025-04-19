@@ -78,15 +78,6 @@ export default function HeroSection() {
           </Link>
 
           <Button
-            onClick={() => setShowFaceTracking(true)}
-            size="lg"
-            className="bg-blue-100 hover:bg-blue-200 text-blue-800 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 dark:text-blue-100 rounded-full px-8 h-14 text-lg font-medium w-full"
-          >
-            Start Video
-            <Video className="ml-2 h-5 w-5" />
-          </Button>
-
-          <Button
             onClick={scrollToFeatures}
             variant="outline"
             size="lg"
@@ -98,11 +89,11 @@ export default function HeroSection() {
         </motion.div>
       </div>
 
-      {/* Face Tracking Modal */}
+      {/* Face Tracking Modal - keeping this for potential future standalone use */}
       <FaceTrackingModal 
         isOpen={showFaceTracking} 
-        onClose={() => setShowFaceTracking(false)} 
-        apiKey={HUME_API_KEY} 
+        onClose={() => setShowFaceTracking(false)}
+        apiKey={HUME_API_KEY}
       />
     </section>
   );

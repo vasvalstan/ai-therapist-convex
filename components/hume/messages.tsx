@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useVoice } from "@humeai/voice-react";
 import { Expressions } from "./expressions";
 import { AnimatePresence, motion } from "framer-motion";
-import { ComponentRef, forwardRef, useRef, useCallback, useEffect } from "react";
+import { ComponentRef, forwardRef, useRef, useCallback, useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useParams } from "next/navigation";
@@ -59,22 +59,12 @@ export const Messages = forwardRef<
   const sessionId = params?.sessionId as string;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { isFaceTrackingEnabled } = useHume();
+  const [visibleMessageCount, setVisibleMessageCount] = useState(3); // Show only the most recent N messages
   
   // Get persisted chat messages for history view
   const chat = useQuery(api.chat.getActiveConversation, { chatId: sessionId });
   const isLiveChat = !!voiceMessages.length;
 
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, []);
-
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    scrollToBottom();
-  }, [voiceMessages.length, chat?.messages?.length, scrollToBottom]);
-  
   // Use voice messages for live chat, database messages for history
   const allMessages = isLiveChat ? 
     // Live chat - use voice messages
@@ -114,71 +104,98 @@ export const Messages = forwardRef<
 
   // Sort messages by timestamp
   const sortedMessages = [...allMessages].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  
+  // Get only the most recent messages to display
+  const recentMessages = sortedMessages.slice(-visibleMessageCount);
+
+  // Adjust visible message count based on screen size and face tracking status
+  useEffect(() => {
+    // If face tracking is enabled, show fewer messages to make room for the camera
+    const messageCount = isFaceTrackingEnabled ? 3 : 5;
+    setVisibleMessageCount(messageCount);
+  }, [isFaceTrackingEnabled]);
 
   return (
-    <motion.div
-      layoutScroll
+    <div 
       className={cn(
-        "grow rounded-md overflow-auto p-4 scroll-smooth",
-        isFaceTrackingEnabled && "pt-2" // Less top padding when face tracking is enabled
+        "flex flex-col",
+        isFaceTrackingEnabled ? "h-[65vh]" : "h-[80vh]", // Adjusted height based on face tracking status
+        "relative overflow-hidden" // Prevent scrolling
       )}
       ref={ref}
     >
-      <motion.div className="max-w-2xl mx-auto w-full flex flex-col gap-4">
-        {/* Welcome message when no messages */}
-        {sortedMessages.length === 0 && (
-          <motion.div
-            className="text-center p-4 text-muted-foreground"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            <p>Start the conversation by saying something...</p>
-          </motion.div>
-        )}
-        
-        <AnimatePresence mode="popLayout">
-          {sortedMessages.map((msg, index) => {
-            if (
-              msg.type === "user_message" ||
-              msg.type === "assistant_message"
-            ) {
-              return (
-                <motion.div
-                  key={msg.type + index}
-                  className={cn(
-                    "w-[80%]",
-                    "bg-card",
-                    "border border-border rounded",
-                    msg.type === "user_message" ? "ml-auto" : ""
-                  )}
-                  initial={{
-                    opacity: 0,
-                    y: 10,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    y: 0,
-                  }}
-                  exit={{
-                    opacity: 0,
-                    y: 0,
-                  }}
-                >
-                  <div className={cn(
-                    "text-xs capitalize font-medium leading-none opacity-50 pt-4 px-3"
-                  )}>
-                    {msg.message.role}
-                  </div>
-                  <div className="pb-3 px-3">{msg.message.content}</div>
-                  <Expressions values={msg.models?.prosody?.scores as Record<string, number> | undefined} />
-                </motion.div>
-              );
-            }
-            return null;
-          })}
-        </AnimatePresence>
-        <div ref={messagesEndRef} />
-      </motion.div>
-    </motion.div>
+      {/* Welcome message when no messages */}
+      {sortedMessages.length === 0 && (
+        <motion.div
+          className="text-center p-4 text-muted-foreground absolute inset-0 flex items-center justify-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          <p>Start the conversation by saying something...</p>
+        </motion.div>
+      )}
+      
+      {/* Message container with fixed position at bottom */}
+      <div className="absolute bottom-0 left-0 right-0 p-4">
+        <div className="max-w-2xl mx-auto w-full space-y-3">
+          <AnimatePresence mode="popLayout">
+            {recentMessages.map((msg, index) => {
+              if (
+                msg.type === "user_message" ||
+                msg.type === "assistant_message"
+              ) {
+                return (
+                  <motion.div
+                    key={msg.type + index}
+                    className={cn(
+                      "w-[80%]",
+                      "bg-card",
+                      "border border-border rounded",
+                      msg.type === "user_message" ? "ml-auto" : ""
+                    )}
+                    initial={{
+                      opacity: 0,
+                      y: 20,
+                    }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                    }}
+                    exit={{
+                      opacity: 0,
+                      y: -20,
+                      transition: { duration: 0.3 }
+                    }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 500,
+                      damping: 30,
+                    }}
+                  >
+                    <div className={cn(
+                      "text-xs capitalize font-medium leading-none opacity-50 pt-3 px-3"
+                    )}>
+                      {msg.message.role}
+                    </div>
+                    <div className="pb-3 px-3 text-sm">{msg.message.content}</div>
+                    <Expressions values={msg.models?.prosody?.scores as Record<string, number> | undefined} />
+                  </motion.div>
+                );
+              }
+              return null;
+            })}
+          </AnimatePresence>
+        </div>
+      </div>
+      
+      {/* Message count indicator */}
+      {sortedMessages.length > visibleMessageCount && (
+        <div className="absolute top-2 left-0 right-0 flex justify-center">
+          <div className="bg-muted/30 text-muted-foreground text-xs px-2 py-1 rounded-full">
+            {sortedMessages.length - visibleMessageCount} earlier messages
+          </div>
+        </div>
+      )}
+    </div>
   );
 });

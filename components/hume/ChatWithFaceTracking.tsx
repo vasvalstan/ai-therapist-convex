@@ -19,15 +19,18 @@ export function ChatWithFaceTracking({
   const { isFaceTrackingEnabled, humeApiKey } = useHume();
 
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col h-full">
+      {/* Face tracking container - always visible when enabled */}
       {isFaceTrackingEnabled && (
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border shadow-sm">
-          <div className="p-4">
+        <div className="bg-background border-b border-border">
+          <div className="p-2 max-h-[30vh]">
             <FaceWidgets apiKey={humeApiKey} compact={true} />
           </div>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto">
+      
+      {/* Chat container - takes remaining space */}
+      <div className={`flex-1 flex flex-col ${isFaceTrackingEnabled ? 'h-[70vh]' : 'h-full'}`}>
         <HumeChat
           accessToken={accessToken}
           sessionId={sessionId}

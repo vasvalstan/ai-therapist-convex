@@ -14,14 +14,17 @@ export function TopEmotions({ emotions, className }: TopEmotionsProps) {
 
   return (
     <div className={`${className}`}>
-      <div className="mb-2 text-lg font-medium">Top Emotions</div>
-      <div className="space-y-2">
+      <div className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">Top Emotions</div>
+      <div className="space-y-0.5">
         {topEmotions.map((emotion, index) => (
           <div key={index} className="flex items-center justify-between">
-            <div className="text-sm">{emotion.name}</div>
-            <div className="text-sm font-medium">{emotion.score.toFixed(3)}</div>
+            <div className="text-xs text-gray-700 dark:text-gray-300">{emotion.name}</div>
+            <div className="text-xs font-medium ml-2 text-gray-900 dark:text-gray-100">{emotion.score.toFixed(2)}</div>
           </div>
         ))}
+        {topEmotions.length === 0 && (
+          <div className="text-xs text-gray-500">No emotions detected</div>
+        )}
       </div>
     </div>
   );

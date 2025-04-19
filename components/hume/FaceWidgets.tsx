@@ -305,11 +305,12 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
   }
 
   const containerClass = compact 
-    ? "bg-white dark:bg-gray-900 p-3 rounded-lg shadow-md max-w-full mx-auto" 
+    ? "bg-white dark:bg-gray-900 p-2 rounded-lg shadow-md max-w-full mx-auto" 
     : "bg-white dark:bg-gray-900 p-6 rounded-lg shadow-lg max-w-4xl mx-auto";
 
-  const videoSize = compact ? { width: 320, height: 240 } : { width: 500, height: 375 };
-  const videoClass = compact ? "mb-3 scale-90 origin-top-left" : "mb-6";
+  // Even smaller video size for compact mode
+  const videoSize = compact ? { width: 200, height: 150 } : { width: 500, height: 375 };
+  const videoClass = compact ? "mb-0" : "mb-6";
   
   return (
     <div className={containerClass}>
@@ -330,7 +331,7 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
         </div>
       )}
       
-      <div className={compact ? "flex flex-col" : "md:flex gap-8"}>
+      <div className={compact ? "flex items-start gap-2" : "md:flex gap-8"}>
         <FaceTrackedVideo
           className={videoClass}
           onVideoReady={onVideoReady}
@@ -338,9 +339,9 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
           width={videoSize.width}
           height={videoSize.height}
         />
-        <div className={compact ? "mt-2" : "flex-1"}>
+        <div className={compact ? "flex-1" : "flex-1"}>
           {compact ? (
-            <TopEmotions emotions={emotions} />
+            <TopEmotions emotions={emotions} className="min-w-[100px]" />
           ) : (
             <>
               <TopEmotions emotions={emotions} />
@@ -357,7 +358,7 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
       </div>
 
       {status && (
-        <div className={`${compact ? "mt-2 text-sm" : "mt-4"} p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded`}>
+        <div className={`${compact ? "mt-1 text-xs" : "mt-4"} p-1 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded text-xs`}>
           {status}
         </div>
       )}

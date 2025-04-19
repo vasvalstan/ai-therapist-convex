@@ -337,7 +337,7 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
   return (
     <div
       className={cn(
-        "fixed bottom-0 left-0 w-full p-4 flex items-center justify-center",
+        "fixed bottom-0 left-0 w-full p-2 flex items-center justify-center",
         "bg-gradient-to-t from-card via-card/90 to-card/0"
       )}
     >
@@ -356,10 +356,10 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
               y: "100%",
               opacity: 0,
             }}
-            className="p-4 bg-card border border-border rounded-lg shadow-sm flex flex-col items-center gap-2"
+            className="p-2 bg-card border border-border rounded-lg shadow-sm flex flex-col items-center gap-1"
           >
             {getTimeDisplay()}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               <Toggle
                 pressed={!isMuted}
                 onPressedChange={() => {
@@ -373,51 +373,38 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
                     }
                   }
                 }}
-                className="flex items-center gap-2"
+                className="flex items-center gap-1 h-8 px-2"
               >
                 {isMuted ? (
                   <>
-                    <MicOff className="size-4" />
-                    <span className="text-sm">Unmute</span>
+                    <MicOff className="size-3" />
+                    <span className="text-xs">Unmute</span>
                   </>
                 ) : (
                   <>
-                    <Mic className="size-4" />
-                    <span className="text-sm">Mute</span>
+                    <Mic className="size-3" />
+                    <span className="text-xs">Mute</span>
                   </>
                 )}
               </Toggle>
 
               {/* Face Tracking Toggle */}
-              <FaceTrackingToggle className="mx-2" />
+              <FaceTrackingToggle className="mx-1 scale-90" />
 
               <Button
-                size="icon"
+                size="sm"
                 variant="destructive"
-                className="rounded-full w-14 h-14 shadow-lg"
+                className="rounded-full w-10 h-10 shadow-md"
                 onClick={() => handleEndCall()}
                 disabled={isLoading} 
               >
                 {isLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <Phone className="h-6 w-6" />
+                  <Phone className="size-4" />
                 )}
               </Button>
             </div>
-            
-            {/* Add End Conversation button */}
-            {sessionId && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="ml-2"
-                onClick={handleEndConversation}
-                disabled={isLoading || !sessionId}
-              >
-                End Session
-              </Button>
-            )}
           </motion.div>
         ) : null}
       </AnimatePresence>
