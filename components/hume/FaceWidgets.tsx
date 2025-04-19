@@ -11,13 +11,15 @@ import { FacePrediction } from "@/lib/data/facePrediction";
 import { VideoRecorder } from "@/lib/media/videoRecorder";
 import { blobToBase64 } from "@/lib/utilities/blobUtilities";
 import { Environment, getApiUrlWs } from "@/lib/utilities/environmentUtilities";
+import { toast } from "@/components/ui/use-toast";
 
 type FaceWidgetsProps = {
   apiKey: string;
   onClose?: () => void;
+  compact?: boolean; // New prop for compact mode
 };
 
-export function FaceWidgets({ apiKey, onClose }: FaceWidgetsProps) {
+export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsProps) {
   const socketRef = useRef<WebSocket | null>(null);
   const recorderRef = useRef<VideoRecorder | null>(null);
   const photoRef = useRef<HTMLCanvasElement | null>(null);
@@ -27,8 +29,9 @@ export function FaceWidgets({ apiKey, onClose }: FaceWidgetsProps) {
   const [trackedFaces, setTrackedFaces] = useState<TrackedFace[]>([]);
   const [emotions, setEmotions] = useState<Emotion[]>([]);
   const [status, setStatus] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
   const numLoaderLevels = 5;
-  const maxReconnects = 3;
+  const maxReconnects = 5; // Increased from 3 to 5 for more retry attempts
   const loaderNames: EmotionName[] = [
     "Calmness",
     "Joy",
@@ -54,30 +57,62 @@ export function FaceWidgets({ apiKey, onClose }: FaceWidgetsProps) {
   }, []);
 
   function connect() {
+    if (isConnecting) {
+      console.log("Already attempting to connect, skipping");
+      return;
+    }
+
+    setIsConnecting(true);
     const socket = socketRef.current;
     if (socket && socket.readyState === WebSocket.OPEN) {
       console.log("Socket already exists, will not create");
+      setIsConnecting(false);
     } else {
-      const baseUrl = getApiUrlWs(Environment.Prod);
-      const endpointUrl = `${baseUrl}/v0/stream/models`;
-      const socketUrl = `${endpointUrl}?apikey=${apiKey}`;
-      console.log(`Connecting to websocket... (using ${endpointUrl})`);
-      setStatus(`Connecting to server...`);
+      try {
+        const baseUrl = getApiUrlWs(Environment.Prod);
+        const endpointUrl = `${baseUrl}/v0/stream/models`;
+        const socketUrl = `${endpointUrl}?apikey=${apiKey}`;
+        console.log(`Connecting to websocket... (using ${endpointUrl})`);
+        setStatus(`Connecting to server...`);
 
-      const socket = new WebSocket(socketUrl);
+        const socket = new WebSocket(socketUrl);
 
-      socket.onopen = socketOnOpen;
-      socket.onmessage = socketOnMessage;
-      socket.onclose = socketOnClose;
-      socket.onerror = socketOnError;
+        socket.onopen = socketOnOpen;
+        socket.onmessage = socketOnMessage;
+        socket.onclose = socketOnClose;
+        socket.onerror = socketOnError;
 
-      socketRef.current = socket;
+        socketRef.current = socket;
+        
+        // Set a timeout to detect connection failures
+        setTimeout(() => {
+          if (socket.readyState !== WebSocket.OPEN) {
+            console.warn("WebSocket connection timeout");
+            socket.close();
+          }
+        }, 10000); // 10 second timeout
+      } catch (error) {
+        console.error("Error creating WebSocket:", error);
+        setStatus("Failed to connect to the Hume API. Please check your internet connection.");
+        setIsConnecting(false);
+        
+        // Try to reconnect after a delay
+        setTimeout(() => {
+          if (mountRef.current && numReconnects.current < maxReconnects) {
+            numReconnects.current++;
+            connect();
+          }
+        }, 3000);
+      }
     }
   }
 
   async function socketOnOpen() {
     console.log("Connected to websocket");
     setStatus("Connecting to webcam...");
+    setIsConnecting(false);
+    numReconnects.current = 0; // Reset reconnect counter on successful connection
+    
     if (recorderRef.current) {
       console.log("Video recorder found, will use open socket");
       await capturePhoto();
@@ -88,53 +123,70 @@ export function FaceWidgets({ apiKey, onClose }: FaceWidgetsProps) {
 
   async function socketOnMessage(event: MessageEvent) {
     setStatus("");
-    const response = JSON.parse(event.data);
-    console.log("Got response", response);
-    const predictions: FacePrediction[] = response.face?.predictions || [];
-    const warning = response.face?.warning || "";
-    const error = response.error;
-    if (error) {
-      setStatus(error);
-      console.error(error);
-      stopEverything();
-      return;
-    }
-
-    if (predictions.length === 0) {
-      setStatus(warning.replace(".", ""));
-      setEmotions([]);
-    }
-
-    const newTrackedFaces: TrackedFace[] = [];
-    predictions.forEach(async (pred: FacePrediction, dataIndex: number) => {
-      newTrackedFaces.push({ boundingBox: pred.bbox });
-      if (dataIndex === 0) {
-        const newEmotions = pred.emotions;
-        setEmotions(newEmotions);
-        
-        // Store emotion data in localStorage for potential later use
-        try {
-          localStorage.setItem('hume_metadata', JSON.stringify({
-            timestamp: new Date().toISOString(),
-            emotions: newEmotions.slice(0, 5).map(e => ({ name: e.name, score: e.score }))
-          }));
-        } catch (e) {
-          console.error("Error saving to localStorage:", e);
-        }
+    try {
+      const response = JSON.parse(event.data);
+      console.log("Got response", response);
+      const predictions: FacePrediction[] = response.face?.predictions || [];
+      const warning = response.face?.warning || "";
+      const error = response.error;
+      if (error) {
+        setStatus(error);
+        console.error(error);
+        stopEverything();
+        return;
       }
-    });
-    setTrackedFaces(newTrackedFaces);
 
-    await capturePhoto();
+      if (predictions.length === 0) {
+        setStatus(warning.replace(".", ""));
+        setEmotions([]);
+      }
+
+      const newTrackedFaces: TrackedFace[] = [];
+      predictions.forEach(async (pred: FacePrediction, dataIndex: number) => {
+        newTrackedFaces.push({ boundingBox: pred.bbox });
+        if (dataIndex === 0) {
+          const newEmotions = pred.emotions;
+          setEmotions(newEmotions);
+          
+          // Store emotion data in localStorage for potential later use
+          try {
+            localStorage.setItem('hume_metadata', JSON.stringify({
+              timestamp: new Date().toISOString(),
+              emotions: newEmotions.slice(0, 5).map(e => ({ name: e.name, score: e.score }))
+            }));
+          } catch (e) {
+            console.error("Error saving to localStorage:", e);
+          }
+        }
+      });
+      setTrackedFaces(newTrackedFaces);
+
+      await capturePhoto();
+    } catch (error) {
+      console.error("Error processing message:", error);
+      setStatus("Error processing response from server");
+    }
   }
 
   async function socketOnClose(event: CloseEvent) {
-    console.log("Socket closed");
+    console.log("Socket closed with code:", event.code, "reason:", event.reason);
+    setIsConnecting(false);
 
     if (mountRef.current === true) {
-      setStatus("Reconnecting");
-      console.log("Component still mounted, will reconnect...");
-      connect();
+      if (event.code === 1000) {
+        // Normal closure
+        setStatus("Connection closed normally");
+      } else {
+        setStatus("Connection lost. Reconnecting...");
+        console.log("Component still mounted, will reconnect...");
+        
+        // Add a delay before reconnecting
+        setTimeout(() => {
+          if (mountRef.current && numReconnects.current < maxReconnects) {
+            connect();
+          }
+        }, 2000);
+      }
     } else {
       console.log("Component unmounted, will not reconnect...");
     }
@@ -142,12 +194,27 @@ export function FaceWidgets({ apiKey, onClose }: FaceWidgetsProps) {
 
   async function socketOnError(event: Event) {
     console.error("Socket failed to connect: ", event);
+    setIsConnecting(false);
+    
     if (numReconnects.current >= maxReconnects) {
-      setStatus(`Failed to connect to the Hume API. Please try again later.`);
+      setStatus(`Failed to connect to the Hume API. Please check your API key and internet connection.`);
+      toast({
+        title: "Connection Error",
+        description: "Failed to connect to the Hume API. Please try again later.",
+        variant: "destructive",
+      });
       stopEverything();
     } else {
       numReconnects.current++;
       console.warn(`Connection attempt ${numReconnects.current}`);
+      setStatus(`Connection attempt ${numReconnects.current} of ${maxReconnects}...`);
+      
+      // Add a delay before reconnecting
+      setTimeout(() => {
+        if (mountRef.current) {
+          connect();
+        }
+      }, 3000);
     }
   }
 
@@ -237,45 +304,60 @@ export function FaceWidgets({ apiKey, onClose }: FaceWidgetsProps) {
     }
   }
 
+  const containerClass = compact 
+    ? "bg-white dark:bg-gray-900 p-3 rounded-lg shadow-md max-w-full mx-auto" 
+    : "bg-white dark:bg-gray-900 p-6 rounded-lg shadow-lg max-w-4xl mx-auto";
+
+  const videoSize = compact ? { width: 320, height: 240 } : { width: 500, height: 375 };
+  const videoClass = compact ? "mb-3 scale-90 origin-top-left" : "mb-6";
+  
   return (
-    <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-lg max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Facial Expression Analysis</h2>
-        {onClose && (
-          <button 
-            onClick={onClose} 
-            className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        )}
-      </div>
+    <div className={containerClass}>
+      {!compact && (
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Facial Expression Analysis</h2>
+          {onClose && (
+            <button 
+              onClick={onClose} 
+              className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
       
-      <div className="md:flex gap-8">
+      <div className={compact ? "flex flex-col" : "md:flex gap-8"}>
         <FaceTrackedVideo
-          className="mb-6"
+          className={videoClass}
           onVideoReady={onVideoReady}
           trackedFaces={trackedFaces}
-          width={500}
-          height={375}
+          width={videoSize.width}
+          height={videoSize.height}
         />
-        <div className="flex-1">
-          <TopEmotions emotions={emotions} />
-          <LoaderSet
-            className="mt-8"
-            emotionNames={loaderNames}
-            emotions={emotions}
-            numLevels={numLoaderLevels}
-          />
-          <Descriptor className="mt-8" emotions={emotions} />
+        <div className={compact ? "mt-2" : "flex-1"}>
+          {compact ? (
+            <TopEmotions emotions={emotions} />
+          ) : (
+            <>
+              <TopEmotions emotions={emotions} />
+              <LoaderSet
+                className="mt-8"
+                emotionNames={loaderNames}
+                emotions={emotions}
+                numLevels={numLoaderLevels}
+              />
+              <Descriptor className="mt-8" emotions={emotions} />
+            </>
+          )}
         </div>
       </div>
 
       {status && (
-        <div className="mt-4 p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded">
+        <div className={`${compact ? "mt-2 text-sm" : "mt-4"} p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded`}>
           {status}
         </div>
       )}

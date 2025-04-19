@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
 import { useSaveTranscript } from "@/lib/hooks/useSaveTranscript";
+import { FaceTrackingToggle } from "./FaceTrackingToggle";
 
 interface ControlsProps {
   sessionId?: string;
@@ -387,6 +388,9 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
                 )}
               </Toggle>
 
+              {/* Face Tracking Toggle */}
+              <FaceTrackingToggle className="mx-2" />
+
               <Button
                 size="icon"
                 variant="destructive"
@@ -419,4 +423,4 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
       </AnimatePresence>
     </div>
   );
-} 
+}

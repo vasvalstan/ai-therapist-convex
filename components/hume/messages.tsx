@@ -8,6 +8,7 @@ import { ComponentRef, forwardRef, useRef, useCallback, useEffect } from "react"
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useParams } from "next/navigation";
+import { useHume } from "./HumeProvider";
 
 interface DatabaseMessage {
   role: "USER" | "ASSISTANT" | "SYSTEM";
@@ -57,6 +58,7 @@ export const Messages = forwardRef<
   const params = useParams();
   const sessionId = params?.sessionId as string;
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { isFaceTrackingEnabled } = useHume();
   
   // Get persisted chat messages for history view
   const chat = useQuery(api.chat.getActiveConversation, { chatId: sessionId });
@@ -116,10 +118,24 @@ export const Messages = forwardRef<
   return (
     <motion.div
       layoutScroll
-      className="grow rounded-md overflow-auto p-4 scroll-smooth"
+      className={cn(
+        "grow rounded-md overflow-auto p-4 scroll-smooth",
+        isFaceTrackingEnabled && "pt-2" // Less top padding when face tracking is enabled
+      )}
       ref={ref}
     >
       <motion.div className="max-w-2xl mx-auto w-full flex flex-col gap-4">
+        {/* Welcome message when no messages */}
+        {sortedMessages.length === 0 && (
+          <motion.div
+            className="text-center p-4 text-muted-foreground"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <p>Start the conversation by saying something...</p>
+          </motion.div>
+        )}
+        
         <AnimatePresence mode="popLayout">
           {sortedMessages.map((msg, index) => {
             if (
@@ -165,4 +181,4 @@ export const Messages = forwardRef<
       </motion.div>
     </motion.div>
   );
-}); 
+});

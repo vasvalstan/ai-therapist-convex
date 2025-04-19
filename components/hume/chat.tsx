@@ -539,8 +539,7 @@ export default function HumeChat({
   }
 
   return (
-    <div className="relative flex-1 flex flex-col mx-auto w-full overflow-hidden">
-      {/* Use the components without wrapping in another VoiceProvider */}
+    <div className="flex flex-col h-full overflow-hidden">
       <Messages ref={ref} />
       <Controls 
         sessionId={currentSessionId || undefined} 

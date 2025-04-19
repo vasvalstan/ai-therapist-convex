@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { ChatHistory } from "./chat-history";
 import { Suspense } from "react";
 import { Messages } from "./messages";
+import { ChatWithFaceTracking } from "./ChatWithFaceTracking";
 
 // Define a consistent Message interface
 interface Message {
@@ -222,7 +223,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                         {!parsedMessages || parsedMessages.length === 0 ? (
                             <div className="flex-1 flex flex-col">
                                 {accessToken ? (
-                                    <HumeChat 
+                                    <ChatWithFaceTracking 
                                         accessToken={accessToken} 
                                         sessionId={sessionId} 
                                         onEndCallStart={() => setIsCallEnding(true)}
@@ -236,7 +237,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                         ) : (
                             <div className="flex-1 flex flex-col overflow-hidden" ref={chatContentRef}>
                                 {accessToken ? (
-                                    <HumeChat 
+                                    <ChatWithFaceTracking 
                                         accessToken={accessToken} 
                                         sessionId={sessionId} 
                                         onEndCallStart={() => setIsCallEnding(true)}

@@ -3,9 +3,10 @@
 import { useVoice } from "@humeai/voice-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { History, MessageCircle, X } from "lucide-react";
+import { History, MessageCircle, Video, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
+import { useHume } from "./HumeProvider";
 
 interface StartCallProps {
   sessionId?: string;
@@ -15,6 +16,7 @@ export function StartCall({ sessionId }: StartCallProps) {
   const { status, connect } = useVoice();
   const router = useRouter();
   const pathname = usePathname();
+  const { isFaceTrackingEnabled, toggleFaceTracking } = useHume();
   
   // Check if we're already on the chat history page
   const isOnChatHistory = pathname === "/chat/history";
@@ -44,34 +46,51 @@ export function StartCall({ sessionId }: StartCallProps) {
               exit: { scale: 0.5 },
             }}
           >
-            <Button
-              className="flex items-center gap-1.5"
-              onClick={async () => {
-                try {
-                  console.log("Starting voice connection...");
-                  await connect();
-                  console.log("Voice connection established");
-                } catch (error) {
-                  console.error("Failed to connect:", error);
-                  // Show error toast
-                  const errorMessage = error instanceof Error ? error.message : "Failed to connect";
-                  toast({
-                    title: "Connection Error",
-                    description: errorMessage,
-                    variant: "destructive",
-                  });
-                }
-              }}
-            >
-              <span>
-                <MessageCircle
-                  className="size-4 opacity-50"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                />
-              </span>
-              <span>Start conversation</span>
-            </Button>
+            <div className="flex flex-col gap-3 items-center">
+              <Button
+                className="flex items-center gap-1.5"
+                onClick={async () => {
+                  try {
+                    console.log("Starting voice connection...");
+                    await connect();
+                    console.log("Voice connection established");
+                  } catch (error) {
+                    console.error("Failed to connect:", error);
+                    // Show error toast
+                    const errorMessage = error instanceof Error ? error.message : "Failed to connect";
+                    toast({
+                      title: "Connection Error",
+                      description: errorMessage,
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              >
+                <span>
+                  <MessageCircle
+                    className="size-4 opacity-50"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                  />
+                </span>
+                <span>Start conversation</span>
+              </Button>
+              
+              <Button
+                variant={isFaceTrackingEnabled ? "default" : "outline"}
+                className="flex items-center gap-1.5"
+                onClick={toggleFaceTracking}
+              >
+                <span>
+                  <Video
+                    className="size-4 opacity-50"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                  />
+                </span>
+                <span>{isFaceTrackingEnabled ? "Disable video" : "Enable video"}</span>
+              </Button>
+            </div>
 
             {isOnChatHistory ? (
               // If already on chat history, show a close button
@@ -117,4 +136,4 @@ export function StartCall({ sessionId }: StartCallProps) {
       ) : null}
     </AnimatePresence>
   );
-} 
+}

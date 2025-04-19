@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FaceWidgets } from "./FaceWidgets";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 interface FaceTrackingModalProps {
   isOpen: boolean;
@@ -22,6 +22,7 @@ export function FaceTrackingModal({ isOpen, onClose, apiKey }: FaceTrackingModal
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-4xl p-0 overflow-hidden bg-transparent border-none shadow-none">
+        <DialogTitle className="sr-only">Face Tracking</DialogTitle>
         <FaceWidgets apiKey={apiKey} onClose={onClose} />
       </DialogContent>
     </Dialog>

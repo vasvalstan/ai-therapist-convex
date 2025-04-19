@@ -10,6 +10,7 @@ import { ConvexReactClient } from "convex/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
+import { HumeProvider } from "@/components/hume/HumeProvider";
 
 // Initialize Convex client outside of component
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -189,12 +190,14 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         enableSystem
         disableTransitionOnChange
       >
-        <VoiceWrapper>
-          {children}
-        </VoiceWrapper>
+        <HumeProvider>
+          <VoiceWrapper>
+            {children}
+          </VoiceWrapper>
+        </HumeProvider>
         <Toaster />
         <Analytics />
       </ThemeProvider>
     </DynamicAuthProvider>
   );
-} 
+}
