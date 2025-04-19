@@ -55,86 +55,12 @@ export function TherapyProgress() {
   return (
     <ScrollArea className="h-[calc(100vh-4rem)]">
       <div className="flex flex-col p-4 md:p-6">
-        {/* <h2 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6">Your Therapy Progress</h2> */}
+        <h2 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6">Your Therapy Progress</h2>
         
-        {/* Overview Card */}
-        <Card className="bg-card border border-border rounded-lg p-4 md:p-6 mb-6">
-          <div className="text-sm text-muted-foreground mb-4">
-            Based on {summary.sessionIds.length} conversation{summary.sessionIds.length === 1 ? '' : 's'} • 
-            Updated {formatDistanceToNow(summary.lastUpdated, { addSuffix: true })}
-          </div>
-          
-          <div className="space-y-8">
-            {/* Main Focus */}
-            <div>
-              <h3 className="text-xl font-semibold mb-3 text-[#4285f4]">Main Focus</h3>
-              <div className="pl-4 space-y-2">
-                {summary.emotionalProgress?.mainThemes?.slice(0, 1).map((theme, index) => (
-                  <p key={index} className="text-base leading-relaxed">
-                    {theme}
-                  </p>
-                ))}
-              </div>
-            </div>
-
-            {/* Key Topics */}
-            <div>
-              <h3 className="text-xl font-semibold mb-3 text-[#4285f4]">Key Topics Discussed</h3>
-              <ul className="space-y-2 pl-4">
-                {summary.emotionalProgress?.mainThemes?.map((theme, index) => (
-                  <li key={index} className="flex items-start gap-2 text-base">
-                    <Circle className="h-2 w-2 mt-2 flex-shrink-0 text-[#4285f4]" />
-                    <span>{theme}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Emotional Themes */}
-            <div>
-              <h3 className="text-xl font-semibold mb-3 text-[#4285f4]">Emotional Themes</h3>
-              <ul className="space-y-2 pl-4">
-                {summary.emotionalProgress?.mainThemes?.filter(theme => 
-                  theme.toLowerCase().includes('emotion') || 
-                  theme.toLowerCase().includes('feeling') ||
-                  theme.toLowerCase().includes('anxiety') ||
-                  theme.toLowerCase().includes('stress')
-                ).map((theme, index) => (
-                  <li key={index} className="flex items-start gap-2 text-base">
-                    <Circle className="h-2 w-2 mt-2 flex-shrink-0 text-[#4285f4]" />
-                    <span>{theme}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Progress */}
-            <div>
-              <h3 className="text-xl font-semibold mb-3 text-[#4285f4]">Progress Made</h3>
-              <ul className="space-y-2 pl-4">
-                {summary.emotionalProgress?.improvements?.map((improvement, index) => (
-                  <li key={index} className="flex items-start gap-2 text-base">
-                    <CheckCircle2 className="h-4 w-4 mt-1 flex-shrink-0 text-[#4285f4]" />
-                    <span>{improvement}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Recommendations */}
-            <div>
-              <h3 className="text-xl font-semibold mb-3 text-[#4285f4]">Recommendations</h3>
-              <ul className="space-y-2 pl-4">
-                {summary.emotionalProgress?.recommendations?.map((rec, index) => (
-                  <li key={index} className="flex items-start gap-2 text-base">
-                    <Lightbulb className="h-4 w-4 mt-1 flex-shrink-0 text-[#4285f4]" />
-                    <span>{rec}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </Card>
+        <div className="text-sm text-muted-foreground mb-6">
+          Based on {summary.sessionIds.length} conversation{summary.sessionIds.length === 1 ? '' : 's'} • 
+          Updated {formatDistanceToNow(summary.lastUpdated, { addSuffix: true })}
+        </div>
 
         {/* Main Themes */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
