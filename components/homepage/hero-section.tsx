@@ -1,10 +1,15 @@
 "use client";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles, Video } from "lucide-react";
 import Link from "next/link";
 import { Button } from "../ui/button";
 import { motion } from "motion/react";
+import { useState } from "react";
+import { FaceTrackingModal } from "../hume/FaceTrackingModal";
 
 export default function HeroSection() {
+  const [showFaceTracking, setShowFaceTracking] = useState(false);
+  const HUME_API_KEY = "znC5lwg0niYf3NvHd0zWzNBkA3cNK8YYiAaAcxM80AL9A2G1";
+
   const scrollToFeatures = () => {
     const featuresSection = document.getElementById('features');
     featuresSection?.scrollIntoView({ behavior: 'smooth' });
@@ -73,6 +78,15 @@ export default function HeroSection() {
           </Link>
 
           <Button
+            onClick={() => setShowFaceTracking(true)}
+            size="lg"
+            className="bg-blue-100 hover:bg-blue-200 text-blue-800 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 dark:text-blue-100 rounded-full px-8 h-14 text-lg font-medium w-full"
+          >
+            Start Video
+            <Video className="ml-2 h-5 w-5" />
+          </Button>
+
+          <Button
             onClick={scrollToFeatures}
             variant="outline"
             size="lg"
@@ -83,6 +97,13 @@ export default function HeroSection() {
           </Button>
         </motion.div>
       </div>
+
+      {/* Face Tracking Modal */}
+      <FaceTrackingModal 
+        isOpen={showFaceTracking} 
+        onClose={() => setShowFaceTracking(false)} 
+        apiKey={HUME_API_KEY} 
+      />
     </section>
   );
 }
