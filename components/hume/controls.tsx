@@ -1,5 +1,13 @@
 "use client";
 
+// Add type declaration for global window properties
+declare global {
+  interface Window {
+    activeMediaStreams?: MediaStream[];
+    activeAudioContext?: AudioContext;
+  }
+}
+
 import { useVoice } from "@humeai/voice-react";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Phone, Loader2 } from "lucide-react";
@@ -71,6 +79,160 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
         clearTimeout(timeWarningRef.current);
         timeWarningRef.current = null;
       }
+      
+      // Explicitly stop all media streams (audio and video)
+      const cleanupMediaStreams = () => {
+        console.log("🔍 MEDIA CLEANUP: Starting explicit cleanup of all media streams");
+        
+        // Method 1: Stop all tracks from active media devices
+        if (navigator.mediaDevices) {
+          // Get all active media tracks and stop them
+          navigator.mediaDevices.enumerateDevices()
+            .then(devices => {
+              console.log(`🎤 MEDIA CLEANUP: Found ${devices.length} media devices`);
+              
+              // For each input device, try to get its stream and stop it
+              const audioInputs = devices.filter(device => device.kind === 'audioinput');
+              const videoInputs = devices.filter(device => device.kind === 'videoinput');
+              
+              console.log(`🎤 MEDIA CLEANUP: Found ${audioInputs.length} audio inputs and ${videoInputs.length} video inputs`);
+              
+              // Stop audio tracks
+              if (audioInputs.length > 0) {
+                console.log(`🎤 MEDIA CLEANUP: Attempting to get audio stream for cleanup`);
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                  .then(stream => {
+                    console.log(`🎤 MEDIA CLEANUP: Successfully got audio stream with ${stream.getAudioTracks().length} tracks`);
+                    stream.getAudioTracks().forEach(track => {
+                      console.log(`🎤 MEDIA CLEANUP: Stopping audio track: ${track.label}, enabled: ${track.enabled}, readyState: ${track.readyState}`);
+                      track.stop();
+                      console.log(`🎤 MEDIA CLEANUP: After stopping - readyState: ${track.readyState}`);
+                    });
+                  })
+                  .catch(err => {
+                    console.log(`🎤 MEDIA CLEANUP: Error getting audio stream: ${err.message}`);
+                    
+                    // Try an alternative approach - get all media streams from the page
+                    console.log(`🎤 MEDIA CLEANUP: Trying alternative approach for audio cleanup`);
+                    
+                    // Look for audio elements in the DOM that might have active streams
+                    const audioElements = document.querySelectorAll('audio');
+                    console.log(`🎤 MEDIA CLEANUP: Found ${audioElements.length} audio elements in DOM`);
+                    
+                    audioElements.forEach((audio, index) => {
+                      if (audio.srcObject instanceof MediaStream) {
+                        console.log(`🎤 MEDIA CLEANUP: Found MediaStream in audio element ${index}`);
+                        const stream = audio.srcObject;
+                        const tracks = stream.getTracks();
+                        console.log(`🎤 MEDIA CLEANUP: Stream has ${tracks.length} tracks`);
+                        
+                        tracks.forEach(track => {
+                          console.log(`🎤 MEDIA CLEANUP: Stopping track: ${track.kind}, ${track.label}`);
+                          track.stop();
+                        });
+                        
+                        // Clear the srcObject
+                        audio.srcObject = null;
+                        console.log(`🎤 MEDIA CLEANUP: Cleared srcObject from audio element`);
+                      }
+                    });
+                  });
+              }
+              
+              // Stop video tracks
+              if (videoInputs.length > 0) {
+                console.log(`📹 MEDIA CLEANUP: Attempting to get video stream for cleanup`);
+                navigator.mediaDevices.getUserMedia({ video: true })
+                  .then(stream => {
+                    console.log(`📹 MEDIA CLEANUP: Successfully got video stream with ${stream.getVideoTracks().length} tracks`);
+                    stream.getVideoTracks().forEach(track => {
+                      console.log(`📹 MEDIA CLEANUP: Stopping video track: ${track.label}, enabled: ${track.enabled}, readyState: ${track.readyState}`);
+                      track.stop();
+                      console.log(`📹 MEDIA CLEANUP: After stopping - readyState: ${track.readyState}`);
+                    });
+                  })
+                  .catch(err => console.log(`📹 MEDIA CLEANUP: Error getting video stream: ${err.message}`));
+              }
+            })
+            .catch(err => console.error(`❌ MEDIA CLEANUP: Error enumerating devices: ${err.message}`));
+        }
+        
+        // Method 2: Check for global stream references
+        if (typeof window !== 'undefined') {
+          // Stop any globally stored streams
+          const globalStreams = window.activeMediaStreams || [];
+          if (globalStreams.length > 0) {
+            console.log(`🌐 MEDIA CLEANUP: Stopping ${globalStreams.length} globally stored streams`);
+            globalStreams.forEach((stream: MediaStream, index: number) => {
+              if (stream && typeof stream.getTracks === 'function') {
+                const tracks = stream.getTracks();
+                const audioTracks = stream.getAudioTracks();
+                const videoTracks = stream.getVideoTracks();
+                
+                console.log(`🌐 MEDIA CLEANUP: Global stream ${index} has ${tracks.length} total tracks (${audioTracks.length} audio, ${videoTracks.length} video)`);
+                
+                tracks.forEach(track => {
+                  console.log(`🌐 MEDIA CLEANUP: Stopping ${track.kind} track: ${track.label}, enabled: ${track.enabled}, readyState: ${track.readyState}`);
+                  track.stop();
+                  console.log(`🌐 MEDIA CLEANUP: After stopping - readyState: ${track.readyState}`);
+                });
+              }
+            });
+            window.activeMediaStreams = [];
+            console.log(`🌐 MEDIA CLEANUP: Cleared global media streams array`);
+          } else {
+            console.log(`🌐 MEDIA CLEANUP: No globally stored streams found`);
+          }
+          
+          // Close any audio contexts
+          const audioContext = window.activeAudioContext;
+          if (audioContext && typeof audioContext.close === 'function') {
+            console.log(`🔊 MEDIA CLEANUP: Closing active AudioContext, state: ${audioContext.state}`);
+            audioContext.close().then(() => {
+              console.log(`🔊 MEDIA CLEANUP: Successfully closed AudioContext`);
+            }).catch((err: any) => {
+              console.error(`❌ MEDIA CLEANUP: Error closing AudioContext: ${err.message}`);
+            });
+            delete window.activeAudioContext;
+            console.log(`🔊 MEDIA CLEANUP: Removed global AudioContext reference`);
+          } else {
+            console.log(`🔊 MEDIA CLEANUP: No active AudioContext found`);
+          }
+        }
+        
+        // Method 3: Try to revoke all media permissions
+        if (navigator.permissions && navigator.permissions.query) {
+          console.log(`🔐 MEDIA CLEANUP: Checking media permissions`);
+          
+          // Check microphone permission
+          navigator.permissions.query({ name: 'microphone' as PermissionName })
+            .then(permissionStatus => {
+              console.log(`🎤 MEDIA CLEANUP: Microphone permission status: ${permissionStatus.state}`);
+            })
+            .catch(err => console.log(`🎤 MEDIA CLEANUP: Error checking microphone permission: ${err.message}`));
+          
+          // Check camera permission
+          navigator.permissions.query({ name: 'camera' as PermissionName })
+            .then(permissionStatus => {
+              console.log(`📹 MEDIA CLEANUP: Camera permission status: ${permissionStatus.state}`);
+            })
+            .catch(err => console.log(`📹 MEDIA CLEANUP: Error checking camera permission: ${err.message}`));
+        }
+        
+        console.log(`✅ MEDIA CLEANUP: Completed all cleanup methods`);
+      };
+      
+      // Run the cleanup
+      cleanupMediaStreams();
+      
+      // Dispatch a custom event to notify all components that the call has ended
+      window.dispatchEvent(new CustomEvent('hume:call-ended', {
+        detail: { 
+          sessionId,
+          timeExpired,
+          timestamp: Date.now()
+        }
+      }));
       
       // Show a brief message to the user that their chat is being saved
       const saveMessage = document.createElement('div');

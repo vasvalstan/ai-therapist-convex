@@ -17,88 +17,163 @@ export function AudioVideoContainer({ apiKey, compact = false }: AudioVideoConta
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
   
-  // Initialize audio processing for visualization
   useEffect(() => {
-    // Only initialize audio context if face tracking is disabled
-    if (isFaceTrackingEnabled) {
-      // Clean up audio processing if face tracking is enabled
-      if (audioContextRef.current) {
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-          animationFrameRef.current = null;
-        }
-        
-        // Don't actually close the AudioContext as it might be needed again
-        // when switching back to audio-only mode
-        setIsAudioActive(false);
-      }
-      return;
-    }
+    let animationFrameId: number | null = null;
     
-    // Initialize audio context and analyzer for visualization
-    const initAudio = async () => {
+    const initializeAudio = async () => {
       try {
-        // Create audio context if it doesn't exist
-        if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-          analyserRef.current = audioContextRef.current.createAnalyser();
-          analyserRef.current.fftSize = 256;
+        // Create audio context
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        analyserRef.current = audioContextRef.current.createAnalyser();
+        analyserRef.current.fftSize = 256;
+        
+        // Store the audio context globally for cleanup
+        if (!window.activeAudioContext) {
+          window.activeAudioContext = audioContextRef.current;
+          console.log("AudioVideoContainer: Stored audio context for global cleanup");
         }
         
-        // Get user microphone access
+        // Get audio stream
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioStreamRef.current = stream;
         
-        // Ensure audio context and analyzer exist before connecting
-        if (audioContextRef.current && analyserRef.current) {
-          const source = audioContextRef.current.createMediaStreamSource(stream);
-          source.connect(analyserRef.current);
-          
-          // Start audio visualization
-          setIsAudioActive(true);
-          updateFFT();
-          
-          return () => {
-            if (animationFrameRef.current) {
-              cancelAnimationFrame(animationFrameRef.current);
-            }
-            
-            // Disconnect and clean up
-            source.disconnect();
-            stream.getTracks().forEach(track => track.stop());
-          };
+        // Store the stream globally for cleanup
+        if (!window.activeMediaStreams) {
+          window.activeMediaStreams = [];
         }
+        if (!window.activeMediaStreams.includes(stream)) {
+          window.activeMediaStreams.push(stream);
+          console.log("AudioVideoContainer: Stored audio stream for global cleanup");
+        }
+        
+        // Connect audio nodes
+        mediaStreamSourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
+        mediaStreamSourceRef.current.connect(analyserRef.current);
+        
+        // Set up animation loop for audio visualization
+        const bufferLength = analyserRef.current.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        
+        const updateAudioVisualization = () => {
+          if (!analyserRef.current) return;
+          
+          analyserRef.current.getByteFrequencyData(dataArray);
+          
+          // Calculate average frequency
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            sum += dataArray[i];
+          }
+          const average = sum / bufferLength;
+          
+          // Update audio level state (0-100 scale)
+          setIsAudioActive(true);
+          setFftData(Array.from(dataArray).map(value => value / 255));
+          
+          // Continue animation loop
+          animationFrameId = requestAnimationFrame(updateAudioVisualization);
+          animationFrameRef.current = animationFrameId;
+        };
+        
+        // Start animation loop
+        updateAudioVisualization();
+        
+        console.log("AudioVideoContainer: Audio visualization initialized successfully");
       } catch (error) {
-        console.error("Error initializing audio:", error);
-        setIsAudioActive(false);
+        console.error("AudioVideoContainer: Error initializing audio:", error);
       }
     };
     
-    initAudio();
+    // Initialize audio visualization
+    initializeAudio();
     
-    // Clean up on unmount
+    // Cleanup function
     return () => {
+      console.log("AudioVideoContainer: Cleaning up audio resources");
+      
+      // Stop animation loop
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        console.log("AudioVideoContainer: Cancelled animation frame");
+      }
+      
+      // Disconnect audio nodes
+      if (mediaStreamSourceRef.current) {
+        mediaStreamSourceRef.current.disconnect();
+        console.log("AudioVideoContainer: Disconnected media stream source");
+      }
+      
+      // Stop audio tracks
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getAudioTracks().forEach(track => {
+          console.log(`AudioVideoContainer: Stopping audio track: ${track.label}`);
+          track.stop();
+        });
+        console.log("AudioVideoContainer: Stopped all audio tracks");
+      }
+      
+      // Close audio context
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().then(() => {
+          console.log("AudioVideoContainer: Closed audio context");
+        }).catch(err => {
+          console.error("AudioVideoContainer: Error closing audio context:", err);
+        });
       }
     };
   }, [isFaceTrackingEnabled]);
   
-  // Update FFT data for visualization
-  const updateFFT = () => {
-    if (!analyserRef.current) return;
+  useEffect(() => {
+    const handleCallEnd = () => {
+      console.log("AudioVideoContainer: Detected call end, cleaning up audio resources");
+      
+      // Stop animation loop
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        console.log("AudioVideoContainer: Cancelled animation frame");
+      }
+      
+      // Disconnect audio nodes
+      if (mediaStreamSourceRef.current) {
+        mediaStreamSourceRef.current.disconnect();
+        console.log("AudioVideoContainer: Disconnected media stream source");
+      }
+      
+      // Stop audio tracks
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getAudioTracks().forEach(track => {
+          console.log(`AudioVideoContainer: Stopping audio track: ${track.label}, enabled: ${track.enabled}, readyState: ${track.readyState}`);
+          track.stop();
+          console.log(`AudioVideoContainer: After stopping - readyState: ${track.readyState}`);
+        });
+        console.log("AudioVideoContainer: Stopped all audio tracks");
+      }
+      
+      // Close audio context
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().then(() => {
+          console.log("AudioVideoContainer: Closed audio context");
+        }).catch(err => {
+          console.error("AudioVideoContainer: Error closing audio context:", err);
+        });
+      }
+      
+      // Reset state
+      setIsAudioActive(false);
+      setFftData([]);
+    };
     
-    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-    analyserRef.current.getByteFrequencyData(dataArray);
+    // Listen for custom call end event
+    window.addEventListener('hume:call-ended', handleCallEnd);
     
-    // Normalize data to range 0-1 for the visualizer
-    const normalizedData = Array.from(dataArray).map(value => value / 255);
-    setFftData(normalizedData);
-    
-    // Continue updating
-    animationFrameRef.current = requestAnimationFrame(updateFFT);
-  };
-  
+    return () => {
+      window.removeEventListener('hume:call-ended', handleCallEnd);
+    };
+  }, []);
+
   return (
     <div className="w-full h-56 relative">
       {/* Face tracking video when enabled */}

@@ -1,11 +1,15 @@
 "use client";
 
+declare global {
+  interface Window {
+    activeMediaStreams?: MediaStream[];
+  }
+}
+
 import { useEffect, useRef, useState, createContext, useContext } from "react";
 import { FaceTrackedVideo } from "./FaceTrackedVideo";
 import { TopEmotions } from "./TopEmotions";
-import { LoaderSet } from "./LoaderSet";
-import { Descriptor } from "./Descriptor";
-import { TrackedFace } from "@/lib/data/trackedFace";
+import { TrackedFace } from "@/lib/data/trackedFace"; 
 import { Emotion, EmotionName } from "@/lib/data/emotion";
 import { FacePrediction } from "@/lib/data/facePrediction";
 import { VideoRecorder } from "@/lib/media/videoRecorder";
@@ -103,6 +107,98 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
       }
     }
   }, [emotions, dominantEmotion]);
+
+  // Clean up when unmounting
+  useEffect(() => {
+    return () => {
+      // Close WebSocket connection if open
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        console.log("FaceWidgets: Closing WebSocket connection on unmount");
+        socketRef.current.close();
+      }
+      
+      // Store the fact that face tracking is disabled
+      localStorage.setItem('face_tracking_disabled', 'true');
+    };
+  }, []);
+
+  // Track and store active video streams for cleanup
+  useEffect(() => {
+    // Store video stream for cleanup when component unmounts
+    const storeVideoStream = (stream: MediaStream) => {
+      if (!window.activeMediaStreams) {
+        window.activeMediaStreams = [];
+      }
+      
+      // Only add if not already in the array
+      const activeStreams = window.activeMediaStreams;
+      if (!activeStreams.includes(stream)) {
+        console.log("FaceWidgets: Storing video stream for cleanup");
+        activeStreams.push(stream);
+      }
+    };
+    
+    // When face tracking is enabled, listen for video streams
+    if (true) { // Always listen for video streams
+      // Create a MutationObserver to detect when video elements are added to the DOM
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === 'childList') {
+            mutation.addedNodes.forEach((node) => {
+              // Check if the added node is a video element or contains video elements
+              if (node instanceof HTMLVideoElement) {
+                if (node.srcObject instanceof MediaStream) {
+                  storeVideoStream(node.srcObject);
+                }
+              } else if (node instanceof Element) {
+                // Look for video elements within the added node
+                const videos = node.querySelectorAll('video');
+                videos.forEach(video => {
+                  if (video.srcObject instanceof MediaStream) {
+                    storeVideoStream(video.srcObject);
+                  }
+                });
+              }
+            });
+          }
+        });
+      });
+      
+      // Start observing the document body for video elements
+      observer.observe(document.body, { childList: true, subtree: true });
+      
+      // Cleanup function
+      return () => {
+        observer.disconnect();
+      };
+    }
+  }, []);
+
+  // Listen for call end events to clean up resources
+  useEffect(() => {
+    const handleCallEnd = () => {
+      console.log("FaceWidgets: Detected call end, cleaning up face tracking resources");
+      
+      // Close WebSocket connection if open
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        console.log("FaceWidgets: Closing WebSocket connection");
+        socketRef.current.close();
+      }
+      
+      // Clear tracked faces
+      setTrackedFaces([]);
+      
+      // Clear emotions
+      setEmotions([]);
+    };
+    
+    // Listen for custom call end event
+    window.addEventListener('hume:call-ended', handleCallEnd);
+    
+    return () => {
+      window.removeEventListener('hume:call-ended', handleCallEnd);
+    };
+  }, []);
 
   function connect() {
     if (isConnecting) {
