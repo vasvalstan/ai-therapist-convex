@@ -216,9 +216,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                     <TabsContent value="chat" className="mt-0 h-[calc(100%-48px)] flex flex-col">
                         {!accessToken && <VoiceController sessionId={sessionId} />}
                         
-                        <div className="p-4 bg-gradient-to-r from-blue-50/30 to-indigo-50/30 dark:from-blue-950/10 dark:to-indigo-950/10 border-b flex justify-between items-center">
-                            {/* Removed "Chat with Sereni" heading to create more space */}
-                        </div>
+                        {/* Removed the empty header div that was creating gray space */}
                         
                         {!parsedMessages || parsedMessages.length === 0 ? (
                             <div className="flex-1 flex flex-col">
