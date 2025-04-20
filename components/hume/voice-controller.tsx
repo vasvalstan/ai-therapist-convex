@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/use-toast";
 import { SaveChatHistory } from "@/components/hume/save-chat-history";
 import { useSaveTranscript } from "@/lib/hooks/useSaveTranscript";
 import { useSaveHumeChat } from "@/app/handlers/chat-save-handler";
+import { fetchVoiceConfig } from "@/lib/client/voiceService";
 
 // Define the message type constants that match the Convex schema
 type MessageType = "USER_MESSAGE" | "AGENT_MESSAGE" | "SYSTEM_MESSAGE" | "CHAT_METADATA";
@@ -88,6 +89,21 @@ export function VoiceController({ initialMessages = [], sessionId: propSessionId
     const connect = async () => {
       try {
         console.log("Connecting to voice service...");
+        
+        // Fetch configuration from our server-side API
+        const config = await fetchVoiceConfig();
+        
+        if (!config) {
+          console.error("Failed to get voice service configuration");
+          toast({
+            title: "Connection Error",
+            description: "Failed to get voice service configuration. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        // Connect to the voice service
         await voice.connect();
       } catch (error) {
         console.error("Error connecting to voice service:", error);
@@ -535,7 +551,6 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
         {
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.NEXT_PUBLIC_HUME_API_KEY}`,
           },
         }
       );
