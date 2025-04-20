@@ -421,7 +421,7 @@ function generateMockEvents(sessionId: string, humeChatId?: string, humeGroupCha
 }
 
 // Constants for API endpoints
-const apiUrl = process.env.NEXT_PUBLIC_HUME_API_URL || "https://api.hume.ai";
+const apiUrl = '/api/hume/chat-events';
 
 // A simplified component for saving the chat to our database
 export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: { 
@@ -547,7 +547,7 @@ export function ChatSaveHandler({ sessionId, humeChatId, humeGroupChatId }: {
 
     try {
       const res = await fetch(
-        `${apiUrl}/v1/chat-events?chat_id=${finalChatId}&group_id=${finalGroupChatId}`,
+        `${apiUrl}?chat_id=${finalChatId}&group_id=${finalGroupChatId}`,
         {
           headers: {
             "Content-Type": "application/json",
