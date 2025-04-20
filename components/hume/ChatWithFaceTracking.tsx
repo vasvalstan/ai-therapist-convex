@@ -5,6 +5,7 @@ import HumeChat from "./chat";
 import { EmotionAwareChat } from "./EmotionAwareChat";
 import { useHume } from "./HumeProvider";
 import { AudioVideoContainer } from "./AudioVideoContainer";
+import { fetchHumeApiKey } from "@/lib/client/humeClient";
 
 interface ChatWithFaceTrackingProps {
   accessToken: string;
@@ -26,7 +27,7 @@ export function ChatWithFaceTracking({
   useEffect(() => {
     if (isHistoryView) return;
     
-    const fetchHumeApiKey = async () => {
+    const getHumeApiKey = async () => {
       try {
         // Try to get the API key from localStorage first (if previously saved)
         const savedKey = localStorage.getItem('hume_api_key');
@@ -35,30 +36,22 @@ export function ChatWithFaceTracking({
           return;
         }
         
-        // Otherwise fetch it from the server
-        const response = await fetch('/api/hume/api-key');
-        const data = await response.json();
+        // Otherwise fetch it from the server using our client-safe utility
+        const apiKey = await fetchHumeApiKey();
         
-        if (data.apiKey) {
-          setHumeApiKey(data.apiKey);
+        if (apiKey) {
+          setHumeApiKey(apiKey);
           // Save for future use
-          localStorage.setItem('hume_api_key', data.apiKey);
+          localStorage.setItem('hume_api_key', apiKey);
         } else {
           console.error("No API key returned from server");
         }
       } catch (error) {
         console.error("Error fetching Hume API key:", error);
-        
-        // Fallback to hardcoded key if in development (not recommended for production)
-        if (process.env.NODE_ENV === 'development') {
-          const fallbackKey = "znC5lwg0niYf3NvHd0zWzNBkA3cNK8YYiAaAcxM80AL9A2G1";
-          setHumeApiKey(fallbackKey);
-          localStorage.setItem('hume_api_key', fallbackKey);
-        }
       }
     };
     
-    fetchHumeApiKey();
+    getHumeApiKey();
   }, [isHistoryView]);
   
   return (
