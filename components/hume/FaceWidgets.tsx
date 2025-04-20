@@ -365,18 +365,17 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
   return (
     <EmotionContext.Provider value={emotionContextValue}>
       <div className="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-md max-w-md mx-auto">
-        <div className="flex flex-col md:flex-row md:items-start gap-4">
-          {/* Video display with larger fixed dimensions */}
-          <div className="relative w-full md:w-80 h-56 md:h-56 rounded-lg overflow-hidden flex-shrink-0">
-            <div className="absolute inset-0">
-              <FaceTrackedVideo
-                className="w-full h-full object-cover"
-                onVideoReady={onVideoReady}
-                trackedFaces={trackedFaces}
-                width={videoSize.width}
-                height={videoSize.height}
-              />
-            </div>
+        {/* Single column layout for both mobile and desktop */}
+        <div className="flex flex-col items-center">
+          {/* Video display taking full width with proper background */}
+          <div className="relative w-full aspect-video rounded-lg overflow-hidden flex-shrink-0 bg-black mb-3">
+            <FaceTrackedVideo
+              className="w-full h-full"
+              onVideoReady={onVideoReady}
+              trackedFaces={trackedFaces}
+              width={videoSize.width}
+              height={videoSize.height}
+            />
             {status && (
               <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-center p-4">
                 <div>{status}</div>
@@ -384,9 +383,10 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
             )}
           </div>
 
-          {/* Emotion display - in a fixed height container with scrolling */}
-          <div className="w-full md:w-28 md:h-56 flex-shrink-0 overflow-y-auto">
-            <div className="h-full flex flex-col justify-center">
+          {/* Emotion display - in a smaller fixed width container */}
+          <div className="w-4/5 max-w-[300px] flex-shrink-0">
+            {/* Force mobile view for TopEmotions on all devices */}
+            <div className="md:block">
               <TopEmotions emotions={emotions} className="w-full" />
             </div>
           </div>
