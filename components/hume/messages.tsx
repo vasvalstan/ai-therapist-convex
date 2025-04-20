@@ -134,10 +134,10 @@ export const Messages = forwardRef<
         </motion.div>
       )}
       
-      {/* Message count indicator - moved to the top with less margin */}
+      {/* Message count indicator - invisible but kept for spacing */}
       {sortedMessages.length > visibleMessageCount && (
         <div className="absolute top-0 left-0 right-0 flex justify-center">
-          <div className="bg-muted/30 text-muted-foreground text-xs px-2 py-1 rounded-full">
+          <div className="bg-transparent text-transparent text-xs px-2 py-1 rounded-full select-none" aria-hidden="true">
             {sortedMessages.length - visibleMessageCount} earlier messages
           </div>
         </div>

@@ -217,7 +217,7 @@ export function ChatView({ sessionId, accessToken }: ChatViewProps) {
                         {!accessToken && <VoiceController sessionId={sessionId} />}
                         
                         <div className="p-4 bg-gradient-to-r from-blue-50/30 to-indigo-50/30 dark:from-blue-950/10 dark:to-indigo-950/10 border-b flex justify-between items-center">
-                            <h1 className="text-lg font-medium">Chat with Sereni</h1>
+                            {/* Removed "Chat with Sereni" heading to create more space */}
                         </div>
                         
                         {!parsedMessages || parsedMessages.length === 0 ? (

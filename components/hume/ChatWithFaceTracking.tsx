@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import HumeChat from "./chat";
-import { FaceWidgets } from "./FaceWidgets";
 import { EmotionAwareChat } from "./EmotionAwareChat";
 import { useHume } from "./HumeProvider";
+import { AudioVideoContainer } from "./AudioVideoContainer";
 
 interface ChatWithFaceTrackingProps {
   accessToken: string;
@@ -63,17 +63,36 @@ export function ChatWithFaceTracking({
   
   return (
     <div className="flex flex-col w-full h-full relative">
-      {/* Video feed at the top when enabled */}
-      {!isHistoryView && isFaceTrackingEnabled && humeApiKey && (
-        <div className="w-full border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-2">
-          <div className="flex justify-center">
-            <FaceWidgets 
+      {/* Video feed or Audio Visualizer at the top */}
+      {!isHistoryView && humeApiKey && (
+        <div className="w-full flex justify-center pt-2">
+          <div className="w-full max-w-md">
+            <AudioVideoContainer 
               apiKey={humeApiKey} 
               compact={true} 
             />
           </div>
         </div>
       )}
+      
+      {/* Emotion awareness component */}
+      {!isHistoryView && isFaceTrackingEnabled && sessionId && humeApiKey && (
+        <div className="w-full flex justify-center mt-3 mb-4">
+          <div className="w-full max-w-md">
+            <EmotionAwareChat 
+              sessionId={sessionId} 
+              isActive={isFaceTrackingEnabled} 
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* Delimiter between video/emotions and chat messages - invisible but kept for spacing */}
+      <div className="w-full flex justify-center mb-4">
+        <div className="w-full max-w-md text-center text-sm text-transparent select-none" aria-hidden="true">
+          {sessionId ? "Earlier messages" : "Start your conversation"}
+        </div>
+      </div>
       
       {/* Chat interface below the video */}
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
@@ -88,14 +107,6 @@ export function ChatWithFaceTracking({
           </div>
         </div>
       </div>
-      
-      {/* Emotion awareness component */}
-      {!isHistoryView && isFaceTrackingEnabled && sessionId && humeApiKey && (
-        <EmotionAwareChat 
-          sessionId={sessionId} 
-          isActive={isFaceTrackingEnabled} 
-        />
-      )}
     </div>
   );
 }

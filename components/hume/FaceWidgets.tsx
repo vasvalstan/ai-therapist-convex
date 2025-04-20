@@ -364,34 +364,32 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
 
   return (
     <EmotionContext.Provider value={emotionContextValue}>
-      <div className="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-md max-w-md mx-auto">
-        {/* Single column layout for both mobile and desktop */}
-        <div className="flex flex-col items-center">
-          {/* Video display taking full width with proper background */}
-          <div className="relative w-full aspect-video rounded-lg overflow-hidden flex-shrink-0 bg-black mb-3">
-            <FaceTrackedVideo
-              className="w-full h-full"
-              onVideoReady={onVideoReady}
-              trackedFaces={trackedFaces}
-              width={videoSize.width}
-              height={videoSize.height}
-            />
-            {status && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-center p-4">
-                <div>{status}</div>
-              </div>
-            )}
-          </div>
-
-          {/* Emotion display - in a smaller fixed width container */}
-          <div className="w-4/5 max-w-[300px] flex-shrink-0">
-            {/* Force mobile view for TopEmotions on all devices */}
-            <div className="md:block">
-              <TopEmotions emotions={emotions} className="w-full" />
+      <div className="w-full h-full flex flex-col">
+        {/* Video display with fixed dimensions to match audio visualizer */}
+        <div className="relative w-full h-full flex justify-center">
+          <FaceTrackedVideo
+            className="w-full h-full"
+            onVideoReady={onVideoReady}
+            trackedFaces={trackedFaces}
+            width={videoSize.width}
+            height={videoSize.height}
+          />
+          {status && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-center p-4">
+              <div>{status}</div>
             </div>
-          </div>
+          )}
         </div>
+        
+        {/* Hidden canvas for photo capture */}
         <canvas className="hidden" ref={photoRef}></canvas>
+      </div>
+      
+      {/* Emotions display positioned below the video container */}
+      <div className="mt-2 flex justify-center">
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg px-2 py-1 shadow-sm">
+          <TopEmotions emotions={emotions} className="w-full" />
+        </div>
       </div>
     </EmotionContext.Provider>
   );

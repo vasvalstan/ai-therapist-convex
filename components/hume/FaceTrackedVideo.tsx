@@ -56,9 +56,9 @@ export function FaceTrackedVideo({ className, trackedFaces, onVideoReady, width,
   }, [trackedFaces, width, height, videoReady]);
 
   return (
-    <div className={`${className} relative w-full h-full overflow-hidden`}>
+    <div className={`${className} w-full h-full overflow-hidden`}>
       <video 
-        className="absolute inset-0 w-full h-full object-cover -scale-x-[1]" 
+        className="w-full h-full object-cover -scale-x-[1]" 
         ref={videoRef} 
         autoPlay 
         playsInline
