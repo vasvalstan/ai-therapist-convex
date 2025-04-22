@@ -295,12 +295,31 @@ export function ChatHistoryContent() {
             </div>
           )}
           {activeTab === "history" && (
-            <div className="flex-1 flex flex-col md:hidden">
-              <div className="p-4 border-b border-border">
+            <div className="flex-1 flex flex-col md:flex">
+              <div className="p-4 border-b border-border md:hidden">
                 <h2 className="font-semibold">Recent Chats</h2>
               </div>
-              <div className="flex-1 overflow-auto">
-                <MobileChatHistory />
+              <div className="flex-1 overflow-auto md:flex md:items-center md:justify-center">
+                {/* Mobile view shows the chat list */}
+                <div className="md:hidden">
+                  <MobileChatHistory />
+                </div>
+                {/* Desktop view shows a helpful message */}
+                <div className="hidden md:block text-center p-8 max-w-md mx-auto">
+                  <div className="bg-muted/50 rounded-lg p-6 shadow-sm">
+                    <h3 className="text-xl font-semibold mb-3">Chat History</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Click on any of the previous chats in the left panel to see more details.
+                    </p>
+                    <div className="flex justify-center text-muted-foreground">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                        <path d="m12 19-7-7 7-7"></path>
+                        <path d="M19 12H5"></path>
+                      </svg>
+                      <span>Select a conversation</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}

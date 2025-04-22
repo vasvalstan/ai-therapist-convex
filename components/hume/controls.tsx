@@ -188,11 +188,16 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
           const audioContext = window.activeAudioContext;
           if (audioContext && typeof audioContext.close === 'function') {
             console.log(`🔊 MEDIA CLEANUP: Closing active AudioContext, state: ${audioContext.state}`);
-            audioContext.close().then(() => {
-              console.log(`🔊 MEDIA CLEANUP: Successfully closed AudioContext`);
-            }).catch((err: any) => {
-              console.error(`❌ MEDIA CLEANUP: Error closing AudioContext: ${err.message}`);
-            });
+            // Only attempt to close if the AudioContext is not already closed
+            if (audioContext.state !== 'closed') {
+              audioContext.close().then(() => {
+                console.log(`🔊 MEDIA CLEANUP: Successfully closed AudioContext`);
+              }).catch((err: any) => {
+                console.error(`❌ MEDIA CLEANUP: Error closing AudioContext: ${err.message}`);
+              });
+            } else {
+              console.log(`🔊 MEDIA CLEANUP: AudioContext already closed, skipping close operation`);
+            }
             delete window.activeAudioContext;
             console.log(`🔊 MEDIA CLEANUP: Removed global AudioContext reference`);
           } else {

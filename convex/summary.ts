@@ -461,8 +461,8 @@ export const updateProgressWithAnalysis = internalMutation({
   },
 });
 
-// Action to analyze session with DeepSeek API
-export const analyzeSessionWithDeepSeek = action({
+// Action to analyze session with Google Gemini API
+export const analyzeSessionWithGemini = action({
   args: { progressId: v.id("therapyProgress") },
   handler: async (ctx: ActionCtx, args) => {
     console.log("Starting analysis for progress record:", args.progressId);
@@ -477,60 +477,54 @@ export const analyzeSessionWithDeepSeek = action({
 
     // Sort transcripts by timestamp to maintain chronological order
     const sortedTranscripts = [...progress.transcripts].sort((a, b) => a.timestamp - b.timestamp);
+    
+    // With Gemini 1.5 Pro's 2M token context window, we can include all transcripts
+    // But we'll still implement a basic check to avoid extremely large inputs
     const combinedTranscript = sortedTranscripts.map(t => t.content).join("\n\n");
-
-    console.log("Analyzing", sortedTranscripts.length, "transcripts");
-
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) {
-      throw new Error("DEEPSEEK_API_KEY not set");
+    
+    // Estimate tokens: ~1 token per ~4 characters for English text
+    const estimateTokens = (text: string) => Math.ceil(text.length / 4);
+    const estimatedTokens = estimateTokens(combinedTranscript);
+    
+    console.log(`Analyzing ${sortedTranscripts.length} transcripts with approximately ${estimatedTokens} tokens`);
+    
+    // Even with Gemini's 2M token limit, we'll cap at 1.5M to be safe
+    const MAX_TRANSCRIPT_TOKENS = 1500000;
+    let processedTranscript = combinedTranscript;
+    
+    if (estimatedTokens > MAX_TRANSCRIPT_TOKENS) {
+      console.warn(`Transcript exceeds safe token limit. Truncating to ${MAX_TRANSCRIPT_TOKENS} tokens.`);
+      // Simple truncation as last resort - with 2M context window this should rarely happen
+      const truncatedLength = Math.floor(MAX_TRANSCRIPT_TOKENS * 4); // Convert tokens back to characters
+      processedTranscript = combinedTranscript.substring(0, truncatedLength) + 
+        "\n\n[... REMAINDER OF CONTENT OMITTED DUE TO LENGTH CONSTRAINTS ...]";
     }
 
-    const client = new OpenAI({
-      apiKey,
-      baseURL: "https://api.deepseek.com/v1",
-    });
+    const apiKey = process.env.GOOGLE_AI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GOOGLE_AI_API_KEY environment variable is not set");
+    }
 
-    const analysisPrompt = `You are an experienced AI therapist analyzing a series of therapy sessions. 
-As a therapeutic professional, analyze these sessions chronologically, focusing on the client's journey and progress.
+    // Import the Google AI SDK
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
 
-Based on the following therapy transcripts, provide a comprehensive therapeutic analysis focusing on:
+    // Initialize the Google AI API client
+    const genAI = new GoogleGenerativeAI(apiKey);
+    
+    try {
+      // Configure the generation
+      const generationConfig = {
+        temperature: 0.7,
+        topP: 0.9,
+        topK: 40,
+        maxOutputTokens: 8192,
+      };
+      
+      // Instead of using systemInstruction, we'll include it in the prompt
+      const enhancedPrompt = `You are an experienced AI therapist with expertise in analyzing therapy sessions and providing insightful therapeutic recommendations. Focus on identifying patterns, emotional themes, and actionable insights that will be valuable for both the client and future therapy sessions.
 
-1. Main Discussion Topics (3-4 topics)
-   - Identify the primary concerns and themes discussed across sessions
-   - Note which topics triggered strong emotional responses
-   - Track how these topics evolved over time
-   - Highlight recurring patterns or themes
-
-2. Client's Emotional Journey
-   - Key emotional themes and their progression
-   - How emotions evolved across different sessions
-   - Notable emotional patterns or triggers
-   - Changes in emotional responses over time
-
-3. Therapeutic Progress
-   - Concrete improvements observed across sessions
-   - Growth in self-awareness and insight
-   - Development of coping strategies
-   - Changes in thought patterns or behaviors
-
-4. Areas of Ongoing Work
-   - Current challenges and struggles
-   - Underlying themes needing attention
-   - Potential risk factors or concerns
-   - Resistance or barriers to progress
-
-5. Therapeutic Recommendations
-   - Specific, actionable next steps
-   - Key areas to explore further
-   - Suggested coping strategies or exercises
-   - Long-term therapeutic goals
-
-6. Progress Summary
-   - Overall therapeutic journey
-   - Key breakthroughs and insights
-   - Current stage in therapy
-   - Future focus areas
+You are analyzing the following therapy transcripts:
+${processedTranscript}
 
 Return ONLY a JSON object with this exact structure:
 {
@@ -538,118 +532,107 @@ Return ONLY a JSON object with this exact structure:
     {
       "topic": "string",
       "emotionalSignificance": "string",
-      "frequency": "high/medium/low",
-      "progression": "string"
+      "frequency": "high/medium/low"
     }
   ],
   "emotionalState": {
     "primaryEmotions": ["string"],
     "triggers": ["string"],
-    "patterns": ["string"],
-    "evolution": "string"
+    "patterns": ["string"]
   },
   "therapeuticProgress": {
     "improvements": ["string"],
     "insights": ["string"],
-    "copingStrategies": ["string"],
-    "progressionNotes": "string"
+    "copingStrategies": ["string"]
   },
   "concernAreas": {
     "challenges": ["string"],
     "underlyingIssues": ["string"],
-    "riskFactors": ["string"],
-    "priorityLevel": "high/medium/low"
+    "riskFactors": ["string"]
   },
   "recommendations": {
     "actionableSteps": ["string"],
     "futureTopics": ["string"],
-    "suggestedStrategies": ["string"],
-    "longTermGoals": ["string"]
+    "suggestedStrategies": ["string"]
   },
   "sessionSummary": {
     "mainFocus": "string",
     "breakthroughs": ["string"],
-    "therapeuticGoals": ["string"],
-    "currentStage": "string"
+    "therapeuticGoals": ["string"]
   }
 }
+`;
 
-Transcripts (in chronological order):
-${combinedTranscript}`;
-
-    console.log("Sending request to DeepSeek API");
-    const response = await client.chat.completions.create({
-      model: "deepseek-chat",
-      messages: [
-        {
-          role: "system",
-          content: "You are an experienced AI therapist with expertise in analyzing therapy sessions and providing insightful therapeutic recommendations. Focus on identifying patterns, emotional themes, and actionable insights that will be valuable for both the client and future therapy sessions."
-        },
-        {
-          role: "user",
-          content: analysisPrompt,
-        },
-      ],
-      temperature: 0.7,
-    });
-
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error("No response content from DeepSeek API");
-    }
-
-    console.log("Received response from DeepSeek API:", content);
-
-    // Clean up the response content to extract only the JSON part
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("Could not find JSON object in response");
-    }
-
-    try {
-      const analysis = JSON.parse(jsonMatch[0]);
-
-      // Validate the analysis structure
-      if (!analysis.mainTopics || !Array.isArray(analysis.mainTopics) ||
-          !analysis.emotionalState || !analysis.emotionalState.primaryEmotions ||
-          !analysis.therapeuticProgress || !analysis.therapeuticProgress.improvements ||
-          !analysis.concernAreas || !analysis.concernAreas.challenges ||
-          !analysis.recommendations || !analysis.recommendations.actionableSteps ||
-          !analysis.sessionSummary || !analysis.sessionSummary.mainFocus) {
-        throw new Error("Invalid analysis structure");
+      // Create the chat session without system instruction
+      const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-pro",
+        generationConfig,
+      });
+      
+      // Send the message directly without using chat
+      const result = await model.generateContent(enhancedPrompt);
+      const content = result.response.text();
+      
+      if (!content) {
+        throw new Error("No response content from Google Gemini API");
       }
 
-      console.log("Analysis results:", {
-        topicsCount: analysis.mainTopics.length,
-        emotionsCount: analysis.emotionalState.primaryEmotions.length,
-        recommendationsCount: analysis.recommendations.actionableSteps.length,
-        summaryLength: analysis.sessionSummary.mainFocus.length,
-      });
+      console.log("Received response from Google Gemini API");
 
-      // Create a more detailed progress summary
-      const progressSummary = `Main focus: ${analysis.sessionSummary.mainFocus}\n\n` +
-        `Key topics discussed: ${analysis.mainTopics.map((t: TopicAnalysis) => t.topic).join(", ")}\n\n` +
-        `Emotional themes: ${analysis.emotionalState.primaryEmotions.join(", ")}\n\n` +
-        `Progress: ${analysis.therapeuticProgress.improvements.join("; ")}\n\n` +
-        `Recommendations for next session:\n${analysis.recommendations.actionableSteps.join("\n")}`;
+      // Clean up the response content to extract only the JSON part
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("Could not find JSON object in response");
+      }
 
-      // Update the progress record with the analysis
-      await ctx.runMutation(internal.summary.updateProgressWithAnalysis, {
-        progressId: args.progressId,
-        analysis: {
-          mainThemes: analysis.mainTopics.map((t: TopicAnalysis) => `${t.topic} (${t.emotionalSignificance})`),
-          improvements: analysis.therapeuticProgress.improvements,
-          challenges: analysis.concernAreas.challenges,
-          recommendations: analysis.recommendations.actionableSteps,
-          progressSummary: progressSummary,
-        },
-      });
+      try {
+        const analysis = JSON.parse(jsonMatch[0]);
 
-      console.log("Successfully updated progress record with analysis");
-      return analysis;
+        // Validate the analysis structure
+        if (!analysis.mainTopics || !Array.isArray(analysis.mainTopics) ||
+            !analysis.emotionalState || !analysis.emotionalState.primaryEmotions ||
+            !analysis.therapeuticProgress || !analysis.therapeuticProgress.improvements ||
+            !analysis.concernAreas || !analysis.concernAreas.challenges ||
+            !analysis.recommendations || !analysis.recommendations.actionableSteps ||
+            !analysis.sessionSummary || !analysis.sessionSummary.mainFocus) {
+          throw new Error("Invalid analysis structure");
+        }
+
+        console.log("Analysis results:", {
+          topicsCount: analysis.mainTopics.length,
+          emotionsCount: analysis.emotionalState.primaryEmotions.length,
+          recommendationsCount: analysis.recommendations.actionableSteps.length,
+          summaryLength: analysis.sessionSummary.mainFocus.length,
+        });
+
+        // Create a more detailed progress summary
+        const progressSummary = `Main focus: ${analysis.sessionSummary.mainFocus}\n\n` +
+          `Key topics discussed: ${analysis.mainTopics.map((t: TopicAnalysis) => t.topic).join(", ")}\n\n` +
+          `Emotional themes: ${analysis.emotionalState.primaryEmotions.join(", ")}\n\n` +
+          `Progress: ${analysis.therapeuticProgress.improvements.join("; ")}\n\n` +
+          `Recommendations for next session:\n${analysis.recommendations.actionableSteps.join("\n")}`;
+
+        // Update the progress record with the analysis
+        await ctx.runMutation(internal.summary.updateProgressWithAnalysis, {
+          progressId: args.progressId,
+          analysis: {
+            mainThemes: analysis.mainTopics.map((t: TopicAnalysis) => `${t.topic} (${t.emotionalSignificance})`),
+            improvements: analysis.therapeuticProgress.improvements,
+            challenges: analysis.concernAreas.challenges,
+            recommendations: analysis.recommendations.actionableSteps,
+            progressSummary: progressSummary,
+          },
+        });
+
+        console.log("Successfully updated progress record with analysis");
+        return analysis;
+      } catch (error: any) {
+        console.error("Error parsing analysis:", error);
+        throw new Error(`Failed to parse analysis: ${error?.message || 'Unknown error'}`);
+      }
     } catch (error: any) {
-      console.error("Error parsing analysis:", error);
-      throw new Error(`Failed to parse analysis: ${error?.message || 'Unknown error'}`);
+      console.error("Error calling Google Gemini API:", error);
+      throw new Error(`Failed to analyze session: ${error?.message || 'Unknown error'}`);
     }
   },
 });
@@ -767,8 +750,8 @@ export const updateTherapyProgress = mutation({
 
         // Schedule the analysis to run after
         if (progress) {
-            console.log("🔄 Scheduling DeepSeek analysis for progress:", progress._id);
-            await ctx.scheduler.runAfter(0, api.summary.analyzeSessionWithDeepSeek, {
+            console.log("🔄 Scheduling Google Gemini analysis for progress:", progress._id);
+            await ctx.scheduler.runAfter(0, api.summary.analyzeSessionWithGemini, {
                 progressId: progress._id,
             });
             console.log("✅ Analysis scheduled successfully");
