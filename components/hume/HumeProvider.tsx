@@ -8,6 +8,7 @@ interface HumeContextType {
   faceTrackingData: any | null;
   setFaceTrackingData: (data: any) => void;
   humeApiKey: string;
+  setHumeApiKey: (apiKey: string) => void;
 }
 
 const HumeContext = createContext<HumeContextType | undefined>(undefined);
@@ -16,8 +17,8 @@ export function HumeProvider({ children }: { children: ReactNode }) {
   const [isFaceTrackingEnabled, setIsFaceTrackingEnabled] = useState(false);
   const [faceTrackingData, setFaceTrackingData] = useState<any | null>(null);
   
-  // Store the API key in the context so it's accessible throughout the app
-  const humeApiKey = "znC5lwg0niYf3NvHd0zWzNBkA3cNK8YYiAaAcxM80AL9A2G1";
+  // Don't store the API key directly in the client code
+  const [humeApiKey, setHumeApiKey] = useState<string>("");
 
   const toggleFaceTracking = () => {
     setIsFaceTrackingEnabled(prev => !prev);
@@ -29,7 +30,8 @@ export function HumeProvider({ children }: { children: ReactNode }) {
       toggleFaceTracking,
       faceTrackingData,
       setFaceTrackingData,
-      humeApiKey
+      humeApiKey,
+      setHumeApiKey
     }}>
       {children}
     </HumeContext.Provider>

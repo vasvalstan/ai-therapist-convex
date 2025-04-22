@@ -20,8 +20,7 @@ export function ChatWithFaceTracking({
   onEndCallStart,
   isHistoryView = false
 }: ChatWithFaceTrackingProps) {
-  const { isFaceTrackingEnabled } = useHume(); // Get face tracking state from the HumeProvider
-  const [humeApiKey, setHumeApiKey] = useState<string>("");
+  const { isFaceTrackingEnabled, humeApiKey, setHumeApiKey } = useHume(); // Get face tracking state and API key from the HumeProvider
   
   // Fetch the Hume API key when the component mounts
   useEffect(() => {
