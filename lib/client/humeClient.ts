@@ -100,69 +100,28 @@ export async function fetchHumeApiKey(): Promise<string | null> {
           // Log detailed error information
           let errorDetails;
           try {
-            errorDetails = await response.json();
+            errorDetails = await response.text();
           } catch (e) {
-            try {
-              errorDetails = await response.text();
-            } catch (textError) {
-              errorDetails = 'Could not parse response';
-            }
+            errorDetails = 'Could not read error response';
           }
           
-          console.error(`Failed to fetch from ${endpoint}: ${response.status} ${response.statusText}`, errorDetails);
-          errors[endpoint] = {
-            status: response.status,
-            statusText: response.statusText,
-            details: errorDetails
-          };
-          
-          // In production, log more details about the error
-          if (isProd) {
-            console.error(`Production API key retrieval failed from ${endpoint}. Check Vercel environment variables.`);
-          }
+          console.warn(`${endpoint} returned status ${response.status}: ${errorDetails}`);
+          errors[endpoint] = `Status ${response.status}: ${errorDetails}`;
         }
-      } catch (endpointError) {
-        console.error(`Error fetching from ${endpoint}:`, endpointError);
-        errors[endpoint] = endpointError;
+      } catch (error) {
+        console.error(`Error fetching from ${endpoint}:`, error);
+        errors[endpoint] = error instanceof Error ? error.message : String(error);
       }
     }
     
     // If we get here, all endpoints failed
-    console.error('All API key endpoints failed', errors);
+    console.error('All API key endpoints failed:', errors);
     
-    // Display a more user-friendly error message
-    if (typeof window !== 'undefined') {
-      const errorMessage = document.createElement('div');
-      errorMessage.style.position = 'fixed';
-      errorMessage.style.top = '10px';
-      errorMessage.style.left = '50%';
-      errorMessage.style.transform = 'translateX(-50%)';
-      errorMessage.style.backgroundColor = '#f44336';
-      errorMessage.style.color = 'white';
-      errorMessage.style.padding = '15px';
-      errorMessage.style.borderRadius = '5px';
-      errorMessage.style.zIndex = '9999';
-      errorMessage.style.maxWidth = '80%';
-      errorMessage.style.textAlign = 'center';
-      errorMessage.textContent = 'Unable to connect to face tracking service. Please try refreshing the page.';
-      
-      document.body.appendChild(errorMessage);
-      
-      // Remove the error message after 10 seconds
-      setTimeout(() => {
-        document.body.removeChild(errorMessage);
-      }, 10000);
-    }
-    
-    // Last resort: try to use a public key for demo purposes in development only
-    if (isDevelopment && process.env.NEXT_PUBLIC_HUME_DEMO_KEY) {
-      console.warn('Using public demo key as last resort (development only)');
-      return process.env.NEXT_PUBLIC_HUME_DEMO_KEY;
-    }
-    
+    // Return null instead of throwing an error to prevent crashes during cleanup
     return null;
   } catch (error) {
-    console.error('Unexpected error in fetchHumeApiKey:', error);
+    // Log the error but don't throw it during cleanup
+    console.error('Error retrieving Hume API key:', error);
     return null;
   }
 }
