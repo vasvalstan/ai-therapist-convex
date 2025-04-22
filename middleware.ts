@@ -17,6 +17,8 @@ const publicPaths = [
   '/sign-up*',
   '/api/webhooks*',
   '/api/hume/token*', // This will take precedence for the token endpoint
+  '/api/hume/api-key*', // Add the API key endpoint to public paths for debugging
+  '/api/hume/debug-key*', // Add the debug endpoint
   '/blog*',
   '/privacy*',
   '/terms*',

@@ -9,15 +9,44 @@
  */
 export async function fetchHumeApiKey(): Promise<string | null> {
   try {
+    // First try to get from localStorage if available (for development and testing)
+    if (typeof window !== 'undefined') {
+      const cachedKey = localStorage.getItem('hume_api_key');
+      if (cachedKey) {
+        console.log('Using cached Hume API key from localStorage');
+        return cachedKey;
+      }
+    }
+    
+    // Otherwise fetch from server
+    console.log('Fetching Hume API key from server...');
     const response = await fetch('/api/hume/api-key');
     
     if (!response.ok) {
-      console.error('Failed to fetch Hume API key:', await response.text());
+      const errorText = await response.text();
+      console.error(`Failed to fetch Hume API key: ${response.status} ${response.statusText}`, errorText);
+      
+      // For development only - fallback to a default key if in development
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Using fallback API key for development');
+        return process.env.NEXT_PUBLIC_HUME_API_KEY || null;
+      }
+      
       return null;
     }
     
     const data = await response.json();
-    return data.apiKey || null;
+    
+    if (data.apiKey) {
+      // Cache in localStorage for future use
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('hume_api_key', data.apiKey);
+      }
+      return data.apiKey;
+    } else {
+      console.error('No API key returned from server');
+      return null;
+    }
   } catch (error) {
     console.error('Error fetching Hume API key:', error);
     return null;
