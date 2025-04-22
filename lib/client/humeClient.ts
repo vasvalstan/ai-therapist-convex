@@ -28,23 +28,33 @@ export async function fetchHumeApiKey(): Promise<string | null> {
     
     // Otherwise fetch from server
     console.log('Fetching Hume API key from server...');
-    let response;
     
     // Check if we're in development mode
     const isDevelopment = process.env.NODE_ENV === 'development';
     const isProd = process.env.NODE_ENV === 'production';
     
-    // In development mode, try the direct endpoint first to avoid auth issues
-    if (isDevelopment) {
+    // Define all possible endpoints to try in order
+    const endpoints = [
+      '/api/hume/api-key',      // Primary authenticated endpoint
+      '/api/hume/direct-key',   // Development-only direct endpoint
+      '/api/hume/debug-key'     // Fallback endpoint with less strict auth
+    ];
+    
+    // Track errors for diagnostic purposes
+    const errors: Record<string, any> = {};
+    
+    // Try each endpoint in sequence until one works
+    for (const endpoint of endpoints) {
       try {
-        console.log('Development mode: trying direct endpoint first...');
-        response = await fetch('/api/hume/direct-key');
+        console.log(`Trying to fetch API key from ${endpoint}...`);
+        const response = await fetch(endpoint);
         
         if (response.ok) {
-          console.log('Successfully retrieved API key from direct endpoint');
           const data = await response.json();
           
           if (data.apiKey) {
+            console.log(`Successfully retrieved API key from ${endpoint}`);
+            
             // Store in sessionStorage with expiration (30 minutes)
             if (typeof window !== 'undefined') {
               const expiresAt = new Date();
@@ -52,66 +62,59 @@ export async function fetchHumeApiKey(): Promise<string | null> {
               
               const tokenData = {
                 token: data.apiKey,
-                expiresAt: expiresAt.toISOString()
+                expiresAt: expiresAt.toISOString(),
+                source: endpoint
               };
               
               sessionStorage.setItem('hume_api_token', JSON.stringify(tokenData));
+              
+              // Log a masked version of the API key for debugging
+              const maskedKey = data.apiKey.substring(0, 4) + '***';
+              console.log(`API key retrieved successfully (starts with: ${maskedKey})`);
             }
+            
             return data.apiKey;
+          } else {
+            console.warn(`${endpoint} returned a response but no API key was found`);
+            errors[endpoint] = 'No API key in response';
           }
         } else {
-          console.warn(`Direct endpoint failed: ${response.status} ${response.statusText}`);
+          // Log detailed error information
+          let errorDetails;
+          try {
+            errorDetails = await response.json();
+          } catch (e) {
+            errorDetails = await response.text();
+          }
+          
+          console.error(`Failed to fetch from ${endpoint}: ${response.status} ${response.statusText}`, errorDetails);
+          errors[endpoint] = {
+            status: response.status,
+            statusText: response.statusText,
+            details: errorDetails
+          };
+          
+          // In production, log more details about the error
+          if (isProd) {
+            console.error(`Production API key retrieval failed from ${endpoint}. Check Vercel environment variables.`);
+          }
         }
-      } catch (directError) {
-        console.error('Error fetching from direct endpoint:', directError);
+      } catch (endpointError) {
+        console.error(`Error fetching from ${endpoint}:`, endpointError);
+        errors[endpoint] = endpointError;
       }
     }
     
-    // If direct endpoint failed or we're in production, try the authenticated endpoint
-    try {
-      console.log(`${isProd ? 'Production mode' : 'Development mode'}: trying authenticated endpoint...`);
-      response = await fetch('/api/hume/api-key');
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Failed to fetch Hume API key from primary endpoint: ${response.status} ${response.statusText}`, errorText);
-        
-        // In production, log more details about the error
-        if (isProd) {
-          console.error('Production API key retrieval failed. Check Vercel environment variables.');
-        }
-        
-        throw new Error('Primary endpoint failed');
-      }
-      
-      const data = await response.json();
-      
-      if (data.apiKey) {
-        // Store in sessionStorage with expiration (30 minutes)
-        if (typeof window !== 'undefined') {
-          const expiresAt = new Date();
-          expiresAt.setMinutes(expiresAt.getMinutes() + 30);
-          
-          const tokenData = {
-            token: data.apiKey,
-            expiresAt: expiresAt.toISOString()
-          };
-          
-          sessionStorage.setItem('hume_api_token', JSON.stringify(tokenData));
-          
-          // Log a masked version of the API key for debugging
-          const maskedKey = data.apiKey.substring(0, 4) + '***';
-          console.log(`API key retrieved successfully (starts with: ${maskedKey})`);
-        }
-        return data.apiKey;
-      } else {
-        console.error('API key not found in response');
-        return null;
-      }
-    } catch (error) {
-      console.error('Error fetching Hume API key:', error);
-      return null;
+    // If we get here, all endpoints failed
+    console.error('All API key endpoints failed', errors);
+    
+    // Last resort: try to use a public key for demo purposes in development only
+    if (isDevelopment && process.env.NEXT_PUBLIC_HUME_DEMO_KEY) {
+      console.warn('Using public demo key as last resort (development only)');
+      return process.env.NEXT_PUBLIC_HUME_DEMO_KEY;
     }
+    
+    return null;
   } catch (error) {
     console.error('Unexpected error in fetchHumeApiKey:', error);
     return null;
