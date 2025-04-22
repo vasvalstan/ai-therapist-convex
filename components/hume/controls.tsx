@@ -141,17 +141,26 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
               
               // Stop video tracks
               if (videoInputs.length > 0) {
-                console.log(`📹 MEDIA CLEANUP: Attempting to get video stream for cleanup`);
-                navigator.mediaDevices.getUserMedia({ video: true })
-                  .then(stream => {
-                    console.log(`📹 MEDIA CLEANUP: Successfully got video stream with ${stream.getVideoTracks().length} tracks`);
+                console.log(`📹 MEDIA CLEANUP: Checking for active video streams to clean up`);
+                
+                // First check if we have any stored video streams to clean up
+                const hasActiveVideoStreams = window.activeMediaStreams?.some(stream => 
+                  stream.getVideoTracks().length > 0
+                );
+                
+                if (hasActiveVideoStreams) {
+                  console.log(`📹 MEDIA CLEANUP: Found active video streams to clean up`);
+                  // Clean up existing video streams instead of requesting new ones
+                  window.activeMediaStreams?.forEach(stream => {
                     stream.getVideoTracks().forEach(track => {
                       console.log(`📹 MEDIA CLEANUP: Stopping video track: ${track.label}, enabled: ${track.enabled}, readyState: ${track.readyState}`);
                       track.stop();
                       console.log(`📹 MEDIA CLEANUP: After stopping - readyState: ${track.readyState}`);
                     });
-                  })
-                  .catch(err => console.log(`📹 MEDIA CLEANUP: Error getting video stream: ${err.message}`));
+                  });
+                } else {
+                  console.log(`📹 MEDIA CLEANUP: No active video streams found, skipping video cleanup`);
+                }
               }
             })
             .catch(err => console.error(`❌ MEDIA CLEANUP: Error enumerating devices: ${err.message}`));
