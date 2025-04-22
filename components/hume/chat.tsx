@@ -159,6 +159,9 @@ export default function HumeChat({
     }
   }, [currentSessionId, handleSessionEnd]);
 
+  // Add a state to track if the assistant is currently speaking
+  const [assistantSpeaking, setAssistantSpeaking] = useState(false);
+  
   // Set up message handler for the existing voice connection
   const handleMessage = useCallback(
     async (message: any) => {
@@ -298,6 +301,31 @@ export default function HumeChat({
           emotions: message.models.prosody?.scores
         });
 
+        // If this is an assistant message, set the speaking state to true
+        // This will help prevent the assistant's voice from being picked up as user input
+        if (message.type === "assistant_message") {
+          console.log("🔊 Assistant started speaking");
+          setAssistantSpeaking(true);
+          
+          // Estimate speech duration based on content length (roughly 100ms per character)
+          const speechDuration = Math.max(2000, message.message.content.length * 100);
+          
+          // Set a timeout to reset the speaking state after the estimated duration
+          setTimeout(() => {
+            console.log("🔊 Assistant finished speaking");
+            setAssistantSpeaking(false);
+          }, speechDuration);
+        }
+        
+        // If the assistant is speaking and we receive a user message that's very short
+        // (likely picked up from the assistant's audio), ignore it
+        if (message.type === "user_message" && assistantSpeaking && 
+            message.message.content.length < 5) {
+          console.log("🚫 Ignoring short user message while assistant is speaking:", 
+                     message.message.content);
+          return;
+        }
+
         const messageData = {
           type: message.type === "user_message" ? "USER_MESSAGE" : 
                 message.type === "assistant_message" ? "AGENT_MESSAGE" : 
@@ -386,7 +414,7 @@ export default function HumeChat({
         }
       }, 200);
     },
-    [currentSessionId, createSession, addMessage, updateChatMetadata, humeChatId, humeGroupChatId, metadata, resetInactivityTimer]
+    [currentSessionId, createSession, addMessage, updateChatMetadata, humeChatId, humeGroupChatId, metadata, resetInactivityTimer, assistantSpeaking]
   );
 
   useEffect(() => {
