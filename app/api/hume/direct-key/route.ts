@@ -50,6 +50,10 @@ export async function GET(request: Request) {
       );
     }
 
+    // Log a masked version of the API key for debugging (only first 4 chars)
+    const maskedKey = humeApiKey.substring(0, 4) + '***';
+    console.log(`Direct API key endpoint: Key retrieved successfully (starts with: ${maskedKey})`);
+
     // Return the API key
     return NextResponse.json({ apiKey: humeApiKey });
   } catch (error) {

@@ -21,6 +21,7 @@ export async function fetchHumeApiKey(): Promise<string | null> {
         } else {
           // Token expired, remove it
           sessionStorage.removeItem('hume_api_token');
+          console.log('Cached token expired, will fetch a new one');
         }
       }
     }
@@ -31,6 +32,7 @@ export async function fetchHumeApiKey(): Promise<string | null> {
     
     // Check if we're in development mode
     const isDevelopment = process.env.NODE_ENV === 'development';
+    const isProd = process.env.NODE_ENV === 'production';
     
     // In development mode, try the direct endpoint first to avoid auth issues
     if (isDevelopment) {
@@ -67,12 +69,18 @@ export async function fetchHumeApiKey(): Promise<string | null> {
     
     // If direct endpoint failed or we're in production, try the authenticated endpoint
     try {
-      console.log('Trying authenticated endpoint...');
+      console.log(`${isProd ? 'Production mode' : 'Development mode'}: trying authenticated endpoint...`);
       response = await fetch('/api/hume/api-key');
       
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`Failed to fetch Hume API key from primary endpoint: ${response.status} ${response.statusText}`, errorText);
+        
+        // In production, log more details about the error
+        if (isProd) {
+          console.error('Production API key retrieval failed. Check Vercel environment variables.');
+        }
+        
         throw new Error('Primary endpoint failed');
       }
       
@@ -90,55 +98,22 @@ export async function fetchHumeApiKey(): Promise<string | null> {
           };
           
           sessionStorage.setItem('hume_api_token', JSON.stringify(tokenData));
+          
+          // Log a masked version of the API key for debugging
+          const maskedKey = data.apiKey.substring(0, 4) + '***';
+          console.log(`API key retrieved successfully (starts with: ${maskedKey})`);
         }
         return data.apiKey;
       } else {
-        console.error('No API key returned from authenticated endpoint');
+        console.error('API key not found in response');
+        return null;
       }
-    } catch (authError) {
-      console.error('Error with authenticated endpoint:', authError);
-      
-      // If we haven't tried the direct endpoint yet (in production), try it now as fallback
-      if (!isDevelopment) {
-        try {
-          console.log('Trying fallback direct endpoint...');
-          const internalAuthToken = localStorage.getItem('internal_auth_token') || '';
-          response = await fetch(`/api/hume/direct-key?auth_token=${internalAuthToken}`);
-          
-          if (!response.ok) {
-            const directErrorText = await response.text();
-            console.error(`Failed to fetch Hume API key from direct endpoint: ${response.status} ${response.statusText}`, directErrorText);
-            return null;
-          }
-          
-          const data = await response.json();
-          
-          if (data.apiKey) {
-            // Store in sessionStorage with expiration (30 minutes)
-            if (typeof window !== 'undefined') {
-              const expiresAt = new Date();
-              expiresAt.setMinutes(expiresAt.getMinutes() + 30);
-              
-              const tokenData = {
-                token: data.apiKey,
-                expiresAt: expiresAt.toISOString()
-              };
-              
-              sessionStorage.setItem('hume_api_token', JSON.stringify(tokenData));
-            }
-            return data.apiKey;
-          }
-        } catch (directError) {
-          console.error('Error fetching from direct endpoint:', directError);
-        }
-      }
+    } catch (error) {
+      console.error('Error fetching Hume API key:', error);
+      return null;
     }
-    
-    // If we get here, both endpoints failed
-    console.error('All API key retrieval methods failed');
-    return null;
   } catch (error) {
-    console.error('Error fetching Hume API key:', error);
+    console.error('Unexpected error in fetchHumeApiKey:', error);
     return null;
   }
 }

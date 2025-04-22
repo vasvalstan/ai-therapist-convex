@@ -47,15 +47,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
     }
     
-    // Return a short-lived token instead of the actual API key
-    // In a real implementation, you would generate a signed token with an expiration
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 30); // 30 minute expiration
+    // Log a masked version of the API key for debugging (only first 4 chars)
+    const maskedKey = humeApiKey.substring(0, 4) + '***';
+    console.log(`API key retrieved successfully (starts with: ${maskedKey})`);
     
-    return NextResponse.json({ 
-      apiKey: humeApiKey,
-      expiresAt: expiresAt.toISOString()
-    });
+    // Return the API key
+    return NextResponse.json({ apiKey: humeApiKey });
   } catch (error) {
     // Log the error for debugging
     console.error('Error retrieving Hume API key:', error);

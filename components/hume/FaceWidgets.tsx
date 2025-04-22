@@ -212,12 +212,16 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
         const baseUrl = getApiUrlWs(Environment.Prod);
         const testUrl = `${baseUrl}/v0/stream/models?apikey=${apiKey}`;
         
-        console.log("Testing WebSocket connection...");
+        // Log a masked version of the API key for debugging
+        const maskedKey = apiKey.substring(0, 4) + '***';
+        console.log(`Testing WebSocket connection with API key starting with: ${maskedKey}`);
+        console.log(`WebSocket URL: ${baseUrl}/v0/stream/models?apikey=***`);
+        
         const testSocket = new WebSocket(testUrl);
         
         // Set a timeout for the connection test
         const timeout = setTimeout(() => {
-          console.error("WebSocket connection test timed out");
+          console.error("WebSocket connection test timed out after 5 seconds");
           testSocket.close();
           resolve(false);
         }, 5000);
@@ -231,6 +235,12 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
         
         testSocket.onerror = (event) => {
           console.error("WebSocket connection test failed:", event);
+          // Check if we're in a secure context
+          if (window.isSecureContext) {
+            console.log("Running in secure context (https)");
+          } else {
+            console.warn("Not running in secure context - WebSockets might be restricted");
+          }
           clearTimeout(timeout);
           resolve(false);
         };
