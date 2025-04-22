@@ -34,7 +34,7 @@ export function ChatNav({ title }: ChatNavProps) {
   
   // Determine the display title
   const displayTitle = onChatPage && conversation ? 
-    (conversation.title || "Conversation") : title || "Sereni";
+    (conversation.title || "Conversation") : title || "";
   
   // Set initial active button based on route
   useEffect(() => {
@@ -164,6 +164,10 @@ export function ChatNav({ title }: ChatNavProps) {
             Home
           </NavButton>
           
+          <NavButton value="progress" icon={BarChart2}>
+            Emotional Resume
+          </NavButton>
+          
           <NavButton value="new-chat" icon={MessageCircle}>
             New Chat
           </NavButton>
@@ -172,21 +176,10 @@ export function ChatNav({ title }: ChatNavProps) {
             Chat History
           </NavButton>
           
-          <NavButton value="progress" icon={BarChart2}>
-            Emotional Resume
-          </NavButton>
-          
           <NavButton value="feedback" icon={Send}>
             Feedback
           </NavButton>
         </div>
-        
-        {/* Title, if provided */}
-        {displayTitle && (
-          <div className="text-sm font-medium truncate max-w-[200px]">
-            {displayTitle}
-          </div>
-        )}
       </div>
     </div>
   );

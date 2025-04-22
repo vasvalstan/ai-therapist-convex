@@ -1,9 +1,44 @@
 import { NextResponse } from 'next/server';
 
-// This endpoint provides the Hume API key without authentication
-// It should only be used in production when other methods fail
-export async function GET() {
+// This endpoint has been secured to prevent unauthorized access to API keys
+export async function GET(request: Request) {
   try {
+    // Check for a valid authorization header or token
+    const url = new URL(request.url);
+    const authToken = url.searchParams.get('auth_token');
+    const expectedToken = process.env.INTERNAL_API_AUTH_TOKEN;
+    
+    // Verify the request is coming from an allowed origin
+    const origin = request.headers.get('origin');
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'https://sereni.day',
+      // Add other allowed origins as needed
+    ];
+    
+    const isValidOrigin = !origin || allowedOrigins.includes(origin);
+    
+    // In development mode, be more lenient with authentication
+    if (process.env.NODE_ENV === 'development') {
+      // In development, only check origin
+      if (!isValidOrigin) {
+        console.warn('Development mode: Invalid origin for direct-key endpoint');
+        return NextResponse.json(
+          { error: 'Invalid origin' },
+          { status: 403 }
+        );
+      }
+    } else {
+      // In production, require both valid token and origin
+      if ((!authToken || authToken !== expectedToken) || !isValidOrigin) {
+        console.error('Unauthorized access attempt to direct-key endpoint');
+        return NextResponse.json(
+          { error: 'Unauthorized access' },
+          { status: 401 }
+        );
+      }
+    }
+
     // Get the API key from environment variables
     const humeApiKey = process.env.HUME_API_KEY;
 

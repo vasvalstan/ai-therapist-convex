@@ -29,22 +29,17 @@ export function ChatWithFaceTracking({
     
     const getHumeApiKey = async () => {
       try {
-        // Try to get the API key from localStorage first (if previously saved)
-        const savedKey = localStorage.getItem('hume_api_key');
-        if (savedKey) {
-          setHumeApiKey(savedKey);
-          return;
-        }
-        
-        // Otherwise fetch it from the server using our client-safe utility
+        // Fetch the API key from the server using our client-safe utility
+        // This now uses sessionStorage with token expiration instead of localStorage
         const apiKey = await fetchHumeApiKey();
         
         if (apiKey) {
+          console.log("Successfully retrieved Hume API key");
           setHumeApiKey(apiKey);
-          // Save for future use
-          localStorage.setItem('hume_api_key', apiKey);
         } else {
           console.error("No API key returned from server");
+          // Show an error message to the user
+          alert("Failed to retrieve API key for face tracking. Please refresh and try again.");
         }
       } catch (error) {
         console.error("Error fetching Hume API key:", error);
@@ -52,6 +47,23 @@ export function ChatWithFaceTracking({
     };
     
     getHumeApiKey();
+    
+    // Add event listener for refreshing the API key
+    const handleRefreshApiKey = () => {
+      console.log("Received request to refresh API key");
+      // Clear any cached token
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('hume_api_token');
+      }
+      getHumeApiKey();
+    };
+    
+    window.addEventListener('hume-refresh-api-key', handleRefreshApiKey);
+    
+    // Clean up event listener on unmount
+    return () => {
+      window.removeEventListener('hume-refresh-api-key', handleRefreshApiKey);
+    };
   }, [isHistoryView]);
   
   return (

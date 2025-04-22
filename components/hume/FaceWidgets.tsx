@@ -200,6 +200,47 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
     };
   }, []);
 
+  // Add a function to test the WebSocket connection
+  async function testWebSocketConnection() {
+    if (!apiKey) {
+      console.error("Cannot test WebSocket connection without API key");
+      return false;
+    }
+    
+    return new Promise<boolean>((resolve) => {
+      try {
+        const baseUrl = getApiUrlWs(Environment.Prod);
+        const testUrl = `${baseUrl}/v0/stream/models?apikey=${apiKey}`;
+        
+        console.log("Testing WebSocket connection...");
+        const testSocket = new WebSocket(testUrl);
+        
+        // Set a timeout for the connection test
+        const timeout = setTimeout(() => {
+          console.error("WebSocket connection test timed out");
+          testSocket.close();
+          resolve(false);
+        }, 5000);
+        
+        testSocket.onopen = () => {
+          console.log("WebSocket connection test successful!");
+          clearTimeout(timeout);
+          testSocket.close();
+          resolve(true);
+        };
+        
+        testSocket.onerror = (event) => {
+          console.error("WebSocket connection test failed:", event);
+          clearTimeout(timeout);
+          resolve(false);
+        };
+      } catch (error) {
+        console.error("Error during WebSocket connection test:", error);
+        resolve(false);
+      }
+    });
+  }
+
   function connect() {
     if (isConnecting) {
       console.log("Already attempting to connect, skipping");
@@ -213,30 +254,120 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
       setIsConnecting(false);
     } else {
       try {
-        const baseUrl = getApiUrlWs(Environment.Prod);
-        const endpointUrl = `${baseUrl}/v0/stream/models`;
-        const socketUrl = `${endpointUrl}?apikey=${apiKey}`;
-        console.log(`Connecting to websocket... (using ${endpointUrl})`);
-        setStatus(`Connecting to server...`);
+        if (!apiKey) {
+          console.error("No API key provided to FaceWidgets component");
+          setStatus("Error: API key is missing. Please refresh the page and try again.");
+          setIsConnecting(false);
+          return;
+        }
 
-        const socket = new WebSocket(socketUrl);
-
-        socket.onopen = socketOnOpen;
-        socket.onmessage = socketOnMessage;
-        socket.onclose = socketOnClose;
-        socket.onerror = socketOnError;
-
-        socketRef.current = socket;
-        
-        // Set a timeout to detect connection failures
-        setTimeout(() => {
-          if (socket.readyState !== WebSocket.OPEN) {
-            console.warn("WebSocket connection timeout");
-            socket.close();
+        // First test the WebSocket connection
+        testWebSocketConnection().then(async (isConnected) => {
+          if (!isConnected) {
+            console.error("WebSocket connection test failed, trying alternative approach");
+            setStatus("Connection test failed. Trying alternative approach...");
+            
+            // Try an alternative approach - some networks block WebSockets
+            // You might need to implement a fallback mechanism here
+            // For now, we'll just try to reconnect with a delay
+            setTimeout(() => {
+              if (mountRef.current && numReconnects.current < maxReconnects) {
+                numReconnects.current++;
+                connect();
+              } else {
+                setStatus("Failed to connect. Please check your network settings and try again.");
+              }
+            }, 3000);
+            return;
           }
-        }, 10000); // 10 second timeout
+          
+          // If the test succeeded, proceed with the actual connection
+          const baseUrl = getApiUrlWs(Environment.Prod);
+          const endpointUrl = `${baseUrl}/v0/stream/models`;
+          
+          // The correct format is to use the apiKey as a query parameter
+          // This is the standard way to authenticate WebSocket connections with Hume AI
+          const socketUrl = `${endpointUrl}?apikey=${apiKey}`;
+          
+          console.log(`Connecting to websocket... (using ${endpointUrl})`);
+          console.log(`API key length: ${apiKey.length} characters`);
+          console.log(`First 5 characters of API key: ${apiKey.substring(0, 5)}...`);
+          setStatus(`Connecting to server...`);
+
+          // Create WebSocket with explicit error handling
+          try {
+            // Create the WebSocket connection
+            const socket = new WebSocket(socketUrl);
+
+            // Add event listeners with explicit error handling
+            socket.onopen = (event) => {
+              try {
+                socketOnOpen(event);
+              } catch (error) {
+                console.error("Error in onopen handler:", error);
+              }
+            };
+            
+            socket.onmessage = (event) => {
+              try {
+                socketOnMessage(event);
+              } catch (error) {
+                console.error("Error in onmessage handler:", error);
+              }
+            };
+            
+            socket.onclose = (event) => {
+              try {
+                socketOnClose(event);
+              } catch (error) {
+                console.error("Error in onclose handler:", error);
+              }
+            };
+            
+            socket.onerror = (event) => {
+              try {
+                console.error("WebSocket error event details:", {
+                  type: event.type,
+                  target: event.target,
+                  eventPhase: event.eventPhase,
+                  bubbles: event.bubbles,
+                  cancelable: event.cancelable,
+                  composed: event.composed,
+                  timeStamp: event.timeStamp,
+                  isTrusted: event.isTrusted,
+                  currentTarget: event.currentTarget
+                });
+                socketOnError(event);
+              } catch (error) {
+                console.error("Error in onerror handler:", error);
+              }
+            };
+
+            socketRef.current = socket;
+            
+            // Set a timeout to detect connection failures
+            setTimeout(() => {
+              if (socket.readyState !== WebSocket.OPEN) {
+                console.warn("WebSocket connection timeout");
+                socket.close();
+              }
+            }, 10000); // 10 second timeout
+          } catch (error) {
+            console.error("Error creating WebSocket:", error);
+            setStatus("Failed to connect to the Hume API. Please check your internet connection.");
+            setIsConnecting(false);
+            
+            // Try to reconnect after a delay
+            setTimeout(() => {
+              if (mountRef.current && numReconnects.current < maxReconnects) {
+                numReconnects.current++;
+                connect();
+              }
+            }, 3000);
+          }
+        });
       } catch (error) {
-        console.error("Error creating WebSocket:", error);
+        console.error("Error connecting to WebSocket:", error);
         setStatus("Failed to connect to the Hume API. Please check your internet connection.");
         setIsConnecting(false);
         
@@ -251,7 +382,7 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
     }
   }
 
-  async function socketOnOpen() {
+  async function socketOnOpen(event: Event) {
     console.log("Connected to websocket");
     setStatus("Connecting to webcam...");
     setIsConnecting(false);
@@ -338,6 +469,22 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
 
   async function socketOnError(event: Event) {
     console.error("Socket failed to connect: ", event);
+    console.error("WebSocket error details:", {
+      apiKeyProvided: !!apiKey,
+      apiKeyLength: apiKey ? apiKey.length : 0,
+      apiKeyFirstChars: apiKey ? apiKey.substring(0, 5) + '...' : 'none',
+      reconnectAttempt: numReconnects.current,
+      socketUrl: apiKey ? `${getApiUrlWs(Environment.Prod)}/v0/stream/models?apikey=${apiKey.substring(0, 5)}...` : 'none'
+    });
+    
+    // Check if the API key might be invalid
+    if (apiKey && apiKey.length < 20) {
+      console.error("API key appears to be invalid or truncated");
+      setStatus("Error: Invalid API key format. Please refresh and try again.");
+      stopEverything();
+      return;
+    }
+    
     setIsConnecting(false);
     
     if (numReconnects.current >= maxReconnects) {
@@ -356,6 +503,12 @@ export function FaceWidgets({ apiKey, onClose, compact = false }: FaceWidgetsPro
       // Add a delay before reconnecting
       setTimeout(() => {
         if (mountRef.current) {
+          // Try to refresh the API key before reconnecting
+          if (numReconnects.current === 3) {
+            console.log("Attempting to refresh API key before reconnecting...");
+            // Force a refresh of the parent component to get a new API key
+            window.dispatchEvent(new CustomEvent('hume-refresh-api-key'));
+          }
           connect();
         }
       }, 3000);
