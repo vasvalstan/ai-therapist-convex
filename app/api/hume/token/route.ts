@@ -1,3 +1,4 @@
+import { fetchAccessToken } from "hume";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -21,50 +22,28 @@ export async function GET() {
         { status: 500 }
       );
     }
-    
-    try {
-      // Directly fetch the access token without using the hume package
-      const response = await fetch("https://api.hume.ai/v0/auth/token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          api_key: process.env.HUME_API_KEY,
-          client_secret: process.env.HUME_SECRET_KEY,
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Failed to fetch Hume access token: ${response.status} ${response.statusText}`, errorText);
-        return NextResponse.json(
-          { error: "Failed to fetch access token from Hume API" },
-          { status: response.status }
-        );
-      }
-      
-      const data = await response.json();
-      
-      // Log a masked version of the access token for debugging
-      const accessToken = data.access_token;
-      if (accessToken) {
-        const maskedToken = accessToken.substring(0, 4) + '***';
-        console.log(`Access token retrieved successfully (starts with: ${maskedToken})`);
-      }
-      
-      return NextResponse.json({ accessToken: data.access_token });
-    } catch (error) {
-      console.error("Error fetching Hume access token:", error);
+
+    const accessToken = await fetchAccessToken({
+      apiKey: process.env.HUME_API_KEY,
+      secretKey: process.env.HUME_SECRET_KEY,
+    });
+
+    if (!accessToken) {
+      console.error("Failed to generate Hume access token");
       return NextResponse.json(
-        { error: "Failed to fetch access token" },
+        { error: "Failed to generate access token" },
         { status: 500 }
       );
     }
+
+    return NextResponse.json({ accessToken });
   } catch (error) {
-    console.error("Unexpected error in token endpoint:", error);
+    console.error("Error generating Hume access token:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { 
+        error: "Internal server error", 
+        message: error instanceof Error ? error.message : "Unknown error"
+      },
       { status: 500 }
     );
   }

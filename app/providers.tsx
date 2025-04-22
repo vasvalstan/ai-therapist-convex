@@ -46,7 +46,7 @@ export function VoiceWrapper({ children }: { children: React.ReactNode }) {
       try {
         console.log("🔑 Fetching Hume access token...");
         // Fetch Hume access token from our API endpoint
-        const response = await fetch('/api/hume/token/');
+        const response = await fetch('/api/hume/token');
         const data = await response.json();
         console.log("✅ Successfully retrieved Hume access token");
         setAccessToken(data.accessToken);
