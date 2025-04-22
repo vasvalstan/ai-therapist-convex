@@ -20,21 +20,44 @@ export async function fetchHumeApiKey(): Promise<string | null> {
     
     // Otherwise fetch from server
     console.log('Fetching Hume API key from server...');
-    const response = await fetch('/api/hume/api-key');
+    let response;
+    let errorText = '';
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Failed to fetch Hume API key: ${response.status} ${response.statusText}`, errorText);
+    // First try the regular endpoint that uses authentication
+    try {
+      response = await fetch('/api/hume/api-key');
       
-      // For development only - fallback to a default key if in development
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('Using fallback API key for development');
-        return process.env.NEXT_PUBLIC_HUME_API_KEY || null;
+      if (!response.ok) {
+        errorText = await response.text();
+        console.error(`Failed to fetch Hume API key from primary endpoint: ${response.status} ${response.statusText}`, errorText);
+        // If authentication error, we'll try the direct endpoint
+        throw new Error('Primary endpoint failed');
       }
-      
-      return null;
+    } catch (primaryError) {
+      console.log('Trying fallback direct endpoint...');
+      // Try the direct endpoint that doesn't use authentication
+      try {
+        response = await fetch('/api/hume/direct-key');
+        
+        if (!response.ok) {
+          const directErrorText = await response.text();
+          console.error(`Failed to fetch Hume API key from direct endpoint: ${response.status} ${response.statusText}`, directErrorText);
+          
+          // For development only - fallback to a default key if in development
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('Using fallback API key for development');
+            return process.env.NEXT_PUBLIC_HUME_API_KEY || null;
+          }
+          
+          return null;
+        }
+      } catch (directError) {
+        console.error('Error fetching from direct endpoint:', directError);
+        return null;
+      }
     }
     
+    // Process the response from whichever endpoint succeeded
     const data = await response.json();
     
     if (data.apiKey) {

@@ -19,6 +19,7 @@ const publicPaths = [
   '/api/hume/token*', // This will take precedence for the token endpoint
   '/api/hume/api-key*', // Add the API key endpoint to public paths for debugging
   '/api/hume/debug-key*', // Add the debug endpoint
+  '/api/hume/direct-key*', // Add the direct key endpoint with no authentication
   '/blog*',
   '/privacy*',
   '/terms*',
