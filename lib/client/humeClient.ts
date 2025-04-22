@@ -124,10 +124,10 @@ export async function fetchHumeApiKey(): Promise<string | null> {
  */
 export async function fetchHumeAccessToken(): Promise<string | null> {
   try {
-    const response = await fetch('/api/hume/token');
+    const response = await fetch('/api/hume/access-token');
     
     if (!response.ok) {
-      console.error('Failed to fetch Hume access token:', await response.text());
+      console.error(`Failed to fetch Hume access token: ${response.status} ${response.statusText}`);
       return null;
     }
     
