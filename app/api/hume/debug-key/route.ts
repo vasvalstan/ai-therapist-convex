@@ -1,45 +1,60 @@
 import { NextResponse } from 'next/server';
 
 // This endpoint is for debugging and fallback purposes with less strict authentication
-// It should have rate limiting and basic protection but can be used when the primary endpoint fails
+// It should have basic protection but can be used when the primary endpoint fails
 export async function GET(request: Request) {
   try {
-    // Simple IP-based rate limiting
+    // Simple IP-based rate limiting (conceptual - would need persistent storage in production)
     const ip = request.headers.get('x-forwarded-for') || 'unknown-ip';
-    const rateLimitKey = `hume-debug-${ip}`;
     
-    // In production, add additional verification
-    if (process.env.NODE_ENV === 'production') {
-      // Check origin header to ensure it's coming from our own domain
-      const origin = request.headers.get('origin');
-      const host = request.headers.get('host');
-      
-      // Log request details for debugging (without exposing sensitive data)
-      console.log('Debug endpoint request details:', {
-        ip,
-        origin,
-        host,
-        userAgent: request.headers.get('user-agent')
-      });
-      
-      // Verify the request is coming from our own domain
-      const allowedDomains = [
-        'sereni.day',
-        'www.sereni.day',
-        'ai-therapist-l5i9mm0tk-valentin-stancius-projects.vercel.app'
-      ];
-      
-      const isAllowedOrigin = allowedDomains.some(domain => 
-        origin?.includes(domain) || host?.includes(domain)
+    // Get request details for logging and verification
+    const origin = request.headers.get('origin');
+    const host = request.headers.get('host');
+    const referer = request.headers.get('referer');
+    
+    // Log request details for debugging (without exposing sensitive data)
+    console.log('Debug endpoint request details:', {
+      ip,
+      origin,
+      host,
+      referer: referer ? 'present' : 'missing',
+      userAgent: request.headers.get('user-agent')?.substring(0, 50) + '...'
+    });
+    
+    // Allow requests from our own domains and localhost
+    const allowedDomains = [
+      'localhost:3000',
+      'sereni.day',
+      'www.sereni.day',
+      'ai-therapist-l5i9mm0tk-valentin-stancius-projects.vercel.app'
+    ];
+    
+    // Check if the request is coming from an allowed domain
+    // This is a basic check that can be bypassed, but provides some protection
+    let isAllowedRequest = false;
+    
+    // Check origin header
+    if (origin) {
+      isAllowedRequest = allowedDomains.some(domain => origin.includes(domain));
+    }
+    
+    // Check host header as fallback
+    if (!isAllowedRequest && host) {
+      isAllowedRequest = allowedDomains.some(domain => host.includes(domain));
+    }
+    
+    // Check referer as another fallback
+    if (!isAllowedRequest && referer) {
+      isAllowedRequest = allowedDomains.some(domain => referer.includes(domain));
+    }
+    
+    // In development mode, be more lenient
+    if (process.env.NODE_ENV !== 'development' && !isAllowedRequest) {
+      console.warn(`Blocked debug-key access from unauthorized source: ${origin || host || 'unknown'}`);
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
       );
-      
-      if (!isAllowedOrigin) {
-        console.warn('Blocked debug-key access from unauthorized origin:', origin);
-        return NextResponse.json(
-          { error: 'Unauthorized access' },
-          { status: 403 }
-        );
-      }
     }
     
     // Get the API key from environment variables

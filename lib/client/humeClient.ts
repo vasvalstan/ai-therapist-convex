@@ -34,11 +34,17 @@ export async function fetchHumeApiKey(): Promise<string | null> {
     const isProd = process.env.NODE_ENV === 'production';
     
     // Define all possible endpoints to try in order
-    const endpoints = [
-      '/api/hume/api-key',      // Primary authenticated endpoint
-      '/api/hume/direct-key',   // Development-only direct endpoint
-      '/api/hume/debug-key'     // Fallback endpoint with less strict auth
-    ];
+    const endpoints = isProd 
+      ? [
+          '/api/hume/api-key',      // Primary authenticated endpoint
+          '/api/hume/debug-key',     // Fallback endpoint with less strict auth
+          '/api/hume/direct-key'    // Development-only direct endpoint (try last in prod)
+        ]
+      : [
+          '/api/hume/direct-key',   // In dev, try direct endpoint first
+          '/api/hume/api-key',      // Then try authenticated endpoint
+          '/api/hume/debug-key'     // Then fallback
+        ];
     
     // Track errors for diagnostic purposes
     const errors: Record<string, any> = {};
@@ -47,7 +53,19 @@ export async function fetchHumeApiKey(): Promise<string | null> {
     for (const endpoint of endpoints) {
       try {
         console.log(`Trying to fetch API key from ${endpoint}...`);
-        const response = await fetch(endpoint);
+        
+        // Add a timestamp to prevent caching
+        const url = new URL(endpoint, window.location.origin);
+        url.searchParams.append('_t', Date.now().toString());
+        
+        const response = await fetch(url.toString(), {
+          // Add credentials to ensure cookies are sent
+          credentials: 'same-origin',
+          headers: {
+            // Add a custom header to help identify the request
+            'X-Request-Source': 'humeClient'
+          }
+        });
         
         if (response.ok) {
           const data = await response.json();
@@ -84,7 +102,11 @@ export async function fetchHumeApiKey(): Promise<string | null> {
           try {
             errorDetails = await response.json();
           } catch (e) {
-            errorDetails = await response.text();
+            try {
+              errorDetails = await response.text();
+            } catch (textError) {
+              errorDetails = 'Could not parse response';
+            }
           }
           
           console.error(`Failed to fetch from ${endpoint}: ${response.status} ${response.statusText}`, errorDetails);
@@ -107,6 +129,30 @@ export async function fetchHumeApiKey(): Promise<string | null> {
     
     // If we get here, all endpoints failed
     console.error('All API key endpoints failed', errors);
+    
+    // Display a more user-friendly error message
+    if (typeof window !== 'undefined') {
+      const errorMessage = document.createElement('div');
+      errorMessage.style.position = 'fixed';
+      errorMessage.style.top = '10px';
+      errorMessage.style.left = '50%';
+      errorMessage.style.transform = 'translateX(-50%)';
+      errorMessage.style.backgroundColor = '#f44336';
+      errorMessage.style.color = 'white';
+      errorMessage.style.padding = '15px';
+      errorMessage.style.borderRadius = '5px';
+      errorMessage.style.zIndex = '9999';
+      errorMessage.style.maxWidth = '80%';
+      errorMessage.style.textAlign = 'center';
+      errorMessage.textContent = 'Unable to connect to face tracking service. Please try refreshing the page.';
+      
+      document.body.appendChild(errorMessage);
+      
+      // Remove the error message after 10 seconds
+      setTimeout(() => {
+        document.body.removeChild(errorMessage);
+      }, 10000);
+    }
     
     // Last resort: try to use a public key for demo purposes in development only
     if (isDevelopment && process.env.NEXT_PUBLIC_HUME_DEMO_KEY) {
