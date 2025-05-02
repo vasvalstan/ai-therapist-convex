@@ -86,9 +86,11 @@ export function ChatHistoryContent() {
   // Store user if not found
   const [isStoringUser, setIsStoringUser] = useState(false);
   const storeUser = useMutation(api.users.store);
-
+  
   // State hooks
   const [isTokenLoading, setIsTokenLoading] = useState(false);
+  // Track if this is a new user's first visit
+  const [isFirstVisit, setIsFirstVisit] = useState(false);
 
   // Effects
   useEffect(() => {
@@ -98,6 +100,8 @@ export function ChatHistoryContent() {
 
     let isMounted = true;
     setIsStoringUser(true);
+    // Mark this as the user's first visit
+    setIsFirstVisit(true);
 
     const createUser = async () => {
       try {
@@ -123,6 +127,20 @@ export function ChatHistoryContent() {
       isMounted = false;
     };
   }, [userId, user, isStoringUser, isAuthenticated, storeUser, router]);
+
+  // Add auto-refresh for new users
+  useEffect(() => {
+    // Check if this is a new user's first visit and we're on the chat history page
+    if (isFirstVisit && pathname?.includes('/chat/history')) {
+      // Set a timeout to refresh the page after a short delay
+      const refreshTimer = setTimeout(() => {
+        console.log('Auto-refreshing page for new user...');
+        window.location.reload();
+      }, 2000); // 2 seconds delay to ensure user data is properly initialized
+      
+      return () => clearTimeout(refreshTimer);
+    }
+  }, [isFirstVisit, pathname]);
 
   useEffect(() => {
     if (!user || !plans || !chatSessions) {
