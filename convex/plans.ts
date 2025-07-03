@@ -80,25 +80,50 @@ export const initializePlans = mutation({
             return;
         }
 
-        // Insert the free plan
+        // Insert the trial plan (was free plan, now 5-minute trial)
         await ctx.db.insert("plans", {
-            key: "free",
-            name: "Free Plan",
-            description: "Try us out with unlimited time",
-            polarProductId: "free",
+            key: "trial",
+            name: "Free Trial",
+            description: "5 minutes free trial - perfect for trying our AI therapy",
+            polarProductId: "trial", // No actual Polar product, controlled in-app
             prices: {},
             features: [
-                "Unlimited time",
-                "Unlimited session duration",
-                "basic ai voice model",
-                "limited session history"
+                "5 minutes free trial",
+                "Full AI therapy access",
+                "No recurring billing",
+                "Try before you buy"
             ],
-            maxSessionDurationMinutes: undefined, // Remove time limit
-            totalMinutes: undefined, // Remove total minutes limit
-            maxSessions: undefined // Remove session limit
+            maxSessionDurationMinutes: 5,
+            totalMinutes: 5,
+            maxSessions: undefined // Allow multiple sessions until minutes run out
         });
 
-        // Insert the basic plan
+        // Insert the starter plan (10 minutes for $10)
+        await ctx.db.insert("plans", {
+            key: "starter",
+            name: "Starter Plan", 
+            description: "10 minutes for $10 - great for occasional use",
+            polarProductId: "starter-product-id", // You'll need to create this in Polar
+            prices: {
+                month: {
+                    usd: {
+                        amount: 1000, // $10.00
+                        polarId: "starter-price-id" // You'll need to get this from Polar
+                    }
+                }
+            },
+            features: [
+                "10 minutes of AI therapy",
+                "One-time purchase",
+                "Full conversation access",
+                "Session history"
+            ],
+            maxSessionDurationMinutes: 10,
+            totalMinutes: 10,
+            maxSessions: undefined // Allow multiple sessions until minutes run out
+        });
+
+        // Insert the basic plan (30 minutes for $10/month)
         await ctx.db.insert("plans", {
             key: "basic",
             name: "Basic Plan",
@@ -113,16 +138,17 @@ export const initializePlans = mutation({
                 }
             },
             features: [
+                "30 minutes monthly",
+                "Unlimited sessions until time runs out",
                 "Full AI therapy access",
-                "30 minutes of chat time",
-                "Unlimited sessions until time runs out"
+                "Priority support"
             ],
             maxSessionDurationMinutes: 10,
-            maxSessions: 3,
+            maxSessions: undefined,
             totalMinutes: 30
         });
 
-        // Insert the premium plan
+        // Insert the premium plan (60 minutes for $20/month) 
         await ctx.db.insert("plans", {
             key: "premium",
             name: "Premium Plan",
@@ -137,17 +163,18 @@ export const initializePlans = mutation({
                 }
             },
             features: [
+                "60 minutes monthly",
+                "Unlimited sessions until time runs out", 
                 "Priority AI therapy access",
-                "60 minutes of chat time",
-                "Unlimited sessions until time runs out",
-                "20min session duration"
+                "Extended session duration",
+                "Premium support"
             ],
             maxSessionDurationMinutes: 20,
-            maxSessions: 6,
+            maxSessions: undefined,
             totalMinutes: 60
         });
 
-        console.log("Plans initialized successfully");
+        console.log("Plans initialized successfully with trial and starter plans");
     }
 });
 

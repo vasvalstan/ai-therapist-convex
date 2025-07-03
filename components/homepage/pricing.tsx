@@ -49,19 +49,19 @@ const PricingHeader = ({
   title: string;
   subtitle: string;
 }) => (
-  <div className="text-center mb-10">
+  <div className="text-center mb-8 sm:mb-10 px-4">
     {/* Pill badge */}
-    <div className="mx-auto w-fit rounded-full border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-900/30 px-4 py-1 mb-6">
-      <div className="flex items-center gap-2 text-sm font-medium text-blue-900 dark:text-blue-200">
-        <DollarSign className="h-4 w-4" />
+    <div className="mx-auto w-fit rounded-full border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-900/30 px-3 py-1 sm:px-4 mb-4 sm:mb-6">
+      <div className="flex items-center gap-2 text-xs sm:text-sm font-medium text-blue-900 dark:text-blue-200">
+        <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
         <span>Pricing</span>
       </div>
     </div>
 
-    <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 dark:from-white dark:via-blue-300 dark:to-white pb-2">
+    <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 dark:from-white dark:via-blue-300 dark:to-white pb-2">
       {title}
     </h2>
-    <p className="text-gray-600 dark:text-gray-300 mt-4 max-w-2xl mx-auto">
+    <p className="text-gray-600 dark:text-gray-300 mt-3 sm:mt-4 max-w-2xl mx-auto text-sm sm:text-base">
       {subtitle}
     </p>
   </div>
@@ -186,11 +186,21 @@ const PricingCard = ({
             console.warn(`Warning: Checkout URL domain ${urlDomain} is not in the list of expected domains`);
           }
           
-          // For development environment, ensure we're redirecting to sandbox.polar.sh
+          // For development environment, handle mock responses properly
           if (process.env.NODE_ENV !== 'production') {
+            // Check if this is a mock response (contains our success URL as base)
+            const isMockResponse = url.hostname === 'localhost' && url.pathname.includes('/success');
+            
+            if (isMockResponse) {
+              // This is expected in development when Polar API is not accessible
+              console.log("Development mode: Handling mock checkout response");
+              window.location.href = checkoutUrl;
+              return;
+            }
+            
             // If the URL is not pointing to sandbox.polar.sh and doesn't contain price_id parameter
-            if (!urlDomain.includes('sandbox.polar.sh') && !url.searchParams.has('price_id')) {
-              console.error("URL is incorrectly redirecting directly to success URL");
+            if (!urlDomain.includes('sandbox.polar.sh') && !url.searchParams.has('price_id') && !isMockResponse) {
+              console.error("URL is incorrectly configured for development");
               setError("Checkout configuration error. Please try again later or contact support.");
               setIsLoading(false);
               return;
@@ -223,9 +233,10 @@ const PricingCard = ({
       };
     }
 
-    if (isFree) {
+    // Handle trial/free plan - redirect to sign-up instead of checkout
+    if (isFree || planKey === "trial" || planKey === "free") {
       return {
-        text: "Get Started Free",
+        text: "Start Free Trial",
         action: () => router.push("/sign-up")
       };
     }
@@ -253,7 +264,7 @@ const PricingCard = ({
 
   return (
     <Card
-      className={cn("w-full max-w-sm flex flex-col justify-between px-8 py-6", {
+      className={cn("w-full max-w-sm min-w-[280px] flex flex-col justify-between px-4 py-6 sm:px-6 md:px-8", {
         "relative border-2 border-blue-500 dark:border-blue-400": popular,
         "shadow-2xl bg-gradient-to-b from-gray-900 to-gray-800 text-white": exclusive,
         "border-green-500 dark:border-green-400": currentPlan && !popular,
@@ -261,21 +272,21 @@ const PricingCard = ({
     >
       {popular && (
         <div className="absolute -top-3 left-0 right-0 mx-auto w-fit rounded-full bg-blue-500 dark:bg-blue-400 px-3 py-1">
-          <p className="text-sm font-medium text-white">Most Popular</p>
+          <p className="text-xs sm:text-sm font-medium text-white">Most Popular</p>
         </div>
       )}
       
       {currentPlan && !popular && (
         <div className="absolute -top-3 left-0 right-0 mx-auto w-fit rounded-full bg-green-500 dark:bg-green-400 px-3 py-1">
-          <p className="text-sm font-medium text-white">Current Plan</p>
+          <p className="text-xs sm:text-sm font-medium text-white">Current Plan</p>
         </div>
       )}
 
       <div>
-        <CardHeader className="space-y-2 pb-4">
-          <CardTitle className="text-2xl font-bold capitalize">{title}</CardTitle>
+        <CardHeader className="space-y-2 pb-4 text-center">
+          <CardTitle className="text-xl sm:text-2xl font-bold capitalize">{title}</CardTitle>
           <CardDescription
-            className={cn("text-base", {
+            className={cn("text-sm sm:text-base", {
               "text-gray-300": exclusive,
             })}
           >
@@ -284,20 +295,33 @@ const PricingCard = ({
         </CardHeader>
 
         <CardContent className="pb-4">
-          <div className="flex items-baseline gap-1">
+          <div className="flex items-baseline justify-center gap-1">
             {isFree ? (
-              <span className="text-5xl font-bold">Free</span>
+              <span className="text-3xl sm:text-4xl md:text-5xl font-bold">Free</span>
+            ) : planKey === "starter" ? (
+              <>
+                <span className={cn("text-3xl sm:text-4xl md:text-5xl font-bold", {
+                  "text-white": exclusive,
+                })}>
+                  ${monthlyPrice}
+                </span>
+                <span className={cn("text-muted-foreground text-sm", {
+                  "text-gray-300": exclusive,
+                })}>
+                  one-time
+                </span>
+              </>
             ) : (
               <>
                 <span
-                  className={cn("text-5xl font-bold", {
+                  className={cn("text-3xl sm:text-4xl md:text-5xl font-bold", {
                     "text-white": exclusive,
                   })}
                 >
                   ${monthlyPrice}
                 </span>
                 <span
-                  className={cn("text-muted-foreground", {
+                  className={cn("text-muted-foreground text-sm", {
                     "text-gray-300": exclusive,
                   })}
                 >
@@ -307,57 +331,44 @@ const PricingCard = ({
             )}
           </div>
 
-          <div className="mt-8 space-y-4">
-            {/* Display plan details */}
+          <div className="mt-6 sm:mt-8 space-y-3 sm:space-y-4">
+            {/* Display plan details for trial only */}
             {totalMinutes && isFree && (
-              <div className="flex gap-3">
-                <Sparkles className={cn("h-5 w-5 text-blue-500", {
+              <div className="flex gap-2 sm:gap-3">
+                <Sparkles className={cn("h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0 mt-0.5", {
                   "text-blue-400": exclusive,
                 })} />
-                <p className={cn("text-base", {
+                <p className={cn("text-sm sm:text-base", {
                   "text-gray-300": exclusive,
                 })}>
-                  Unlimited time
+                  {totalMinutes} minutes total
                 </p>
               </div>
             )}
             
             {maxSessionDurationMinutes && isFree && (
-              <div className="flex gap-3">
-                <Sparkles className={cn("h-5 w-5 text-blue-500", {
+              <div className="flex gap-2 sm:gap-3">
+                <Sparkles className={cn("h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0 mt-0.5", {
                   "text-blue-400": exclusive,
                 })} />
-                <p className={cn("text-base", {
+                <p className={cn("text-sm sm:text-base", {
                   "text-gray-300": exclusive,
                 })}>
-                  Unlimited session duration
-                </p>
-              </div>
-            )}
-            
-            {maxSessions && isFree && (
-              <div className="flex gap-3">
-                <Sparkles className={cn("h-5 w-5 text-blue-500", {
-                  "text-blue-400": exclusive,
-                })} />
-                <p className={cn("text-base", {
-                  "text-gray-300": exclusive,
-                })}>
-                  Unlimited sessions
+                  {maxSessionDurationMinutes}-minute sessions
                 </p>
               </div>
             )}
             
             {/* Display features */}
             {features.map((feature) => (
-              <div key={feature} className="flex gap-3">
+              <div key={feature} className="flex gap-2 sm:gap-3">
                 <CheckCircle2
-                  className={cn("h-5 w-5 text-blue-500", {
+                  className={cn("h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0 mt-0.5", {
                     "text-blue-400": exclusive,
                   })}
                 />
                 <p
-                  className={cn("text-base", {
+                  className={cn("text-sm sm:text-base", {
                     "text-gray-300": exclusive,
                   })}
                 >
@@ -369,7 +380,7 @@ const PricingCard = ({
         </CardContent>
       </div>
 
-      <CardFooter>
+      <CardFooter className="pt-2">
         {error && (
           <div className="w-full mb-4">
             <p className="text-red-500 text-sm font-medium">{error}</p>
@@ -381,7 +392,7 @@ const PricingCard = ({
         <Button
           onClick={buttonConfig.action}
           disabled={isLoading || currentPlan}
-          className={cn("w-full py-6 text-lg", {
+          className={cn("w-full py-4 sm:py-6 text-sm sm:text-lg", {
             "bg-blue-600 hover:bg-blue-500": popular,
             "bg-white text-gray-900 hover:bg-gray-100": exclusive,
             "bg-green-600 hover:bg-green-500": isFree && !popular && !exclusive,
@@ -422,35 +433,58 @@ function PricingContent() {
   const plans = useQuery(api.plans.getPlans) || [];
   const userPlan = useQuery(api.users.getUser);
 
-  // Filter to show only the free plan
-  const visiblePlans = plans.filter((plan: Doc<"plans">) => plan.key === "free");
+  // Show all plans in a specific order: free, basic, premium
+  const planOrder = ["free", "basic", "premium"];
+  const sortedPlans = plans.sort((a, b) => {
+    const indexA = planOrder.indexOf(a.key);
+    const indexB = planOrder.indexOf(b.key);
+    return indexA - indexB;
+  });
 
   return (
-    <div className="flex justify-center items-center">
-      {visiblePlans.map((plan: Doc<"plans">) => {
-        const isFree = !plan.prices?.month?.usd?.amount;
-        const isCurrentPlan = typeof userPlan === 'object' && userPlan !== null && 'currentPlanKey' in userPlan ? userPlan.currentPlanKey === plan.key : false;
-        
-        return (
-          <DynamicPricingCard
-            key={plan.key}
-            user={user}
-            planKey={plan.key}
-            title={plan.name}
-            monthlyPrice={plan.prices?.month?.usd?.amount || null}
-            description={plan.description}
-            features={plan.features || []}
-            actionLabel={isFree ? "Get Started Free" : "Get Pro"}
-            popular={false}
-            exclusive={false}
-            isFree={isFree}
-            currentPlan={isCurrentPlan}
-            totalMinutes={plan.totalMinutes}
-            maxSessionDurationMinutes={plan.maxSessionDurationMinutes}
-            maxSessions={plan.maxSessions}
-          />
-        );
-      })}
+    <div className="w-full flex justify-center px-4 py-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl w-full place-items-center">
+        {sortedPlans.map((plan: Doc<"plans">) => {
+          const isFree = plan.key === "free";
+          const isPopular = plan.key === "basic"; // Mark basic plan as popular
+          const isCurrentPlan = typeof userPlan === 'object' && userPlan !== null && 'currentPlanKey' in userPlan ? userPlan.currentPlanKey === plan.key : false;
+          
+          // Calculate price display
+          let monthlyPrice = null;
+          let priceDisplay = null;
+          
+          if (plan.key === "free") {
+            priceDisplay = "Free";
+          } else {
+            monthlyPrice = (plan.prices?.month?.usd?.amount || 0) / 100;
+            priceDisplay = "per month";
+          }
+          
+          return (
+            <div key={plan.key} className="w-full max-w-sm">
+              <DynamicPricingCard
+                user={user}
+                planKey={plan.key}
+                title={plan.name}
+                monthlyPrice={monthlyPrice}
+                description={plan.description}
+                features={plan.features || []}
+                actionLabel={
+                  isFree ? "Start Free Trial" : 
+                  isCurrentPlan ? "Current Plan" : "Upgrade Now"
+                }
+                popular={isPopular}
+                exclusive={false}
+                isFree={isFree}
+                currentPlan={isCurrentPlan}
+                totalMinutes={plan.totalMinutes}
+                maxSessionDurationMinutes={plan.maxSessionDurationMinutes}
+                maxSessions={plan.maxSessions}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -463,12 +497,14 @@ const DynamicPricingContent = dynamic(() => Promise.resolve(PricingContent), {
 
 export default function Pricing() {
   return (
-    <div className="w-full">
-      <PricingHeader
-        title="Simple, Transparent Pricing"
-        subtitle="Choose the plan that best fits your needs. All plans include our core features."
-      />
-      <DynamicPricingContent />
-    </div>
+    <section className="w-full py-12" id="pricing">
+      <div className="container mx-auto px-4">
+        <PricingHeader
+          title="Simple, Transparent Pricing"
+          subtitle="Choose the plan that best fits your needs. All plans include our core features."
+        />
+        <DynamicPricingContent />
+      </div>
+    </section>
   );
 }

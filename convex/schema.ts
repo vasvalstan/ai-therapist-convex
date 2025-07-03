@@ -74,6 +74,7 @@ export default defineSchema({
         minutesRemaining: v.optional(v.number()),
         totalMinutesAllowed: v.optional(v.number()),
         planRenewalDate: v.optional(v.number()),
+        hasUsedTrial: v.optional(v.boolean()),
     }).index("by_token", ["tokenIdentifier"]),
     plans: defineTable({
         key: v.string(),

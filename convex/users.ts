@@ -142,25 +142,26 @@ export const store = mutation({
             return { success: true, userId: user._id };
         }
 
-        // Get the free plan details
+        // Get the free plan details (which is now the 5-minute trial)
         const freePlan = await ctx.db
             .query("plans")
             .withIndex("key", (q) => q.eq("key", "free"))
             .unique();
 
-        // For free plan, use unlimited minutes
-        const totalMinutes = 999999; // Effectively unlimited
+        // For free plan (trial), give them 5 minutes
+        const totalMinutes = freePlan?.totalMinutes || 5;
         
-        // If it's a new identity, create a new User with the free plan
+        // If it's a new identity, create a new User with the free plan (5-minute trial)
         const userId = await ctx.db.insert("users", {
             name: identity.name!,
             email: identity.email!,
             userId: identity.subject,
             tokenIdentifier: identity.subject,
             createdAt: new Date().toISOString(),
-            currentPlanKey: "free", // Assign free plan by default
-            minutesRemaining: totalMinutes, // Set unlimited minutes
-            totalMinutesAllowed: totalMinutes
+            currentPlanKey: "free", // Assign free plan (5-minute trial) by default
+            minutesRemaining: totalMinutes, // Set trial minutes
+            totalMinutesAllowed: totalMinutes,
+            hasUsedTrial: false // They haven't used their trial yet
         });
         
         return { success: true, userId };

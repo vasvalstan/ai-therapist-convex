@@ -59,7 +59,8 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
   const userPlan = allPlans?.find(plan => plan.key === userDetails?.currentPlanKey) || 
                    allPlans?.find(plan => plan.key === "free");
   
-  const isFreePlan = userDetails?.currentPlanKey === "free";
+  const isTrialPlan = userDetails?.currentPlanKey === "free";
+  const accountMinutesRemaining = userDetails?.minutesRemaining || 0;
   
   // Get the session duration limit based on the user's plan
   const planSessionDurationMinutes = userPlan?.maxSessionDurationMinutes || 5;
@@ -261,71 +262,58 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
           await updateTherapyProgress({ sessionId });
           console.log("✅ Updated therapy progress for session:", sessionId);
           
-          // For free plan users, we don't need to update minutes since they have unlimited time
-          if (isFreePlan) {
+          // Update user's remaining minutes (including trial users)
+          const result = await updateUserMinutes({
+            sessionDurationMinutes,
+          });
+          console.log("Updated user minutes:", result);
+          
+          // Dispatch an event to update the minutes display
+          if (result.success) {
+            const minutesUpdatedEvent = new CustomEvent('minutesUpdated', {
+              detail: {
+                previousMinutesRemaining: result.previousMinutesRemaining,
+                newMinutesRemaining: result.newMinutesRemaining,
+                minutesUsed: result.minutesUsed,
+                planKey: result.planKey,
+                originalDuration: result.originalDuration,
+                trialCompleted: result.trialCompleted
+              }
+            });
+            window.dispatchEvent(minutesUpdatedEvent);
+            
+            // Update the message to confirm chat was saved and show minutes remaining
+            const planDisplayName = result.planKey === "trial" ? "trial" : "plan";
             saveMessage.innerHTML = `
               <div>
                 <p>Your chat has been saved!</p>
                 <p class="text-xs mt-1">
-                  <span class="font-medium">${sessionDurationMinutes} minute${sessionDurationMinutes > 1 ? 's' : ''}</span> used.
-                  <span class="font-medium">Unlimited</span> time remaining.
+                  <span class="font-medium">${result.minutesUsed} minute${result.minutesUsed !== 1 ? 's' : ''}</span> used${result.originalDuration !== result.minutesUsed ? ` (rounded up from ${result.originalDuration.toFixed(1)}min)` : ''}.
+                  <span class="font-medium">${result.newMinutesRemaining} minute${result.newMinutesRemaining !== 1 ? 's' : ''}</span> remaining.
                 </p>
               </div>
             `;
             
-            setTimeout(() => {
-              saveMessage.remove();
-            }, 5000);
-          } else {
-            // Update paid plan user's remaining minutes
-            const result = await updateUserMinutes({
-              sessionDurationMinutes,
-            });
-            console.log("Updated user minutes:", result);
-            
-            // Dispatch an event to update the minutes display
-            if (result.success) {
-              const minutesUpdatedEvent = new CustomEvent('minutesUpdated', {
+            // If trial completed or user ran out of minutes, show the upgrade prompt
+            if (result.trialCompleted || result.newMinutesRemaining <= 0) {
+              const timeExpiredEvent = new CustomEvent('timeExpired', {
                 detail: {
-                  previousMinutesRemaining: result.previousMinutesRemaining,
-                  newMinutesRemaining: result.newMinutesRemaining,
-                  minutesUsed: result.minutesUsed,
-                  planKey: result.planKey
+                  message: result.trialCompleted 
+                    ? "Your 5-minute trial has ended! Upgrade to continue chatting with our AI therapist."
+                    : timeExpired 
+                      ? `You've reached the ${planSessionDurationMinutes}-minute session limit on your ${userDetails?.currentPlanKey} plan.`
+                      : "You have used all your available minutes. Please upgrade your plan to continue."
                 }
               });
-              window.dispatchEvent(minutesUpdatedEvent);
-              
-              // Update the message to confirm chat was saved and show minutes remaining
-              saveMessage.innerHTML = `
-                <div>
-                  <p>Your chat has been saved!</p>
-                  <p class="text-xs mt-1">
-                    <span class="font-medium">${sessionDurationMinutes} minute${sessionDurationMinutes > 1 ? 's' : ''}</span> used.
-                    <span class="font-medium">${result.newMinutesRemaining} minute${result.newMinutesRemaining !== 1 ? 's' : ''}</span> remaining.
-                  </p>
-                </div>
-              `;
-              
-              // If time expired or the user ran out of minutes, show the upgrade prompt
-              if (timeExpired || result.newMinutesRemaining <= 0) {
-                // We'll use a custom event to communicate with the parent component
-                const timeExpiredEvent = new CustomEvent('timeExpired', {
-                  detail: {
-                    message: timeExpired 
-                      ? `You've reached the ${planSessionDurationMinutes}-minute limit on your ${userDetails?.currentPlanKey} plan.`
-                      : "You have used all your available minutes. Please upgrade your plan to continue."
-                  }
-                });
-                window.dispatchEvent(timeExpiredEvent);
-              }
-            } else {
-              saveMessage.textContent = 'Your chat has been saved!';
+              window.dispatchEvent(timeExpiredEvent);
             }
-            
-            setTimeout(() => {
-              saveMessage.remove();
-            }, 5000);
+          } else {
+            saveMessage.textContent = 'Your chat has been saved!';
           }
+          
+          setTimeout(() => {
+            saveMessage.remove();
+          }, 5000);
         } catch (err) {
           console.error("Failed to update user minutes:", err);
           saveMessage.textContent = 'Error saving chat';
@@ -373,11 +361,11 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
         
         setElapsedSeconds(durationSeconds);
         
-        // Skip time limit check for free plan users
-        if (!isFreePlan) {
+        // Skip time limit check for trial plan users
+        if (!isTrialPlan) {
           // Check if user has reached their plan's session duration limit
           if (durationSeconds >= PLAN_LIMIT_SECONDS) {
-            console.log(`User reached ${planSessionDurationMinutes}-minute limit for their ${userDetails?.currentPlanKey || 'free'} plan`);
+            console.log(`User reached ${planSessionDurationMinutes}-minute limit for their ${userDetails?.currentPlanKey || 'trial'} plan`);
             // End the call with timeExpired=true to show the upgrade prompt
             handleEndCall(true);
           }
@@ -385,7 +373,7 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
           else if (durationSeconds === PLAN_LIMIT_SECONDS - 10) {
             const warningMessage = document.createElement('div');
             warningMessage.className = 'fixed top-4 right-4 bg-yellow-100 text-yellow-800 p-3 rounded shadow-md z-50';
-            warningMessage.textContent = `Your session will end in 10 seconds. ${isFreePlan ? 'Upgrade for more time!' : ''}`;
+            warningMessage.textContent = `Your session will end in 10 seconds. ${isTrialPlan ? 'Upgrade for more time!' : ''}`;
             document.body.appendChild(warningMessage);
             
             // Remove the warning after 5 seconds
@@ -407,7 +395,7 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
         timeWarningRef.current = null;
       }
     };
-  }, [status, sessionStartTime, isFreePlan, PLAN_LIMIT_SECONDS, planSessionDurationMinutes, userDetails?.currentPlanKey]);
+  }, [status, sessionStartTime, isTrialPlan, PLAN_LIMIT_SECONDS, planSessionDurationMinutes, userDetails?.currentPlanKey]);
 
   // Format time as MM:SS
   const formatTime = (totalSeconds: number) => {
@@ -423,43 +411,33 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
     const formattedRemaining = formatTime(remainingSeconds);
     const planName = userDetails?.currentPlanKey ? 
       userDetails.currentPlanKey.charAt(0).toUpperCase() + userDetails.currentPlanKey.slice(1) : 
-      "Free";
+      "Trial";
     
-    // If it's a free plan, show elapsed time and unlimited message
-    if (isFreePlan) {
-      return (
-        <div className="text-xs space-y-1">
-          <div className="flex items-center justify-center gap-2">
-            <span className="text-muted-foreground">
-              Session time: {formattedTime}
-            </span>
-          </div>
-          <div className="flex items-center justify-center gap-1">
-            <span className="text-green-600 font-medium">
-              Unlimited time available
-            </span>
-          </div>
-        </div>
-      );
-    }
-    
-    // For paid plans, show remaining time
+    // Show session time and account minutes for all plans
     return (
       <div className="text-xs space-y-1">
         <div className="flex items-center justify-center gap-2">
-          <span className={remainingSeconds < 30 ? "text-destructive font-medium" : "text-muted-foreground"}>
-            {planName} plan time remaining: {formattedRemaining}
+          <span className="text-muted-foreground">
+            Session: {formattedTime}
+          </span>
+          <span className="text-muted-foreground">•</span>
+          <span className={accountMinutesRemaining <= 1 ? "text-destructive font-medium" : "text-muted-foreground"}>
+            {accountMinutesRemaining}min left
           </span>
         </div>
         
         <div className="flex items-center justify-center gap-1">
-          {remainingSeconds < 30 ? (
+          {accountMinutesRemaining <= 1 ? (
             <span className="text-destructive font-medium">
-              Your session will end soon!
+              {isTrialPlan ? "Trial ending soon!" : "Minutes running low!"}
+            </span>
+          ) : remainingSeconds < 30 && !isTrialPlan ? (
+            <span className="text-destructive font-medium">
+              Session ending soon!
             </span>
           ) : (
             <span className="text-muted-foreground">
-              {planName} plan limited to {planSessionDurationMinutes} minutes
+              {planName} plan {isTrialPlan ? "(5min trial)" : `(${planSessionDurationMinutes}min sessions)`}
             </span>
           )}
         </div>

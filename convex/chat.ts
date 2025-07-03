@@ -38,7 +38,7 @@ async function checkUserChatAccess(ctx: QueryCtx, userId: string) {
     }
     
     // Get user's plan
-    const planKey = user.currentPlanKey || "free"; // Default to free plan if not set
+    const planKey = user.currentPlanKey || "free"; // Default to free plan (5-minute trial) if not set
     
     const plan = await ctx.db
         .query("plans")
@@ -49,29 +49,36 @@ async function checkUserChatAccess(ctx: QueryCtx, userId: string) {
         throw new Error("Plan not found");
     }
     
-    // For free plan, no limits
-    if (planKey === "free") {
-        return {
-            hasAccess: true,
-            maxSessionDurationMinutes: undefined, // No time limit
-            minutesRemaining: undefined // No minutes limit
-        };
-    }
-    
-    // For paid plans, check if user has minutes remaining
+    // Check if user has minutes remaining (applies to all plans now, including trial)
     if (user.minutesRemaining !== undefined && user.minutesRemaining <= 0) {
         return {
             hasAccess: false,
-            reason: "You have used all your available minutes. Please upgrade your plan to continue.",
+            reason: planKey === "free" 
+                ? "Your 5-minute trial has ended. Please upgrade to continue chatting with our AI therapist."
+                : "You have used all your available minutes. Please upgrade your plan to continue.",
             upgradeRequired: true,
-            limitType: "minutes"
+            limitType: "minutes",
+            planKey: planKey,
+            shouldMarkTrialUsed: planKey === "free" && !user.hasUsedTrial
+        };
+    }
+    
+    // Check if free plan user has already used their trial (shouldn't happen with above logic, but safety check)
+    if (planKey === "free" && user.hasUsedTrial) {
+        return {
+            hasAccess: false,
+            reason: "You have already used your free trial. Please upgrade to continue.",
+            upgradeRequired: true,
+            limitType: "trial_used",
+            planKey: planKey
         };
     }
     
     return {
         hasAccess: true,
         maxSessionDurationMinutes: plan.maxSessionDurationMinutes,
-        minutesRemaining: user.minutesRemaining
+        minutesRemaining: user.minutesRemaining,
+        planKey: planKey
     };
 }
 
@@ -110,25 +117,39 @@ export const updateUserRemainingMinutes = mutation({
             console.error(`Plan ${planKey} not found for user ${userId}`);
         }
         
+        // ALWAYS round up to nearest minute (as requested)
+        const minutesToDeduct = Math.ceil(args.sessionDurationMinutes);
+        
         // Calculate new remaining minutes
         const currentMinutesRemaining = user.minutesRemaining || 0;
-        const newMinutesRemaining = Math.max(0, currentMinutesRemaining - args.sessionDurationMinutes);
+        const newMinutesRemaining = Math.max(0, currentMinutesRemaining - minutesToDeduct);
         
-        console.log(`User ${userId} minutes: ${currentMinutesRemaining} -> ${newMinutesRemaining} (deducted ${args.sessionDurationMinutes})`);
+        console.log(`User ${userId} minutes: ${currentMinutesRemaining} -> ${newMinutesRemaining} (deducted ${minutesToDeduct}, rounded up from ${args.sessionDurationMinutes})`);
         console.log(`User plan: ${planKey}, total allowed: ${user.totalMinutesAllowed || 0}`);
         
-        // Update user's remaining minutes
-        await ctx.db.patch(user._id, {
+        // Prepare update data
+        const updateData: any = {
             minutesRemaining: newMinutesRemaining,
-        });
+        };
+        
+        // If this is a free plan user and they've used all their minutes, mark trial as used
+        if (planKey === "free" && newMinutesRemaining <= 0 && !user.hasUsedTrial) {
+            updateData.hasUsedTrial = true;
+            console.log(`Marking trial as used for user ${userId}`);
+        }
+        
+        // Update user's remaining minutes
+        await ctx.db.patch(user._id, updateData);
         
         return {
             success: true,
             previousMinutesRemaining: currentMinutesRemaining,
             newMinutesRemaining: newMinutesRemaining,
-            minutesUsed: args.sessionDurationMinutes,
+            minutesUsed: minutesToDeduct,
+            originalDuration: args.sessionDurationMinutes,
             planKey: planKey,
-            totalMinutesAllowed: user.totalMinutesAllowed
+            totalMinutesAllowed: user.totalMinutesAllowed,
+            trialCompleted: planKey === "free" && newMinutesRemaining <= 0
         };
     },
 });

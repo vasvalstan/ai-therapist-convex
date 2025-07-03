@@ -157,13 +157,26 @@ export function ChatHistoryContent() {
       return;
     }
     
-    if (userPlan.key !== "free" && 
-        user.minutesRemaining !== undefined && 
-        user.minutesRemaining <= 0) {
+    // For all plans including free trial, check if user has minutes remaining
+    if (user.minutesRemaining !== undefined && user.minutesRemaining <= 0) {
+      const reason = userPlan.key === "free" 
+        ? "Your 5-minute trial has ended. Upgrade to continue chatting with our AI therapist."
+        : "You have used all your available minutes. Please upgrade your plan to continue.";
+        
       setAccessStatus({
         hasAccess: false,
-        reason: "You have used all your available minutes. Please upgrade your plan to continue.",
+        reason: reason,
         limitType: "minutes"
+      });
+      return;
+    }
+    
+    // Additional check for free plan users who have already used their trial
+    if (userPlan.key === "free" && user.hasUsedTrial) {
+      setAccessStatus({
+        hasAccess: false,
+        reason: "You have already used your free trial. Please upgrade to continue.",
+        limitType: "trial_used"
       });
       return;
     }
