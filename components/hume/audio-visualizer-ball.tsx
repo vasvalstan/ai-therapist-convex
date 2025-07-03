@@ -52,10 +52,10 @@ export function AudioVisualizerBall({ fft, isActive, className }: AudioVisualize
     
     // Function to generate random movement
     const moveRandomly = () => {
-      // Generate random movement within a small range (-10px to 10px)
-      // Reduced movement range for larger ball to keep it more centered
-      const newX = (Math.random() - 0.5) * 15;
-      const newY = (Math.random() - 0.5) * 15;
+      // Generate random movement within a small range for smaller ball
+      // Further reduced movement range to keep it more centered
+      const newX = (Math.random() - 0.5) * 10;
+      const newY = (Math.random() - 0.5) * 10;
       
       // Apply movement with smoothing
       setPosition(prev => ({
@@ -96,8 +96,8 @@ export function AudioVisualizerBall({ fft, isActive, className }: AudioVisualize
           damping: 10
         }}
         style={{
-          width: "180px",
-          height: "180px",
+          width: "120px",
+          height: "120px",
         }}
       />
       
@@ -114,8 +114,8 @@ export function AudioVisualizerBall({ fft, isActive, className }: AudioVisualize
           duration: 0.3,
         }}
         style={{
-          width: "180px",
-          height: "180px",
+          width: "120px",
+          height: "120px",
         }}
       />
       
@@ -136,8 +136,8 @@ export function AudioVisualizerBall({ fft, isActive, className }: AudioVisualize
             repeatType: "loop",
           }}
           style={{
-            width: "180px",
-            height: "180px",
+            width: "120px",
+            height: "120px",
           }}
         />
       )}
@@ -147,10 +147,10 @@ export function AudioVisualizerBall({ fft, isActive, className }: AudioVisualize
         <>
           <motion.div
             className="absolute rounded-full border-2 border-blue-300/30"
-            initial={{ width: "180px", height: "180px", opacity: 0.7 }}
+            initial={{ width: "120px", height: "120px", opacity: 0.7 }}
             animate={{ 
-              width: "220px", 
-              height: "220px", 
+              width: "150px", 
+              height: "150px", 
               opacity: 0,
               x: position.x * 0.8,
               y: position.y * 0.8,
@@ -163,10 +163,10 @@ export function AudioVisualizerBall({ fft, isActive, className }: AudioVisualize
           />
           <motion.div
             className="absolute rounded-full border-2 border-blue-300/20"
-            initial={{ width: "180px", height: "180px", opacity: 0.5 }}
+            initial={{ width: "120px", height: "120px", opacity: 0.5 }}
             animate={{ 
-              width: "260px", 
-              height: "260px", 
+              width: "180px", 
+              height: "180px", 
               opacity: 0,
               x: position.x * 0.7,
               y: position.y * 0.7,

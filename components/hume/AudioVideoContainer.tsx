@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { FaceWidgets } from "./FaceWidgets";
 import { AudioVisualizerBall } from "./audio-visualizer-ball";
-import { useHume } from "./HumeProvider";
 
 interface AudioVideoContainerProps {
   apiKey: string;
@@ -11,7 +9,6 @@ interface AudioVideoContainerProps {
 }
 
 export function AudioVideoContainer({ apiKey, compact = false }: AudioVideoContainerProps) {
-  const { isFaceTrackingEnabled } = useHume();
   const [fftData, setFftData] = useState<number[]>(Array(128).fill(0));
   const [isAudioActive, setIsAudioActive] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -124,7 +121,7 @@ export function AudioVideoContainer({ apiKey, compact = false }: AudioVideoConta
         });
       }
     };
-  }, [isFaceTrackingEnabled]);
+  }, []);
   
   useEffect(() => {
     const handleCallEnd = () => {
@@ -175,21 +172,15 @@ export function AudioVideoContainer({ apiKey, compact = false }: AudioVideoConta
   }, []);
 
   return (
-    <div className="w-full h-56 relative">
-      {/* Face tracking video when enabled */}
-      {isFaceTrackingEnabled ? (
-        <div className="absolute inset-0">
-          <FaceWidgets apiKey={apiKey} compact={compact} />
-        </div>
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <AudioVisualizerBall 
-            fft={fftData} 
-            isActive={isAudioActive} 
-            className="w-full h-full"
-          />
-        </div>
-      )}
+    <div className="w-full h-32 sm:h-36 md:h-40 relative">
+      {/* Always show audio visualizer */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <AudioVisualizerBall 
+          fft={fftData} 
+          isActive={isAudioActive} 
+          className="w-full h-full"
+        />
+      </div>
     </div>
   );
 }

@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
 import { useSaveTranscript } from "@/lib/hooks/useSaveTranscript";
-import { FaceTrackingToggle } from "./FaceTrackingToggle";
+
 
 interface ControlsProps {
   sessionId?: string;
@@ -93,9 +93,8 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
               
               // For each input device, try to get its stream and stop it
               const audioInputs = devices.filter(device => device.kind === 'audioinput');
-              const videoInputs = devices.filter(device => device.kind === 'videoinput');
               
-              console.log(`🎤 MEDIA CLEANUP: Found ${audioInputs.length} audio inputs and ${videoInputs.length} video inputs`);
+              console.log(`🎤 MEDIA CLEANUP: Found ${audioInputs.length} audio inputs`);
               
               // Stop audio tracks
               if (audioInputs.length > 0) {
@@ -115,10 +114,12 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
                     // Try an alternative approach - get all media streams from the page
                     console.log(`🎤 MEDIA CLEANUP: Trying alternative approach for audio cleanup`);
                     
-                    // Look for audio elements in the DOM that might have active streams
+                    // Look for audio and video elements in the DOM that might have active streams
                     const audioElements = document.querySelectorAll('audio');
-                    console.log(`🎤 MEDIA CLEANUP: Found ${audioElements.length} audio elements in DOM`);
+                    const videoElements = document.querySelectorAll('video');
+                    console.log(`🎤 MEDIA CLEANUP: Found ${audioElements.length} audio elements and ${videoElements.length} video elements in DOM`);
                     
+                    // Clean up audio elements
                     audioElements.forEach((audio, index) => {
                       if (audio.srcObject instanceof MediaStream) {
                         console.log(`🎤 MEDIA CLEANUP: Found MediaStream in audio element ${index}`);
@@ -136,23 +137,29 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
                         console.log(`🎤 MEDIA CLEANUP: Cleared srcObject from audio element`);
                       }
                     });
+                    
+                    // Clean up any remaining video elements (from face tracking components)
+                    videoElements.forEach((video, index) => {
+                      if (video.srcObject instanceof MediaStream) {
+                        console.log(`📹 MEDIA CLEANUP: Found MediaStream in video element ${index} (cleaning up legacy face tracking)`);
+                        const stream = video.srcObject;
+                        const tracks = stream.getTracks();
+                        console.log(`📹 MEDIA CLEANUP: Video stream has ${tracks.length} tracks`);
+                        
+                        tracks.forEach(track => {
+                          console.log(`📹 MEDIA CLEANUP: Stopping video track: ${track.kind}, ${track.label}`);
+                          track.stop();
+                        });
+                        
+                        // Clear the srcObject
+                        video.srcObject = null;
+                        console.log(`📹 MEDIA CLEANUP: Cleared srcObject from video element`);
+                      }
+                    });
                   });
               }
               
-              // Stop video tracks
-              if (videoInputs.length > 0) {
-                console.log(`📹 MEDIA CLEANUP: Attempting to get video stream for cleanup`);
-                navigator.mediaDevices.getUserMedia({ video: true })
-                  .then(stream => {
-                    console.log(`📹 MEDIA CLEANUP: Successfully got video stream with ${stream.getVideoTracks().length} tracks`);
-                    stream.getVideoTracks().forEach(track => {
-                      console.log(`📹 MEDIA CLEANUP: Stopping video track: ${track.label}, enabled: ${track.enabled}, readyState: ${track.readyState}`);
-                      track.stop();
-                      console.log(`📹 MEDIA CLEANUP: After stopping - readyState: ${track.readyState}`);
-                    });
-                  })
-                  .catch(err => console.log(`📹 MEDIA CLEANUP: Error getting video stream: ${err.message}`));
-              }
+              // Skip video cleanup since we no longer use video/face tracking
             })
             .catch(err => console.error(`❌ MEDIA CLEANUP: Error enumerating devices: ${err.message}`));
         }
@@ -167,9 +174,8 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
               if (stream && typeof stream.getTracks === 'function') {
                 const tracks = stream.getTracks();
                 const audioTracks = stream.getAudioTracks();
-                const videoTracks = stream.getVideoTracks();
                 
-                console.log(`🌐 MEDIA CLEANUP: Global stream ${index} has ${tracks.length} total tracks (${audioTracks.length} audio, ${videoTracks.length} video)`);
+                console.log(`🌐 MEDIA CLEANUP: Global stream ${index} has ${tracks.length} total tracks (${audioTracks.length} audio)`);
                 
                 tracks.forEach(track => {
                   console.log(`🌐 MEDIA CLEANUP: Stopping ${track.kind} track: ${track.label}, enabled: ${track.enabled}, readyState: ${track.readyState}`);
@@ -216,12 +222,7 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
             })
             .catch(err => console.log(`🎤 MEDIA CLEANUP: Error checking microphone permission: ${err.message}`));
           
-          // Check camera permission
-          navigator.permissions.query({ name: 'camera' as PermissionName })
-            .then(permissionStatus => {
-              console.log(`📹 MEDIA CLEANUP: Camera permission status: ${permissionStatus.state}`);
-            })
-            .catch(err => console.log(`📹 MEDIA CLEANUP: Error checking camera permission: ${err.message}`));
+          // Skip camera permission check since we no longer use camera
         }
         
         console.log(`✅ MEDIA CLEANUP: Completed all cleanup methods`);
@@ -555,8 +556,7 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
                 )}
               </Toggle>
 
-              {/* Face Tracking Toggle */}
-              <FaceTrackingToggle className="mx-1 scale-90" />
+
 
               <Button
                 size="sm"

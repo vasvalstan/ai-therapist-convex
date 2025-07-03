@@ -7,7 +7,7 @@ import { ComponentRef, forwardRef, useRef, useCallback, useEffect, useState } fr
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useParams } from "next/navigation";
-import { useHume } from "./HumeProvider";
+
 
 interface DatabaseMessage {
   role: "USER" | "ASSISTANT" | "SYSTEM";
@@ -57,7 +57,7 @@ export const Messages = forwardRef<
   const params = useParams();
   const sessionId = params?.sessionId as string;
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { isFaceTrackingEnabled } = useHume();
+
   const [visibleMessageCount, setVisibleMessageCount] = useState(3); // Show only the most recent N messages
   
   // Get persisted chat messages for history view
@@ -107,18 +107,18 @@ export const Messages = forwardRef<
   // Get only the most recent messages to display
   const recentMessages = sortedMessages.slice(-visibleMessageCount);
 
-  // Adjust visible message count based on screen size and face tracking status
+  // Set visible message count based on screen size
   useEffect(() => {
-    // If face tracking is enabled, show fewer messages to make room for the camera
-    const messageCount = isFaceTrackingEnabled ? 3 : 5;
+    // Show more messages since we have more space with smaller audio bubble
+    const messageCount = 7;
     setVisibleMessageCount(messageCount);
-  }, [isFaceTrackingEnabled]);
+  }, []);
 
   return (
     <div 
       className={cn(
         "flex flex-col",
-        isFaceTrackingEnabled ? "h-[65vh]" : "h-[80vh]", // Adjusted height based on face tracking status
+        "h-[85vh] sm:h-[87vh] md:h-[88vh]", // More space for conversation
         "relative overflow-hidden" // Prevent scrolling
       )}
       ref={ref}
