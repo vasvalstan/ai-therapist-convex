@@ -11,14 +11,17 @@ interface AudioVideoContainerProps {
 export function AudioVideoContainer({ apiKey, compact = false }: AudioVideoContainerProps) {
   const [fftData, setFftData] = useState<number[]>(Array(128).fill(0));
   const [isAudioActive, setIsAudioActive] = useState(false);
+  const lastUpdateRef = useRef<number>(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
+  const isMountedRef = useRef(true);
   
   useEffect(() => {
     let animationFrameId: number | null = null;
+    isMountedRef.current = true;
     
     const initializeAudio = async () => {
       try {
@@ -55,7 +58,19 @@ export function AudioVideoContainer({ apiKey, compact = false }: AudioVideoConta
         const dataArray = new Uint8Array(bufferLength);
         
         const updateAudioVisualization = () => {
-          if (!analyserRef.current) return;
+          // Check if component is still mounted
+          if (!isMountedRef.current) {
+            console.log("AudioVideoContainer: Component unmounted, stopping visualization");
+            return;
+          }
+          
+          if (!analyserRef.current || !audioContextRef.current) return;
+          
+          // Check if audio context is still active
+          if (audioContextRef.current.state === 'closed') {
+            console.log("AudioVideoContainer: Audio context closed, stopping visualization");
+            return;
+          }
           
           analyserRef.current.getByteFrequencyData(dataArray);
           
@@ -66,13 +81,31 @@ export function AudioVideoContainer({ apiKey, compact = false }: AudioVideoConta
           }
           const average = sum / bufferLength;
           
-          // Update audio level state (0-100 scale)
-          setIsAudioActive(true);
-          setFftData(Array.from(dataArray).map(value => value / 255));
+          // Throttle updates to prevent excessive re-renders (max 10 FPS for state updates)
+          const now = Date.now();
+          const shouldUpdate = now - lastUpdateRef.current > 100; // 100ms = 10 FPS
           
-          // Continue animation loop
-          animationFrameId = requestAnimationFrame(updateAudioVisualization);
-          animationFrameRef.current = animationFrameId;
+          if (shouldUpdate) {
+            const newFftData = Array.from(dataArray).map(value => value / 255);
+            const hasSignificantChange = average > 10; // Only update if there's actual audio activity
+            
+            if (hasSignificantChange) {
+              setIsAudioActive(true);
+              setFftData(newFftData);
+            } else {
+              setIsAudioActive(false);
+              // Use a simplified array for inactive state to reduce updates
+              setFftData(Array(128).fill(0));
+            }
+            
+            lastUpdateRef.current = now;
+          }
+          
+          // Continue animation loop only if everything is still valid and component is mounted
+          if (isMountedRef.current && analyserRef.current && audioContextRef.current?.state === 'running') {
+            animationFrameId = requestAnimationFrame(updateAudioVisualization);
+            animationFrameRef.current = animationFrameId;
+          }
         };
         
         // Start animation loop
@@ -90,6 +123,7 @@ export function AudioVideoContainer({ apiKey, compact = false }: AudioVideoConta
     // Cleanup function
     return () => {
       console.log("AudioVideoContainer: Cleaning up audio resources");
+      isMountedRef.current = false;
       
       // Stop animation loop
       if (animationFrameRef.current) {

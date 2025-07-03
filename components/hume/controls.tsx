@@ -8,6 +8,11 @@ declare global {
   }
 }
 
+// Add logging constants at the top
+const CONTROLS_LOG_PREFIX = "🎛️ [CONTROLS]";
+const VOICE_STATUS_LOG_PREFIX = "🎤 [VOICE_STATUS]";
+const INACTIVITY_LOG_PREFIX = "🕒 [INACTIVITY]";
+
 import { useVoice } from "@humeai/voice-react";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Phone, Loader2 } from "lucide-react";
@@ -31,6 +36,19 @@ interface ControlsProps {
 export function Controls({ sessionId, onEndConversation, onEndCallStart }: ControlsProps) {
   const voice = useVoice();
   const { disconnect, status, isMuted, unmute, mute } = voice || {};
+  
+  // Minimal logging for debugging inactivity issue
+  useEffect(() => {
+    // Only log significant status changes
+    if (status?.value === "connected") {
+      console.log(`${CONTROLS_LOG_PREFIX} ✅ Voice connected (controls visible)`);
+    } else if (status?.value === "disconnected") {
+      console.log(`${CONTROLS_LOG_PREFIX} ❌ Voice disconnected (controls hidden)`);
+    } else if (status?.value === "error") {
+      console.log(`${CONTROLS_LOG_PREFIX} 🔴 Voice error (controls hidden)`);
+    }
+  }, [status?.value]);
+  
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const timeWarningRef = useRef<NodeJS.Timeout | null>(null);
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
@@ -480,6 +498,15 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
     }
   };
 
+  // Add logging for when controls are actually rendered
+  useEffect(() => {
+    if (status && status.value === "connected") {
+      console.log(`${CONTROLS_LOG_PREFIX} 🟢 CONTROLS RENDERED - Status: connected, Session: ${sessionId}`);
+    } else {
+      console.log(`${CONTROLS_LOG_PREFIX} 🔴 CONTROLS NOT RENDERED - Status: ${status?.value}, Session: ${sessionId}`);
+    }
+  }, [status?.value, sessionId]);
+
   return (
     <div
       className={cn(
@@ -533,8 +560,6 @@ export function Controls({ sessionId, onEndConversation, onEndCallStart }: Contr
                   </>
                 )}
               </Toggle>
-
-
 
               <Button
                 size="sm"

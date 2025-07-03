@@ -13,7 +13,8 @@ import { toast } from "@/components/ui/use-toast";
 import { useState, useEffect } from "react";
 
 export function StartConversationPanel() {
-  const { status, connect } = useVoice();
+  const voice = useVoice();
+  const { status, connect } = voice || {};
   const router = useRouter();
   const createSession = useMutation(api.chat.createChatSession);
   const [isStarting, setIsStarting] = useState(false);
@@ -26,9 +27,12 @@ export function StartConversationPanel() {
   // Check if we're already on a specific chat page
   const isOnSpecificChatPage = pathname && pathname !== "/chat/history" && pathname.startsWith("/chat/");
   
+  // Check if voice service is ready
+  const isVoiceReady = voice && status && connect;
+  
   // Watch for voice connection status changes
   useEffect(() => {
-    if (status.value === "connected" && pendingChatId) {
+    if (status?.value === "connected" && pendingChatId) {
       // Wait a bit to ensure connection is stable
       const timer = setTimeout(() => {
         // Navigate directly to the chat tab to avoid intermediate screens
@@ -39,11 +43,11 @@ export function StartConversationPanel() {
     }
     
     // Reset states if connection is lost
-    if (status.value === "disconnected") {
+    if (status?.value === "disconnected") {
       setPendingChatId(null);
       setIsStarting(false);
     }
-  }, [status.value, pendingChatId, router]);
+  }, [status?.value, pendingChatId, router]);
   
   // Get user details to show plan information
   const userInfo = useQuery(api.users.getUser);
@@ -58,6 +62,26 @@ export function StartConversationPanel() {
   // Find the user's plan
   const userPlan = allPlans?.find(plan => plan.key === userDetails?.currentPlanKey) || 
                    allPlans?.find(plan => plan.key === "free");
+  
+  // Show loading state if voice service isn't ready
+  if (!isVoiceReady) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-6 px-4 py-8 md:gap-8 md:p-8">
+        <div className="text-center space-y-2 max-w-[600px]">
+          <h1 className="text-2xl md:text-4xl font-bold tracking-tight">
+            Welcome to Sereni
+          </h1>
+          <p className="text-base md:text-xl text-muted-foreground">
+            Initializing voice service...
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span className="text-sm text-muted-foreground">Connecting to voice service</span>
+        </div>
+      </div>
+    );
+  }
   
   const handleStartConversation = async () => {
     if (!isSignedIn) {

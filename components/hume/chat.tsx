@@ -12,6 +12,11 @@ import { Id } from "@/convex/_generated/dataModel";
 
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes in milliseconds
 
+// Add logging constants
+const INACTIVITY_LOG_PREFIX = "🕒 [INACTIVITY]";
+const VOICE_STATUS_LOG_PREFIX = "🎤 [VOICE_STATUS]";
+const CONTROLS_LOG_PREFIX = "🎛️ [CONTROLS]";
+
 interface HumeChatProps {
   accessToken: string;
   sessionId?: string;
@@ -148,12 +153,21 @@ export default function HumeChat({
 
   // Reset inactivity timer
   const resetInactivityTimer = useCallback(() => {
-    lastActivityRef.current = Date.now();
+    const now = Date.now();
+    const timeSinceLastActivity = now - lastActivityRef.current;
+    
+    // Reduced logging - only log when timer is reset due to long inactivity
+    if (timeSinceLastActivity > 60000) { // Only log if > 1 minute since last activity
+      console.log(`${INACTIVITY_LOG_PREFIX} Timer reset after ${Math.round(timeSinceLastActivity/1000)}s inactivity`);
+    }
+    
+    lastActivityRef.current = now;
     if (inactivityTimeout.current) {
       clearTimeout(inactivityTimeout.current);
     }
     if (currentSessionId) {
       inactivityTimeout.current = setTimeout(() => {
+        console.log(`${INACTIVITY_LOG_PREFIX} ⏰ TIMEOUT REACHED! Auto-ending session after 5 minutes of inactivity`);
         handleSessionEnd(currentSessionId);
       }, INACTIVITY_TIMEOUT);
     }
@@ -165,6 +179,7 @@ export default function HumeChat({
   // Set up message handler for the existing voice connection
   const handleMessage = useCallback(
     async (message: any) => {
+      // Activity detected - message received
       resetInactivityTimer(); // Reset timer on any message
       
       console.log("⚡ handleMessage called with message type:", message.type);
@@ -563,6 +578,31 @@ export default function HumeChat({
   useEffect(() => {
     resetInactivityTimer();
   }, [resetInactivityTimer]);
+
+  // Add periodic logging to track status during idle periods
+  useEffect(() => {
+    if (!voice || !currentSessionId) return;
+    
+    const periodicLogger = setInterval(() => {
+      const timeSinceLastActivity = Date.now() - lastActivityRef.current;
+      const minutesSinceActivity = Math.floor(timeSinceLastActivity / (1000 * 60));
+      const secondsSinceActivity = Math.floor((timeSinceLastActivity % (1000 * 60)) / 1000);
+      
+          // Only log if there's concerning inactivity (3+ minutes) or status changes
+    if (minutesSinceActivity >= 3 || voice.status?.value === 'error' || voice.status?.value === 'disconnected') {
+      console.log(`${INACTIVITY_LOG_PREFIX} Status check: ${minutesSinceActivity}m${secondsSinceActivity}s inactive, voice: ${voice.status?.value}`);
+    }
+      
+      // Warn if approaching inactivity timeout
+      if (timeSinceLastActivity > INACTIVITY_TIMEOUT - 60000) { // 1 minute before timeout
+        console.warn(`${INACTIVITY_LOG_PREFIX} ⚠️ APPROACHING INACTIVITY TIMEOUT! Will timeout in ${Math.ceil((INACTIVITY_TIMEOUT - timeSinceLastActivity) / 1000)}s`);
+      }
+    }, 30000); // Log every 30 seconds
+    
+    return () => {
+      clearInterval(periodicLogger);
+    };
+  }, [voice, currentSessionId, assistantSpeaking]);
 
   if (!accessToken) {
     return <div>Loading...</div>;

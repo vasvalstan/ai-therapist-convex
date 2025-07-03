@@ -97,7 +97,19 @@ export function VoiceWrapper({ children }: { children: React.ReactNode }) {
   }, []);
 
   if (!accessToken) {
-    return children;
+    // Provide a placeholder VoiceProvider while loading token
+    return (
+      <VoiceProvider
+        auth={{ type: "accessToken", value: "loading" }}
+        configId={configId}
+        debug={false}
+        onMessage={() => {
+          // No-op while loading
+        }}
+      >
+        {children}
+      </VoiceProvider>
+    );
   }
 
   return (

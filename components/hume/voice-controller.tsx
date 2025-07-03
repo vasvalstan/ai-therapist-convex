@@ -56,6 +56,10 @@ interface HumeEvent {
   };
 }
 
+// Add logging constants
+const VOICE_STATUS_LOG_PREFIX = "🎤 [VOICE_STATUS]";
+const INACTIVITY_LOG_PREFIX = "🕒 [INACTIVITY]";
+
 export function VoiceController({ initialMessages = [], sessionId: propSessionId }: VoiceControllerProps) {
   const voice = useVoice();
   const prevStatusRef = useRef<string | undefined>(undefined);
@@ -132,7 +136,7 @@ export function VoiceController({ initialMessages = [], sessionId: propSessionId
     if (voice.status) {
       const currentStatus = voice.status.value;
       if (prevStatusRef.current !== currentStatus) {
-        console.log(`Voice status changed from ${prevStatusRef.current} to ${currentStatus}`);
+        console.log(`${VOICE_STATUS_LOG_PREFIX} Voice status changed from ${prevStatusRef.current} to ${currentStatus}`);
         prevStatusRef.current = currentStatus;
       }
     }
