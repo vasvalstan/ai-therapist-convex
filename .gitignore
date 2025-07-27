@@ -8,6 +8,7 @@ node_modules
 
 # Browser tools mcp
 /browser-tools-mcp
+/scripts
 
 # Next.js
 /.next/
@@ -52,3 +53,67 @@ next-env.d.ts
 **/public/sw.js.map
 **/public/workbox-*.js.map
 **/public/worker-*.js.map
+
+# Production data exports (contains user data)
+prod-*.json
+**/prod-*.json
+
+# Transcripts and user data
+/transcripts/
+transcripts/
+*.transcript
+*.txt
+
+# API keys and secrets
+.convex/
+convex/.env
+*.key
+*.secret
+
+# Logs
+*.log
+logs/
+log/
+
+# Database dumps
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.backup
+*.bak
+backup/
+backups/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+.temp/
+
+# User uploads
+uploads/
+user-data/
+
+# AI model files (can be large)
+*.model
+*.weights
+models/
+
+# Testing and development
+.test/
+test-data/
+dev-data/
+
+# Certificates and keys
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+
+# OS generated files
+Thumbs.db
+ehthumbs.db

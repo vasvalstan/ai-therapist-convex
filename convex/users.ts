@@ -351,3 +351,51 @@ export const deleteAllUsers = mutation({
     return `Deleted ${users.length} users`;
   },
 });
+
+// Admin function to update a user's plan (for testing/admin purposes)
+export const updateUserPlanByEmail = mutation({
+  args: {
+    email: v.string(),
+    planKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find user by email
+    const user = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("email"), args.email))
+      .unique();
+
+    if (!user) {
+      throw new Error(`User with email ${args.email} not found`);
+    }
+
+    // Get plan details
+    const plan = await ctx.db
+      .query("plans")
+      .withIndex("key", (q) => q.eq("key", args.planKey))
+      .unique();
+
+    if (!plan) {
+      throw new Error(`Plan with key ${args.planKey} not found`);
+    }
+
+    // Calculate renewal date (30 days from now)
+    const renewalDate = Date.now() + 30 * 24 * 60 * 60 * 1000;
+
+    // Update user with new plan
+    await ctx.db.patch(user._id, {
+      currentPlanKey: args.planKey,
+      minutesRemaining: plan.totalMinutes,
+      totalMinutesAllowed: plan.totalMinutes,
+      planRenewalDate: renewalDate,
+    });
+
+    return {
+      success: true,
+      message: `Updated user ${args.email} to ${args.planKey} plan`,
+      planName: plan.name,
+      minutes: plan.totalMinutes,
+      renewalDate: new Date(renewalDate).toISOString(),
+    };
+  },
+});
