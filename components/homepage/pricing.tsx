@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Doc } from "@/convex/_generated/dataModel";
+import { toast } from "@/components/ui/use-toast";
 
 type PricingCardProps = {
   user:
@@ -28,9 +29,12 @@ type PricingCardProps = {
       }
     | null
     | undefined;
+  userPlan?: any; // Add userPlan to check for remaining minutes
   planKey: string;
   title: string;
   monthlyPrice?: number | null;
+  isYearly?: boolean;
+  monthlyEquivalent?: number;
   description: string;
   features: string[];
   actionLabel: string;
@@ -72,9 +76,12 @@ const PricingHeader = ({
 
 const PricingCard = ({
   user,
+  userPlan,
   planKey,
   title,
   monthlyPrice,
+  isYearly,
+  monthlyEquivalent,
   description,
   features,
   actionLabel,
@@ -112,7 +119,10 @@ const PricingCard = ({
       customerEmail: email,
       planKey, // Pass plan key directly, not a fake productPriceId
       successUrl,
-      metadata: { planKey },
+      metadata: {
+        planKey,
+        userId: user?.id || "", // Include userId for webhook processing
+      },
     });
   };
 
@@ -264,7 +274,14 @@ const PricingCard = ({
     if (currentPlan) {
       return {
         text: "Current Plan",
-        action: () => router.push("/"),
+        action: () => {
+          // Show toast when user clicks on their current plan
+          toast({
+            title: "You're already on this plan! 🎉",
+            description: `You currently have the ${title} plan. If you purchase this plan again, your minutes will be added to your account.`,
+            variant: "default",
+          });
+        },
       };
     }
 
@@ -272,16 +289,64 @@ const PricingCard = ({
     return {
       text: actionLabel,
       action: () => {
+        // Quick debug to see if this function is called
+        console.log("Button clicked for plan:", planKey);
+
         if (!user) {
           router.push("/sign-in");
           return;
         }
+
+        // Check if userPlan is still loading
+        if (userPlan === undefined) {
+          console.log(
+            "UserPlan is still loading, allowing purchase to proceed"
+          );
+        }
+
+        // Debug logging for plan detection
+        console.log("Plan purchase attempt:", {
+          planKey,
+          userPlan,
+          userPlanType: typeof userPlan,
+          currentPlanKey: userPlan?.currentPlanKey,
+          isCurrentPlan: userPlan?.currentPlanKey === planKey,
+        });
+
+        // More robust check for current plan
+        const currentUserPlanKey = userPlan?.currentPlanKey;
+        console.log(
+          "Current user plan key:",
+          currentUserPlanKey,
+          "Target plan:",
+          planKey
+        );
+
+        // Check if user is trying to purchase their current plan
+        if (currentUserPlanKey && currentUserPlanKey === planKey) {
+          // Use alert for immediate feedback that won't disappear
+          const proceed = window.confirm(
+            `You're already subscribed to the ${title} plan!\n\nClicking OK will add more minutes to your account.\nClick Cancel to stay on this page.`
+          );
+
+          if (!proceed) {
+            console.log("User chose not to proceed with duplicate purchase");
+            return;
+          }
+
+          console.log("User chose to proceed with adding more minutes");
+          // If user confirms, they can proceed to add more minutes
+        }
+
         handleCheckout();
       },
     };
   };
 
   const buttonConfig = getButtonAction();
+
+  // Note: Users can now purchase multiple plans - minutes will be accumulated
+  // Remove prevention system as requested
 
   return (
     <Card
@@ -339,7 +404,7 @@ const PricingCard = ({
                 "text-gray-300": exclusive,
               })}
             >
-              /month
+              {isYearly ? "/year" : "/month"}
             </span>
           </div>
 
@@ -451,10 +516,12 @@ const DynamicPricingCard = dynamic(
 function PricingContent() {
   const { user } = useUser();
   const plans = useQuery(api.plans.getPlans) || [];
-  const userPlan = useQuery(api.users.getUser);
+  const userPlan = useQuery(api.users.getCurrentUserRecord);
 
-  // Show all plans in a specific order: calm, serene, tranquil
-  const planOrder = ["calm", "serene", "tranquil"];
+  // Note: Multiple plan purchases now accumulate minutes
+
+  // Show all plans in a specific order: monthly, yearly
+  const planOrder = ["monthly", "yearly"];
   const sortedPlans = plans.sort((a, b) => {
     const indexA = planOrder.indexOf(a.key);
     const indexB = planOrder.indexOf(b.key);
@@ -463,9 +530,9 @@ function PricingContent() {
 
   return (
     <div className="w-full flex justify-center px-4 py-8">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl w-full place-items-center">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl w-full place-items-center justify-items-center">
         {sortedPlans.map((plan: Doc<"plans">) => {
-          const isPopular = plan.key === "serene"; // Mark Serene plan as popular (middle tier)
+          const isPopular = plan.key === "yearly"; // Mark yearly plan as popular (with discount)
           const isCurrentPlan =
             typeof userPlan === "object" &&
             userPlan !== null &&
@@ -473,22 +540,31 @@ function PricingContent() {
               ? userPlan.currentPlanKey === plan.key
               : false;
 
-          // Calculate price display
-          const monthlyPrice = (plan.prices?.month?.usd?.amount || 0) / 100;
+          // Calculate price display based on plan type
+          const isYearly = plan.key === "yearly";
+          const displayPrice = isYearly
+            ? (plan.prices?.year?.usd?.amount || 0) / 100 // Yearly price
+            : (plan.prices?.month?.usd?.amount || 0) / 100; // Monthly price
+
+          // For yearly plan, also calculate monthly equivalent for comparison
+          const monthlyEquivalent = isYearly ? displayPrice / 12 : displayPrice;
 
           return (
             <div key={plan.key} className="w-full max-w-sm">
               <DynamicPricingCard
                 user={user}
+                userPlan={userPlan}
                 planKey={plan.key}
                 title={plan.name}
-                monthlyPrice={monthlyPrice}
+                monthlyPrice={displayPrice}
+                isYearly={isYearly}
+                monthlyEquivalent={monthlyEquivalent}
                 description={plan.description}
                 features={plan.features || []}
-                actionLabel={isCurrentPlan ? "Current Plan" : "Choose Plan"}
+                actionLabel={isCurrentPlan ? "Current Plan" : "Start therapy"}
                 popular={isPopular}
-                exclusive={plan.key === "tranquil"} // Make Tranquil plan look exclusive
-                isFree={false} // No free plan anymore
+                exclusive={false} // No exclusive plans in new structure
+                isFree={false}
                 currentPlan={isCurrentPlan}
                 totalMinutes={plan.totalMinutes}
                 maxSessionDurationMinutes={plan.maxSessionDurationMinutes}

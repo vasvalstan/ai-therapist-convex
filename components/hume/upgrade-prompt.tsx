@@ -73,21 +73,11 @@ export function UpgradePrompt({ reason, chatId }: UpgradePromptProps) {
               <div className="space-y-3 mt-6">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-blue-500" />
-                  <span>
-                    Calm plan: <strong>15 minutes</strong> for $10/month
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-yellow-500" />
-                  <span>
-                    Serene plan: <strong>30 minutes</strong> for $15/month
-                  </span>
+                  <span>Monthly plan: $18.79/month</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-purple-500" />
-                  <span>
-                    Tranquil plan: <strong>60 minutes</strong> for $25/month
-                  </span>
+                  <span>Yearly plan: $120/year + founder access</span>
                 </div>
               </div>
             </CardContent>

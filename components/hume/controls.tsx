@@ -389,18 +389,8 @@ export function Controls({
             });
             window.dispatchEvent(minutesUpdatedEvent);
 
-            // Update the message to confirm chat was saved and show minutes remaining
-            const planDisplayName =
-              result.planKey === "trial" ? "trial" : "plan";
-            saveMessage.innerHTML = `
-              <div>
-                <p>Your chat has been saved!</p>
-                <p class="text-xs mt-1">
-                  <span class="font-medium">${result.minutesUsed} minute${result.minutesUsed !== 1 ? "s" : ""}</span> used${result.originalDuration !== result.minutesUsed ? ` (rounded up from ${result.originalDuration.toFixed(1)}min)` : ""}.
-                  <span class="font-medium">${result.newMinutesRemaining} minute${result.newMinutesRemaining !== 1 ? "s" : ""}</span> remaining.
-                </p>
-              </div>
-            `;
+            // Simple save confirmation without minute details for seamless experience
+            saveMessage.textContent = "Your chat has been saved!";
 
             // If trial completed or user ran out of minutes, show the upgrade prompt
             if (result.trialCompleted || result.newMinutesRemaining <= 0) {
@@ -487,19 +477,7 @@ export function Controls({
             // End the call with timeExpired=true to show the upgrade prompt
             handleEndCall(true);
           }
-          // Show a warning when approaching the limit (10 seconds before)
-          else if (durationSeconds === PLAN_LIMIT_SECONDS - 10) {
-            const warningMessage = document.createElement("div");
-            warningMessage.className =
-              "fixed top-4 right-4 bg-yellow-100 text-yellow-800 p-3 rounded shadow-md z-50";
-            warningMessage.textContent = `Your session will end in 10 seconds. ${isTrialPlan ? "Upgrade for more time!" : ""}`;
-            document.body.appendChild(warningMessage);
-
-            // Remove the warning after 5 seconds
-            timeWarningRef.current = setTimeout(() => {
-              warningMessage.remove();
-            }, 5000);
-          }
+          // Session ending warning removed for seamless experience
         }
       }, 1000); // Check every second
     }
@@ -530,55 +508,11 @@ export function Controls({
     return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
   };
 
-  // Display elapsed time
+  // Display elapsed time - hidden UI for seamless user experience
   const getTimeDisplay = () => {
-    const formattedTime = formatTime(elapsedSeconds);
-    const remainingSeconds = Math.max(0, PLAN_LIMIT_SECONDS - elapsedSeconds);
-    const formattedRemaining = formatTime(remainingSeconds);
-    const planName = userDetails?.currentPlanKey
-      ? userDetails.currentPlanKey.charAt(0).toUpperCase() +
-        userDetails.currentPlanKey.slice(1)
-      : "Trial";
-
-    // Show session time and account minutes for all plans
-    return (
-      <div className="text-xs space-y-1">
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-muted-foreground">
-            Session: {formattedTime}
-          </span>
-          <span className="text-muted-foreground">•</span>
-          <span
-            className={
-              accountMinutesRemaining <= 1
-                ? "text-destructive font-medium"
-                : "text-muted-foreground"
-            }
-          >
-            {accountMinutesRemaining}min left
-          </span>
-        </div>
-
-        <div className="flex items-center justify-center gap-1">
-          {accountMinutesRemaining <= 1 ? (
-            <span className="text-destructive font-medium">
-              {isTrialPlan ? "Trial ending soon!" : "Minutes running low!"}
-            </span>
-          ) : remainingSeconds < 30 && !isTrialPlan ? (
-            <span className="text-destructive font-medium">
-              Session ending soon!
-            </span>
-          ) : (
-            <span className="text-muted-foreground">
-              {planName} plan{" "}
-              {isTrialPlan
-                ? "(5min trial)"
-                : `(${planSessionDurationMinutes}min sessions)`}
-            </span>
-          )}
-        </div>
-      </div>
-    );
+    // Don't show any time or minute information to user
+    // This allows them to speak freely without interruption or anxiety about limits
+    return null;
   };
 
   const handleEndConversation = async () => {

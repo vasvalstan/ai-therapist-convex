@@ -287,3 +287,302 @@ export const getPlanByKey = internalQuery({
       .unique();
   },
 });
+
+// Mutation to update to new subscription-based plan structure
+export const updateToSubscriptionPlans = mutation({
+  handler: async (ctx) => {
+    // Delete old therapy-themed plans
+    const oldPlans = await ctx.db.query("plans").collect();
+    for (const plan of oldPlans) {
+      await ctx.db.delete(plan._id);
+    }
+
+    // Add new monthly plan
+    await ctx.db.insert("plans", {
+      key: "monthly",
+      name: "Monthly",
+      description:
+        "talking, more texting, session reflections, emotional analysis, personality assessment, weekly insights, long-term memory",
+      polarProductId: "46c340fe-af9a-43ed-aa20-2b0e959364e5",
+      prices: {
+        month: {
+          usd: {
+            amount: 1879, // $18.79
+          },
+        },
+      },
+      features: [
+        "talking",
+        "more texting",
+        "session reflections",
+        "emotional analysis",
+        "personality assessment",
+        "weekly insights",
+        "long-term memory",
+      ],
+      totalMinutes: 0, // Unlimited for subscription
+    });
+
+    // Add new yearly plan
+    await ctx.db.insert("plans", {
+      key: "yearly",
+      name: "Yearly",
+      description:
+        "all in pro, plus..., talking, more texting, session reflections, emotional analysis, personality assessment, weekly insights, long-term memory",
+      polarProductId: "8754fcf4-40b5-4224-84df-7bfc475ff09f",
+      prices: {
+        year: {
+          usd: {
+            amount: 12000, // $120.00
+          },
+        },
+      },
+      features: [
+        "all in pro, plus...",
+        "talking",
+        "more texting",
+        "session reflections",
+        "emotional analysis",
+        "personality assessment",
+        "weekly insights",
+        "long-term memory",
+      ],
+      totalMinutes: 0, // Unlimited for subscription
+    });
+
+    console.log("Successfully updated to subscription-based plans");
+  },
+});
+
+// Mutation to remove "more texting" from plan descriptions and features
+export const removeMoreTextingFromPlans = mutation({
+  handler: async (ctx) => {
+    const plans = await ctx.db.query("plans").collect();
+
+    for (const plan of plans) {
+      // Remove "more texting" from description
+      const updatedDescription = plan.description
+        ?.replace(/,?\s*more texting,?\s*/g, ", ")
+        .replace(/^,\s*/, "") // Remove leading comma
+        .replace(/,\s*$/, "") // Remove trailing comma
+        .replace(/,\s*,/g, ",") // Fix double commas
+        .trim();
+
+      // Remove "more texting" from features array
+      const updatedFeatures =
+        plan.features?.filter((feature) => feature !== "more texting") || [];
+
+      await ctx.db.patch(plan._id, {
+        description: updatedDescription,
+        features: updatedFeatures,
+      });
+
+      console.log(`Updated plan ${plan.key}: removed "more texting"`);
+    }
+
+    console.log("Successfully removed 'more texting' from all plans");
+  },
+});
+
+export const updatePlanLimits = mutation({
+  handler: async (ctx) => {
+    // Update monthly plan with 120 minutes total and 20 min session limit
+    const monthlyPlan = await ctx.db
+      .query("plans")
+      .filter((q) => q.eq(q.field("key"), "monthly"))
+      .unique();
+
+    if (monthlyPlan) {
+      await ctx.db.patch(monthlyPlan._id, {
+        totalMinutes: 120,
+        maxSessionDurationMinutes: 20,
+      });
+      console.log(
+        "Updated monthly plan: 120 total minutes, 20 min session limit"
+      );
+    }
+
+    // Update yearly plan to keep unlimited but add session limit
+    const yearlyPlan = await ctx.db
+      .query("plans")
+      .filter((q) => q.eq(q.field("key"), "yearly"))
+      .unique();
+
+    if (yearlyPlan) {
+      await ctx.db.patch(yearlyPlan._id, {
+        totalMinutes: 0, // Keep unlimited
+        maxSessionDurationMinutes: 20,
+      });
+      console.log(
+        "Updated yearly plan: unlimited minutes, 20 min session limit"
+      );
+    }
+
+    console.log("Successfully updated plan limits");
+  },
+});
+
+export const updateYearlyPlanMinutes = mutation({
+  handler: async (ctx) => {
+    // Update yearly plan to 600 minutes total
+    const yearlyPlan = await ctx.db
+      .query("plans")
+      .filter((q) => q.eq(q.field("key"), "yearly"))
+      .unique();
+
+    if (yearlyPlan) {
+      await ctx.db.patch(yearlyPlan._id, {
+        totalMinutes: 600,
+      });
+      console.log("Updated yearly plan: 600 total minutes");
+    }
+
+    console.log("Successfully updated yearly plan to 600 minutes");
+  },
+});
+
+export const updateYearlyPlanDescription = mutation({
+  handler: async (ctx) => {
+    // Update yearly plan description and features
+    const yearlyPlan = await ctx.db
+      .query("plans")
+      .filter((q) => q.eq(q.field("key"), "yearly"))
+      .unique();
+
+    if (yearlyPlan) {
+      await ctx.db.patch(yearlyPlan._id, {
+        description: "all in pro, plus - one to one with the founders",
+        features: ["all in pro, plus - one to one with the founders"],
+      });
+      console.log("Updated yearly plan description and features");
+    }
+
+    console.log("Successfully updated yearly plan description");
+  },
+});
+
+export const setTestSessionDuration = mutation({
+  handler: async (ctx) => {
+    // Set both plans to 1 minute session duration for testing
+    const plans = await ctx.db.query("plans").collect();
+
+    for (const plan of plans) {
+      await ctx.db.patch(plan._id, {
+        maxSessionDurationMinutes: 1,
+      });
+      console.log(
+        `Updated ${plan.key} plan: 1 minute session duration for testing`
+      );
+    }
+
+    console.log(
+      "Successfully set all plans to 1 minute session duration for testing"
+    );
+  },
+});
+
+export const resetSessionDuration = mutation({
+  handler: async (ctx) => {
+    // Reset both plans back to 20 minute session duration
+    const plans = await ctx.db.query("plans").collect();
+
+    for (const plan of plans) {
+      await ctx.db.patch(plan._id, {
+        maxSessionDurationMinutes: 20,
+      });
+      console.log(`Reset ${plan.key} plan: 20 minute session duration`);
+    }
+
+    console.log("Successfully reset all plans to 20 minute session duration");
+  },
+});
+
+export const migrateToProductionPlans = mutation({
+  handler: async (ctx) => {
+    // Delete all existing plans to start fresh
+    const existingPlans = await ctx.db.query("plans").collect();
+
+    for (const plan of existingPlans) {
+      await ctx.db.delete(plan._id);
+      console.log(`Deleted plan: ${plan.key}`);
+    }
+
+    // Create new Monthly and Yearly plans with production Polar product IDs
+    const monthlyPlan = {
+      key: "monthly",
+      name: "Monthly",
+      description:
+        "talking, session reflections, emotional analysis, personality assessment, weekly insights, long-term memory",
+      features: [
+        "talking",
+        "session reflections",
+        "emotional analysis",
+        "personality assessment",
+        "weekly insights",
+        "long-term memory",
+      ],
+      prices: {
+        month: {
+          usd: {
+            amount: 1879, // $18.79
+          },
+        },
+      },
+      polarProductId: "020d64ea-d9ab-4daa-a39e-db8b418c6e3c", // Production Monthly
+      totalMinutes: 120,
+      maxSessionDurationMinutes: 20, // Reset from test mode
+    };
+
+    const yearlyPlan = {
+      key: "yearly",
+      name: "Yearly",
+      description: "all in pro, plus - one to one with the founders",
+      features: ["all in pro, plus - one to one with the founders"],
+      prices: {
+        year: {
+          usd: {
+            amount: 12000, // $120/year
+          },
+        },
+      },
+      polarProductId: "ca73ef3c-582e-42c0-ae65-876309418610", // Production Yearly
+      totalMinutes: 600,
+      maxSessionDurationMinutes: 20, // Reset from test mode
+    };
+
+    await ctx.db.insert("plans", monthlyPlan);
+    await ctx.db.insert("plans", yearlyPlan);
+
+    console.log(
+      "✅ Successfully migrated to production Monthly/Yearly plan structure"
+    );
+    console.log("Monthly: $18.79/month, 120 minutes, 20 min sessions");
+    console.log("Yearly: $120/year, 600 minutes, 20 min sessions");
+
+    return {
+      success: true,
+      message: "Production plans migrated successfully",
+      plans: [monthlyPlan, yearlyPlan],
+    };
+  },
+});
+
+export const verifyProductionPlans = mutation({
+  handler: async (ctx) => {
+    const plans = await ctx.db.query("plans").collect();
+
+    console.log("📋 Current Production Plans:");
+    for (const plan of plans) {
+      console.log(`- ${plan.key}: ${plan.name}`);
+      console.log(`  Polar ID: ${plan.polarProductId}`);
+      console.log(
+        `  Price: ${plan.prices.month?.usd?.amount || plan.prices.year?.usd?.amount}`
+      );
+      console.log(`  Minutes: ${plan.totalMinutes}`);
+      console.log(`  Session Duration: ${plan.maxSessionDurationMinutes} min`);
+      console.log("---");
+    }
+
+    return { plans, count: plans.length };
+  },
+});

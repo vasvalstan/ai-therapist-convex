@@ -132,6 +132,19 @@ export const getPlanByKey = internalQuery({
   },
 });
 
+// Internal query to get user for checkout validation
+export const getUserForCheckout = internalQuery({
+  args: { tokenIdentifier: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", args.tokenIdentifier)
+      )
+      .unique();
+  },
+});
+
 export const getOnboardingCheckoutUrl = action({
   args: {
     customerEmail: v.string(),
@@ -143,6 +156,8 @@ export const getOnboardingCheckoutUrl = action({
     const { customerEmail, planKey, successUrl, metadata } = args;
 
     console.log(`Creating checkout URL for plan: ${planKey}`);
+
+    // Note: Users can now purchase multiple plans - minutes will be accumulated
 
     // Get the plan details directly
     const plan = await ctx.runQuery(internal.subscriptions.getPlanByKey, {
@@ -551,7 +566,31 @@ export const subscriptionStoreWebhook = mutation({
 
       case "order.created":
         console.log("order.created:", args.body);
-        // Orders are handled through the subscription events
+
+        // Handle one-time order purchases (our plan purchases)
+        if (
+          args.body.data.metadata &&
+          args.body.data.metadata.planKey &&
+          args.body.data.metadata.userId
+        ) {
+          console.log(
+            `Processing order for user ${args.body.data.metadata.userId} with plan ${args.body.data.metadata.planKey}`
+          );
+
+          // Use the userId directly as it's already in tokenIdentifier format
+          const tokenIdentifier = args.body.data.metadata.userId;
+
+          await updateUserPlan(
+            ctx,
+            tokenIdentifier,
+            args.body.data.metadata.planKey
+          );
+        } else {
+          console.log(
+            "Order metadata missing userId or planKey:",
+            args.body.data.metadata
+          );
+        }
         break;
 
       default:
@@ -595,16 +634,24 @@ async function updateUserPlan(
   const now = new Date();
   const renewalDate = new Date(now.setMonth(now.getMonth() + 1)).getTime();
 
-  // Update the user with the new plan details
+  // Calculate new minutes by adding to existing
+  const currentMinutes = user.minutesRemaining || 0;
+  const currentTotal = user.totalMinutesAllowed || 0;
+  const planMinutes = plan.totalMinutes || 0;
+
+  const newMinutesRemaining = currentMinutes + planMinutes;
+  const newTotalMinutes = currentTotal + planMinutes;
+
+  // Update the user with accumulated minutes
   await ctx.db.patch(user._id, {
-    currentPlanKey: planKey,
-    minutesRemaining: plan.totalMinutes || 0,
-    totalMinutesAllowed: plan.totalMinutes || 0,
+    currentPlanKey: planKey, // Set to the latest plan purchased
+    minutesRemaining: newMinutesRemaining,
+    totalMinutesAllowed: newTotalMinutes,
     planRenewalDate: renewalDate,
   });
 
   console.log(
-    `Successfully updated user ${userId} to plan ${planKey} with ${plan.totalMinutes} minutes`
+    `Successfully updated user ${userId}: added ${planMinutes} minutes from ${planKey} plan. Total: ${newMinutesRemaining} minutes remaining, ${newTotalMinutes} total purchased.`
   );
 }
 
@@ -882,5 +929,107 @@ export const deleteSubscription = mutation({
 
     await ctx.db.delete(args.id);
     return true;
+  },
+});
+
+// Internal mutation wrapper for updateUserPlan
+export const updateUserPlanInternal = mutation({
+  args: {
+    userId: v.string(),
+    planKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await updateUserPlan(ctx, args.userId, args.planKey);
+  },
+});
+
+// Function to verify and process a Polar customer session token
+export const processCustomerSessionToken = action({
+  args: {
+    customerSessionToken: v.string(),
+    planKey: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { customerSessionToken, planKey } = args;
+
+    console.log(`Processing customer session token for plan: ${planKey}`);
+
+    // Get the current user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("User not authenticated");
+    }
+
+    // Determine environment based on NODE_ENV
+    const environment =
+      process.env.NODE_ENV === "production" ? "production" : "sandbox";
+
+    // Get the appropriate access token
+    const accessToken =
+      environment === "production"
+        ? process.env.POLAR_PRODUCTION_ACCESS_TOKEN
+        : process.env.POLAR_SANDBOX_ACCESS_TOKEN;
+
+    if (!accessToken) {
+      throw new Error(`Polar ${environment} access token is not configured`);
+    }
+
+    try {
+      // Verify the session token with Polar API
+      const sessionUrl =
+        environment === "production"
+          ? `https://api.polar.sh/v1/customer-sessions/${customerSessionToken}`
+          : `https://sandbox-api.polar.sh/v1/customer-sessions/${customerSessionToken}`;
+
+      console.log(`Verifying session token at: ${sessionUrl}`);
+
+      const response = await fetch(sessionUrl, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        console.error(
+          `Session verification failed: ${response.status} ${response.statusText}`
+        );
+        throw new Error(`Session verification failed: ${response.status}`);
+      }
+
+      const sessionData = await response.json();
+      console.log("Session data:", sessionData);
+
+      // If successful and we have plan info, manually update the user
+      if (planKey && sessionData.customer_id) {
+        console.log(
+          `Manually updating user ${identity.tokenIdentifier} to plan ${planKey}`
+        );
+
+        // Use runMutation to call updateUserPlan from an action context
+        await ctx.runMutation(api.subscriptions.updateUserPlanInternal, {
+          userId: identity.tokenIdentifier,
+          planKey: planKey,
+        });
+
+        return {
+          success: true,
+          message: `Successfully processed payment for ${planKey} plan`,
+          sessionData: sessionData,
+        };
+      }
+
+      return {
+        success: true,
+        message: "Session verified but no plan update needed",
+        sessionData: sessionData,
+      };
+    } catch (error) {
+      console.error("Error processing session token:", error);
+      throw new Error(
+        `Failed to process session token: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   },
 });

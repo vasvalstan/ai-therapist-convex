@@ -13,6 +13,59 @@ export const getUser = query({
   },
 });
 
+// Get the current user's full record from the database
+export const getCurrentUserRecord = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) {
+      return null;
+    }
+
+    // Get the user record from the database
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier)
+      )
+      .unique();
+
+    return user;
+  },
+});
+
+// Debug query to troubleshoot authentication
+export const debugUserAuth = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    console.log("Debug - identity:", identity);
+
+    if (identity === null) {
+      return { error: "Not authenticated", identity: null, user: null };
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier)
+      )
+      .unique();
+
+    console.log("Debug - user found:", user);
+
+    return {
+      identity: {
+        tokenIdentifier: identity.tokenIdentifier,
+        email: identity.email,
+        name: identity.name,
+      },
+      user: user,
+      allUsers: await ctx.db.query("users").collect(),
+    };
+  },
+});
+
 export const getAllUsers = query({
   args: {},
   handler: async (ctx) => {
