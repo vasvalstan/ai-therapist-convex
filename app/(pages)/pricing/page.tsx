@@ -50,7 +50,7 @@ export default function PricingPage() {
               transition={{ duration: 0.5, delay: 0.1 }}
               className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 dark:from-white dark:via-blue-300 dark:to-white animate-gradient-x pb-2"
             >
-              Try For Free
+              Choose Your Plan
             </motion.h1>
 
             {/* Subtitle */}
@@ -60,7 +60,8 @@ export default function PricingPage() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto"
             >
-              Get started with our powerful AI therapy service today at no cost
+              Start your journey with our powerful AI therapy service with
+              flexible subscription options
             </motion.p>
           </div>
         </section>
@@ -77,7 +78,9 @@ export default function PricingPage() {
                 Everything You Need
               </h2>
               <p className="text-gray-600 dark:text-gray-400">
-                Our AI therapy service comes packed with all the essential features you need for meaningful conversations. No more wasting time on repetitive therapy sessions.
+                Our AI therapy service comes packed with all the essential
+                features you need for meaningful conversations. No more wasting
+                time on repetitive therapy sessions.
               </p>
             </motion.div>
             <motion.div
@@ -107,26 +110,27 @@ export default function PricingPage() {
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Why Choose Sereni?</h2>
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-              Our AI therapy service provides a unique combination of accessibility, privacy, and personalized support
+              Our AI therapy service provides a unique combination of
+              accessibility, privacy, and personalized support
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
-            <FeatureCard 
-              title="Available Anytime" 
-              description="Get support whenever you need it, without scheduling appointments or waiting for availability." 
+            <FeatureCard
+              title="Available Anytime"
+              description="Get support whenever you need it, without scheduling appointments or waiting for availability."
             />
-            <FeatureCard 
-              title="Complete Privacy" 
-              description="Share your thoughts in a completely private environment with no human judgment." 
+            <FeatureCard
+              title="Complete Privacy"
+              description="Share your thoughts in a completely private environment with no human judgment."
             />
-            <FeatureCard 
-              title="Affordable Therapy" 
-              description="Access quality therapeutic conversations at a fraction of the cost of traditional therapy." 
+            <FeatureCard
+              title="Affordable Therapy"
+              description="Access quality therapeutic conversations at a fraction of the cost of traditional therapy."
             />
-            <FeatureCard 
-              title="Consistent Experience" 
-              description="Every session provides the same high-quality, empathetic experience without variability." 
+            <FeatureCard
+              title="Consistent Experience"
+              description="Every session provides the same high-quality, empathetic experience without variability."
             />
           </div>
         </section>
@@ -139,7 +143,13 @@ export default function PricingPage() {
   );
 }
 
-function FeatureCard({ title, description }: { title: string; description: string }) {
+function FeatureCard({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
   return (
     <div className="bg-card border border-border rounded-lg p-6 hover:shadow-md transition-shadow">
       <div className="flex items-start gap-3">
