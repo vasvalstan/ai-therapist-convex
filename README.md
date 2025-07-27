@@ -34,13 +34,6 @@ Sereni is a cutting-edge AI therapy application that combines advanced AI techno
 - **Therapeutic Goals** - Set and track personal growth objectives
 - **Breakthrough Moments** - Highlighted key insights and progress
 
-### 💎 Subscription Plans
-
-- **Monthly Plan** - $18.79/month, 120 minutes of therapy
-- **Yearly Plan** - $120/year, 600 minutes of therapy (50% savings)
-- **Flexible Usage** - 20-minute session limits, accumulate unused minutes
-- **One-on-One with Founders** - Exclusive access in yearly plan
-
 ## 🛠️ Technology Stack
 
 ### Frontend
