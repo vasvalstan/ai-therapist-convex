@@ -4,7 +4,12 @@ import { ChatHistory } from "@/components/hume/chat-history";
 import { Suspense, useEffect, useState, useRef, useCallback } from "react";
 import { useAuth as useClerkAuth } from "@clerk/nextjs";
 import { api } from "@/convex/_generated/api";
-import { useQuery, Authenticated, useConvexAuth, useMutation } from "convex/react";
+import {
+  useQuery,
+  Authenticated,
+  useConvexAuth,
+  useMutation,
+} from "convex/react";
 import { UpgradePrompt } from "@/components/hume/upgrade-prompt";
 import { StartConversationPanel } from "@/components/hume/start-conversation-panel";
 import { VoiceController } from "@/components/hume/voice-controller";
@@ -58,12 +63,13 @@ export function ChatHistoryContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  
+
   // Extract chat ID from the path - handle potential invalid formats
-  const activeChatId = pathname?.split('/chat/')[1]?.split('?')[0];
+  const activeChatId = pathname?.split("/chat/")[1]?.split("?")[0];
 
   // Get the current user's plan status
-  const user = useQuery(api.users.getUserByToken, 
+  const user = useQuery(
+    api.users.getUserByToken,
     userId ? { tokenIdentifier: userId } : "skip"
   );
 
@@ -75,18 +81,15 @@ export function ChatHistoryContent() {
   );
 
   // Get user's chat sessions
-  const chatSessions = useQuery(
-    api.chat.getChatSessions,
-    userId ? {} : "skip"
-  );
-  
+  const chatSessions = useQuery(api.chat.getChatSessions, userId ? {} : "skip");
+
   // Get plan details
   const plans = useQuery(api.plans.getAllPlans);
 
   // Store user if not found
   const [isStoringUser, setIsStoringUser] = useState(false);
   const storeUser = useMutation(api.users.store);
-  
+
   // State hooks
   const [isTokenLoading, setIsTokenLoading] = useState(false);
   // Track if this is a new user's first visit
@@ -110,9 +113,11 @@ export function ChatHistoryContent() {
           router.refresh();
         }
       } catch (err) {
-        console.error('Error storing user:', err);
+        console.error("Error storing user:", err);
         if (isMounted) {
-          setError('Failed to initialize user data. Please try refreshing the page.');
+          setError(
+            "Failed to initialize user data. Please try refreshing the page."
+          );
         }
       } finally {
         if (isMounted) {
@@ -131,13 +136,13 @@ export function ChatHistoryContent() {
   // Add auto-refresh for new users
   useEffect(() => {
     // Check if this is a new user's first visit and we're on the chat history page
-    if (isFirstVisit && pathname?.includes('/chat/history')) {
+    if (isFirstVisit && pathname?.includes("/chat/history")) {
       // Set a timeout to refresh the page after a short delay
       const refreshTimer = setTimeout(() => {
-        console.log('Auto-refreshing page for new user...');
+        console.log("Auto-refreshing page for new user...");
         window.location.reload();
       }, 2000); // 2 seconds delay to ensure user data is properly initialized
-      
+
       return () => clearTimeout(refreshTimer);
     }
   }, [isFirstVisit, pathname]);
@@ -147,41 +152,29 @@ export function ChatHistoryContent() {
       return;
     }
 
-    const userPlan = plans.find(plan => plan.key === (user.currentPlanKey || "free"));
-    
+    const userPlan = plans.find((plan) => plan.key === user.currentPlanKey);
+
     if (!userPlan) {
       setAccessStatus({
         hasAccess: false,
-        reason: "Unable to determine your plan. Please contact support.",
+        reason:
+          "You don't have an active plan. Please choose a plan to continue chatting.",
       });
       return;
     }
-    
-    // For all plans including free trial, check if user has minutes remaining
+
+    // Check if user has minutes remaining
     if (user.minutesRemaining !== undefined && user.minutesRemaining <= 0) {
-      const reason = userPlan.key === "free" 
-        ? "Your 5-minute trial has ended. Upgrade to continue chatting with our AI therapist."
-        : "You have used all your available minutes. Please upgrade your plan to continue.";
-        
       setAccessStatus({
         hasAccess: false,
-        reason: reason,
-        limitType: "minutes"
+        reason:
+          "You have used all your available minutes. Please upgrade your plan to continue.",
+        limitType: "minutes",
       });
       return;
     }
-    
-    // Additional check for free plan users who have already used their trial
-    if (userPlan.key === "free" && user.hasUsedTrial) {
-      setAccessStatus({
-        hasAccess: false,
-        reason: "You have already used your free trial. Please upgrade to continue.",
-        limitType: "trial_used"
-      });
-      return;
-    }
-    
-    setAccessStatus(current => {
+
+    setAccessStatus((current) => {
       if (!current.hasAccess || current.reason) {
         return { hasAccess: true };
       }
@@ -193,9 +186,9 @@ export function ChatHistoryContent() {
     if (!accessStatus.hasAccess || !user || isTokenLoading) {
       return;
     }
-    
+
     let isMounted = true;
-    
+
     const fetchToken = async () => {
       try {
         setIsTokenLoading(true);
@@ -222,7 +215,7 @@ export function ChatHistoryContent() {
     };
 
     fetchToken();
-    
+
     return () => {
       isMounted = false;
     };
@@ -295,9 +288,13 @@ export function ChatHistoryContent() {
             <ChatHistory />
           </div>
           <div className="flex-1 flex items-center justify-center p-4">
-            <UpgradePrompt 
-              reason={accessStatus.reason} 
-              chatId={chatSessions && chatSessions.length > 0 ? chatSessions[0].chatId : undefined} 
+            <UpgradePrompt
+              reason={accessStatus.reason}
+              chatId={
+                chatSessions && chatSessions.length > 0
+                  ? chatSessions[0].chatId
+                  : undefined
+              }
             />
           </div>
         </div>
@@ -307,7 +304,7 @@ export function ChatHistoryContent() {
 
   // Main content for chat history page
   const activeTab = searchParams?.get("tab") || "start";
-  
+
   return (
     <div className="flex h-screen flex-col">
       <div className="flex flex-1 overflow-hidden">
@@ -340,10 +337,22 @@ export function ChatHistoryContent() {
                   <div className="bg-muted/50 rounded-lg p-6 shadow-sm">
                     <h3 className="text-xl font-semibold mb-3">Chat History</h3>
                     <p className="text-muted-foreground mb-4">
-                      Click on any of the previous chats in the left panel to see more details.
+                      Click on any of the previous chats in the left panel to
+                      see more details.
                     </p>
                     <div className="flex justify-center text-muted-foreground">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="mr-2"
+                      >
                         <path d="m12 19-7-7 7-7"></path>
                         <path d="M19 12H5"></path>
                       </svg>
@@ -364,7 +373,7 @@ export function ChatHistoryContent() {
 function MobileChatHistory() {
   const sessions = useQuery(api.chat.getChatSessions);
   const router = useRouter();
-  
+
   if (sessions === undefined) {
     return (
       <div className="p-4 flex justify-center">
@@ -372,7 +381,7 @@ function MobileChatHistory() {
       </div>
     );
   }
-  
+
   if (!sessions || sessions.length === 0) {
     return (
       <div className="p-4 text-center text-muted-foreground">
@@ -381,18 +390,21 @@ function MobileChatHistory() {
       </div>
     );
   }
-  
+
   return (
     <div className="divide-y">
       {sessions.map((session) => {
         // Find the first user or assistant message to use as title
-        const firstMessage = session.messages && session.messages.find(
-          msg => msg.role === "USER" || msg.role === "ASSISTANT"
-        );
-        const title = session.title || 
-          (firstMessage?.content?.slice(0, 30) + "...") || 
+        const firstMessage =
+          session.messages &&
+          session.messages.find(
+            (msg) => msg.role === "USER" || msg.role === "ASSISTANT"
+          );
+        const title =
+          session.title ||
+          firstMessage?.content?.slice(0, 30) + "..." ||
           "New conversation";
-          
+
         return (
           <div
             key={session._id}
@@ -404,7 +416,10 @@ function MobileChatHistory() {
               <div className="flex-1">
                 <div className="font-medium">{title}</div>
                 <div className="text-sm text-muted-foreground">
-                  {formatDistanceToNow(session.updatedAt || session._creationTime, { addSuffix: true })}
+                  {formatDistanceToNow(
+                    session.updatedAt || session._creationTime,
+                    { addSuffix: true }
+                  )}
                 </div>
               </div>
             </div>
@@ -424,7 +439,11 @@ function MobileChatHistory() {
 export default ChatHistoryContentWrapper;
 
 // Component to display message history
-function MessageHistory({ conversation }: { conversation: ChatSession }): ReactNode {
+function MessageHistory({
+  conversation,
+}: {
+  conversation: ChatSession;
+}): ReactNode {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -438,15 +457,22 @@ function MessageHistory({ conversation }: { conversation: ChatSession }): ReactN
   }, [conversation.messages?.length, scrollToBottom]);
 
   const renderMessage = (item: Message, index: number) => {
-    const isUser = item.role === 'USER';
+    const isUser = item.role === "USER";
     const content = item.content;
     const timestamp = new Date(item.timestamp);
-    
+
     return (
-      <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-        <div className={`max-w-[80%] rounded-lg p-4 ${isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+      <div
+        key={index}
+        className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+      >
+        <div
+          className={`max-w-[80%] rounded-lg p-4 ${isUser ? "bg-primary text-primary-foreground" : "bg-muted"}`}
+        >
           <div className="text-sm">{content}</div>
-          <div className="text-xs mt-2 opacity-70">{timestamp.toLocaleString()}</div>
+          <div className="text-xs mt-2 opacity-70">
+            {timestamp.toLocaleString()}
+          </div>
         </div>
       </div>
     );
@@ -455,7 +481,9 @@ function MessageHistory({ conversation }: { conversation: ChatSession }): ReactN
   if (!conversation.messages?.length) {
     return (
       <div className="text-center">
-        <div className="text-muted-foreground mb-4">No messages in this conversation.</div>
+        <div className="text-muted-foreground mb-4">
+          No messages in this conversation.
+        </div>
       </div>
     );
   }
@@ -469,11 +497,17 @@ function MessageHistory({ conversation }: { conversation: ChatSession }): ReactN
 }
 
 // Component to display transcript
-function TranscriptView({ conversation }: { conversation: ChatSession }): ReactNode {
+function TranscriptView({
+  conversation,
+}: {
+  conversation: ChatSession;
+}): ReactNode {
   if (!conversation.messages?.length) {
     return (
       <div className="text-center">
-        <div className="text-muted-foreground mb-4">No transcript available for this conversation.</div>
+        <div className="text-muted-foreground mb-4">
+          No transcript available for this conversation.
+        </div>
       </div>
     );
   }
@@ -488,26 +522,28 @@ function TranscriptView({ conversation }: { conversation: ChatSession }): ReactN
       </CardHeader>
       <CardContent>
         <pre className="text-sm whitespace-pre-wrap bg-muted p-4 rounded-md">
-          {conversation.messages.map((item, index) => {
-            let prefix;
-            switch(item.type) {
-              case 'USER_MESSAGE':
-                prefix = 'User:';
-                break;
-              case 'AGENT_MESSAGE':
-                prefix = 'Therapist:';
-                break;
-              case 'TOOL_CALL_MESSAGE':
-                prefix = 'System (Tool Call):';
-                break;
-              case 'TOOL_RESPONSE_MESSAGE':
-                prefix = 'System (Tool Response):';
-                break;
-              default:
-                prefix = `System (${item.type}):`;
-            }
-            return `${prefix} ${item.content}\n`;
-          }).join('\n')}
+          {conversation.messages
+            .map((item, index) => {
+              let prefix;
+              switch (item.type) {
+                case "USER_MESSAGE":
+                  prefix = "User:";
+                  break;
+                case "AGENT_MESSAGE":
+                  prefix = "Therapist:";
+                  break;
+                case "TOOL_CALL_MESSAGE":
+                  prefix = "System (Tool Call):";
+                  break;
+                case "TOOL_RESPONSE_MESSAGE":
+                  prefix = "System (Tool Response):";
+                  break;
+                default:
+                  prefix = `System (${item.type}):`;
+              }
+              return `${prefix} ${item.content}\n`;
+            })
+            .join("\n")}
         </pre>
       </CardContent>
     </Card>
@@ -515,9 +551,13 @@ function TranscriptView({ conversation }: { conversation: ChatSession }): ReactN
 }
 
 // Component to display emotion analysis
-function EmotionAnalysis({ conversation }: { conversation: ChatSession }): ReactNode {
+function EmotionAnalysis({
+  conversation,
+}: {
+  conversation: ChatSession;
+}): ReactNode {
   const emotionMessages = conversation.messages?.filter(
-    message => message.type === "USER_MESSAGE" && message.emotionFeatures
+    (message) => message.type === "USER_MESSAGE" && message.emotionFeatures
   );
 
   if (!emotionMessages?.length) {
@@ -531,19 +571,22 @@ function EmotionAnalysis({ conversation }: { conversation: ChatSession }): React
   }
 
   // Aggregate emotion data
-  const emotionData: Record<string, { total: number, count: number, values: number[] }> = {};
-  
-  emotionMessages.forEach(message => {
+  const emotionData: Record<
+    string,
+    { total: number; count: number; values: number[] }
+  > = {};
+
+  emotionMessages.forEach((message) => {
     if (!message.emotionFeatures) return;
-    
+
     try {
       const emotions = JSON.parse(message.emotionFeatures as string);
-      
+
       Object.entries(emotions).forEach(([emotion, score]) => {
         if (!emotionData[emotion]) {
           emotionData[emotion] = { total: 0, count: 0, values: [] };
         }
-        
+
         emotionData[emotion].total += score as number;
         emotionData[emotion].count += 1;
         emotionData[emotion].values.push(score as number);
@@ -559,7 +602,7 @@ function EmotionAnalysis({ conversation }: { conversation: ChatSession }): React
       emotion,
       average: data.total / data.count,
       count: data.count,
-      values: data.values
+      values: data.values,
     }))
     .sort((a, b) => b.average - a.average);
 
@@ -575,19 +618,22 @@ function EmotionAnalysis({ conversation }: { conversation: ChatSession }): React
         <CardContent>
           <div className="space-y-4">
             <div className="text-sm text-muted-foreground mb-4">
-              Analysis of emotions detected in the user's voice throughout this conversation.
+              Analysis of emotions detected in the user's voice throughout this
+              conversation.
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {emotionAverages.slice(0, 6).map(({ emotion, average }) => (
                 <div key={emotion} className="flex flex-col">
                   <div className="flex justify-between items-center mb-2">
                     <span className="capitalize">{emotion}</span>
-                    <span className="text-sm font-medium">{(average * 100).toFixed(1)}%</span>
+                    <span className="text-sm font-medium">
+                      {(average * 100).toFixed(1)}%
+                    </span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-2.5">
-                    <div 
-                      className="bg-primary h-2.5 rounded-full" 
+                    <div
+                      className="bg-primary h-2.5 rounded-full"
                       style={{ width: `${average * 100}%` }}
                     ></div>
                   </div>
@@ -597,7 +643,7 @@ function EmotionAnalysis({ conversation }: { conversation: ChatSession }): React
           </div>
         </CardContent>
       </Card>
-      
+
       <Card>
         <CardHeader>
           <CardTitle>Voice Analysis Summary</CardTitle>
@@ -606,24 +652,24 @@ function EmotionAnalysis({ conversation }: { conversation: ChatSession }): React
           <p className="text-sm mb-4">
             Top emotions detected in your voice during this conversation:
           </p>
-          
+
           <ul className="list-disc pl-5 space-y-1">
             {emotionAverages.slice(0, 3).map(({ emotion, average }) => (
               <li key={emotion} className="text-sm">
-                <span className="capitalize font-medium">{emotion}</span>:{' '}
+                <span className="capitalize font-medium">{emotion}</span>:{" "}
                 <span>{(average * 100).toFixed(1)}%</span>
               </li>
             ))}
           </ul>
-          
+
           <div className="mt-4 text-sm text-muted-foreground">
             <p>
-              These emotions were detected from {emotionMessages.length} voice samples
-              throughout the conversation.
+              These emotions were detected from {emotionMessages.length} voice
+              samples throughout the conversation.
             </p>
           </div>
         </CardContent>
       </Card>
     </div>
   );
-} 
+}
