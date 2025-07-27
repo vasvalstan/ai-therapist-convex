@@ -1,132 +1,82 @@
-# Next.js 15 Starter Kit
+# Sereni - AI Therapist Application
 
-A modern, feature-rich starter template for building production-ready applications with Next.js 15, Tailwind CSS, and TypeScript.
+An emotion-aware AI therapy platform that provides personalized mental health support through voice conversations, real-time emotional analysis, and therapeutic insights.
 
-![Next Starter Kit](https://dwdwn8b5ye.ufs.sh/f/MD2AM9SEY8GucGJl7b5qyE7FjNDKYduLOG2QHWh3f5RgSi0c)
+![Sereni AI Therapist]- https://sereni.day
 
-## Features
+## 🎯 About Sereni
 
-### Core Technologies
-- ⚡ **Next.js 15** - The latest version with App Router
-- 🎨 **Tailwind CSS** - Utility-first CSS framework
-- 📘 **TypeScript** - Type-safe code
-- 🔒 **Authentication** - Clerk integration with persistent authorization toggle
-- 🎭 **Shadcn/ui** - Beautiful and accessible components
-- 💾 **Convex DB** - Real-time database with built-in file storage and serverless functions
-- 💳 **Polar.sh** - Open-source solution for managing subscriptions and payments
+Sereni is a cutting-edge AI therapy application that combines advanced AI technology with emotional intelligence to provide accessible, private, and personalized mental health support. The platform uses voice-based interactions with real-time emotion detection to create meaningful therapeutic conversations.
 
-### Performance Optimizations
-- 🚀 **Route Prefetching** - Instant page transitions for dashboard, playground, and auth pages
-- 🖼️ **Optimized Images** - Eager loading for critical images
-- 🌓 **Dark/Light Mode** - System-aware theme switching with custom gradients
-- 📱 **Responsive Design** - Mobile-first approach
-- 🔄 **Real-time Updates** - Powered by Convex DB's real-time capabilities
+## ✨ Key Features
 
-### Developer Experience
-- 🧩 **Component Library** - Pre-built, customizable components
-- 🎮 **AI Playground** - Built-in AI chat interface
-- 📊 **Dashboard Template** - Ready-to-use admin interface with subscription management
-- 🔍 **SEO Optimized** - Meta tags and sitemap generation
+### 🧠 AI Therapy Core
 
-## Convex DB Integration
+- **Voice Conversations** - Natural, empathetic AI therapy sessions
+- **Real-time Emotion Analysis** - Uses Hume AI for voice emotion detection
+- **Session Reflections** - AI-generated insights and progress summaries
+- **Personality Assessment** - Personalized therapeutic approach
+- **Long-term Memory** - AI remembers your journey and progress
+- **24/7 Availability** - Access therapy support anytime
 
-To set up your Convex database, visit: [https://convex.link/rasmicstarter](https://convex.link/rasmicstarter)
+### 🔒 Privacy & Security
 
-## Quick Start
+- **Complete Privacy** - No human judgment, secure conversations
+- **End-to-end Encryption** - All sessions are private and secure
+- **Anonymous Sessions** - Optional anonymous usage
+- **HIPAA-Compliant Infrastructure** - Built with healthcare privacy standards
 
-1. Clone the repository:
-```bash
-git clone https://github.com/michaelshimeles/nextjs14-starter-template.git
-```
+### 📊 Progress Tracking
 
-2. Install dependencies:
-```bash
-bun install
-```
+- **Session History** - Complete conversation records
+- **Emotional Progress** - Track emotional patterns over time
+- **Weekly Insights** - AI-generated progress reports
+- **Therapeutic Goals** - Set and track personal growth objectives
+- **Breakthrough Moments** - Highlighted key insights and progress
 
-3. Set up environment variables:
-```bash
-cp .env.example .env.local
-```
+### 💎 Subscription Plans
 
-4. Configure your environment variables:
-```env
-# Authentication (Clerk)
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/
-NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/
+- **Monthly Plan** - $18.79/month, 120 minutes of therapy
+- **Yearly Plan** - $120/year, 600 minutes of therapy (50% savings)
+- **Flexible Usage** - 20-minute session limits, accumulate unused minutes
+- **One-on-One with Founders** - Exclusive access in yearly plan
 
-# Convex
-NEXT_PUBLIC_CONVEX_URL=
-CONVEX_DEPLOYMENT=
-CONVEX_ADMIN_KEY=
+## 🛠️ Technology Stack
 
-# Polar.sh
-POLAR_WEBHOOK_SECRET=
+### Frontend
 
-# Frontend
-NEXT_PUBLIC_BASE_URL=http://localhost:3000
+- ⚡ **Next.js 15** - App Router, Server Components
+- 🎨 **Tailwind CSS** - Responsive, modern UI design
+- 📘 **TypeScript** - Type-safe development
+- 🎭 **Shadcn/ui** - Accessible component library
+- 🌓 **Dark/Light Mode** - System-aware theme switching
+- 🎬 **Framer Motion** - Smooth animations and transitions
 
-# Optional: AI Integration
-OPENAI_API_KEY=
-```
+### Backend & Database
 
-5. Run the development server:
-```bash
-bun run dev
-```
+- 💾 **Convex DB** - Real-time database with serverless functions
+- 🔄 **Real-time Sync** - Live updates across sessions
+- 🗄️ **File Storage** - Transcript and session data management
+- 📈 **Analytics** - Built-in session and usage tracking
 
-Open [http://localhost:3000](http://localhost:3000) to see your application.
+### AI & Emotion Recognition
 
-## Project Structure
+- 🤖 **Hume AI** - Advanced voice emotion detection
+- 🧠 **Google Gemini 1.5 Pro** - Therapy session analysis
+- 🔮 **DeepSeek API** - Conversation summarization
+- 🎙️ **Voice Processing** - Real-time audio analysis
+- 📊 **Emotion Analytics** - 20+ emotion detection categories
 
-```
-├── app/
-│   ├── (auth)/         # Authentication routes
-│   ├── (marketing)/    # Marketing pages
-│   ├── api/           # API routes
-│   ├── dashboard/     # Dashboard pages
-│   └── playground/    # AI Playground
-├── components/
-│   ├── homepage/     # Landing page components
-│   ├── shared/       # Shared UI components
-│   └── wrapper/      # Layout wrappers and navigation
-├── config/           # Configuration files
-├── convex/          # Convex DB schema and functions
-├── lib/             # Utility functions
-├── public/          # Static assets
-│   ├── images/      # Image assets
-│   └── svg/         # SVG assets
-└── styles/          # Global styles
-```
+### Authentication & Payments
 
-## Available Scripts
+- 🔐 **Clerk Auth** - Secure user authentication
+- 💳 **Polar.sh** - Subscription and payment management
+- 🔄 **Webhook Integration** - Real-time payment processing
+- 👤 **User Management** - Profile and subscription handling
 
-- `bun run dev` - Start development server
-- `bun run build` - Build for production
-- `bun run start` - Start production server
-- `bun run lint` - Run ESLint
-- `bun run format` - Format code with Prettier
+### Deployment & Infrastructure
 
-## Sponsors and Supporters
-
-Special thanks to [Convex](https://www.convex.dev/) for their sponsorship and support in making this starter kit possible. Their real-time database and file storage solutions have been instrumental in creating a powerful foundation for modern web applications.
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-If you find this template helpful, please give it a ⭐️ on GitHub!
+- 🌐 **Vercel** - Hosting and deployment
+- 🔧 **Environment Management** - Development and production configs
+- 📱 **PWA Ready** - Progressive web app capabilities
+- 🚀 **Performance Optimized** - Fast loading and responsive
