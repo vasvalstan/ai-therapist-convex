@@ -117,3 +117,6 @@ dev-data/
 # OS generated files
 Thumbs.db
 ehthumbs.db
+
+# clerk configuration (can include secrets)
+/.clerk/

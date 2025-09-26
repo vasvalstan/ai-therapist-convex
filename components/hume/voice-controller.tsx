@@ -86,47 +86,8 @@ export function VoiceController({ initialMessages = [], sessionId: propSessionId
     }
   }, [propSessionId]);
 
-  // Initialize voice connection
-  useEffect(() => {
-    if (!voice || !currentSessionId) return;
-
-    const connect = async () => {
-      try {
-        console.log("Connecting to voice service...");
-        
-        // Fetch configuration from our server-side API
-        const config = await fetchVoiceConfig();
-        
-        if (!config) {
-          console.error("Failed to get voice service configuration");
-          toast({
-            title: "Connection Error",
-            description: "Failed to get voice service configuration. Please try again.",
-            variant: "destructive",
-          });
-          return;
-        }
-        
-        // Connect to the voice service
-        await voice.connect();
-      } catch (error) {
-        console.error("Error connecting to voice service:", error);
-        toast({
-          title: "Connection Error",
-          description: "Failed to connect to voice service. Please try again.",
-          variant: "destructive",
-        });
-      }
-    };
-
-    connect();
-
-    return () => {
-      if (voice.disconnect) {
-        voice.disconnect();
-      }
-    };
-  }, [voice, currentSessionId]);
+  // Note: Connection is now handled by the StartCall component
+  // This component just monitors voice status and events
 
   // Handle voice status changes and events
   useEffect(() => {

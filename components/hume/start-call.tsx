@@ -15,6 +15,16 @@ export function StartCall({ sessionId }: StartCallProps) {
   const { status, connect } = useVoice();
   const router = useRouter();
   const pathname = usePathname();
+  
+  // Get access token from localStorage (set by VoiceWrapper)
+  const getAccessToken = () => {
+    try {
+      // Try to get the token from the page context or localStorage
+      return localStorage.getItem('hume_access_token');
+    } catch {
+      return null;
+    }
+  };
 
   
   // Check if we're already on the chat history page
@@ -51,7 +61,17 @@ export function StartCall({ sessionId }: StartCallProps) {
                 onClick={async () => {
                   try {
                     console.log("Starting voice connection...");
-                    await connect();
+                    const accessToken = getAccessToken();
+                    
+                    if (!accessToken) {
+                      throw new Error("No access token available");
+                    }
+
+                    // Use connection options like the working quickstart
+                    await connect({
+                      auth: { type: "accessToken", value: accessToken },
+                      // Don't pass configId - let it use defaults like the working example
+                    });
                     console.log("Voice connection established");
                   } catch (error) {
                     console.error("Failed to connect:", error);
@@ -84,9 +104,14 @@ export function StartCall({ sessionId }: StartCallProps) {
                 className="flex items-center gap-1.5"
                 onClick={() => {
                   // Simulate a connect action to close the overlay
-                  connect().catch(error => {
-                    console.error("Failed to connect:", error);
-                  });
+                  const accessToken = getAccessToken();
+                  if (accessToken) {
+                    connect({
+                      auth: { type: "accessToken", value: accessToken },
+                    }).catch(error => {
+                      console.error("Failed to connect:", error);
+                    });
+                  }
                 }}
               >
                 <span>

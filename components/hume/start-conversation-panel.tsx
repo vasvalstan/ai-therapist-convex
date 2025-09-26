@@ -156,7 +156,14 @@ export function StartConversationPanel() {
       // Then connect to voice
       console.log("Connecting to voice service...");
       if (connect) {
-        await connect();
+        const accessToken = localStorage.getItem('hume_access_token');
+        if (!accessToken) {
+          throw new Error("No access token available");
+        }
+
+        await connect({
+          auth: { type: "accessToken", value: accessToken },
+        });
         console.log("Voice connection initiated");
 
         // Navigate directly to the chat page with the chat tab selected

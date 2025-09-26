@@ -563,6 +563,20 @@ export function Controls({
     }
   }, [status?.value, sessionId]);
 
+  // Show controls if voice is connected OR if we have an active session (fallback for connection issues)
+  const shouldShowControls = (status && status.value === "connected") || 
+                            (sessionId && status && status.value !== "disconnected");
+
+  // Debug logging for control visibility
+  useEffect(() => {
+    console.log(`${CONTROLS_LOG_PREFIX} Control visibility check:`, {
+      statusValue: status?.value,
+      hasSessionId: !!sessionId,
+      shouldShowControls,
+      voiceObject: !!voice
+    });
+  }, [status?.value, sessionId, shouldShowControls, voice]);
+
   return (
     <div
       className={cn(
@@ -571,7 +585,7 @@ export function Controls({
       )}
     >
       <AnimatePresence>
-        {status && status.value === "connected" ? (
+        {shouldShowControls ? (
           <motion.div
             initial={{
               y: "100%",
@@ -634,6 +648,26 @@ export function Controls({
           </motion.div>
         ) : null}
       </AnimatePresence>
+      
+      {/* Emergency end call button - always visible if session exists but voice controls are hidden */}
+      {sessionId && !shouldShowControls && (
+        <div className="p-2 bg-card border border-border rounded-lg shadow-sm">
+          <Button
+            size="sm"
+            variant="destructive"
+            className="rounded-full w-10 h-10 shadow-md"
+            onClick={() => handleEndCall()}
+            disabled={isLoading}
+            title="End Call"
+          >
+            {isLoading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Phone className="size-4" />
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
