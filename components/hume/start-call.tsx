@@ -67,10 +67,11 @@ export function StartCall({ sessionId }: StartCallProps) {
                       throw new Error("No access token available");
                     }
 
-                    // Use connection options like the working quickstart
+                    // Use connection options with configId as per Hume documentation
+                    const configId = process.env.NEXT_PUBLIC_HUME_CONFIG_ID;
                     await connect({
                       auth: { type: "accessToken", value: accessToken },
-                      // Don't pass configId - let it use defaults like the working example
+                      configId: configId, // Include configId for custom EVI configuration
                     });
                     console.log("Voice connection established");
                   } catch (error) {
@@ -106,8 +107,10 @@ export function StartCall({ sessionId }: StartCallProps) {
                   // Simulate a connect action to close the overlay
                   const accessToken = getAccessToken();
                   if (accessToken) {
+                    const configId = process.env.NEXT_PUBLIC_HUME_CONFIG_ID;
                     connect({
                       auth: { type: "accessToken", value: accessToken },
+                      configId: configId,
                     }).catch(error => {
                       console.error("Failed to connect:", error);
                     });

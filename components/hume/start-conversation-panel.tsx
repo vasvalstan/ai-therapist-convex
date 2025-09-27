@@ -161,8 +161,10 @@ export function StartConversationPanel() {
           throw new Error("No access token available");
         }
 
+        const configId = process.env.NEXT_PUBLIC_HUME_CONFIG_ID;
         await connect({
           auth: { type: "accessToken", value: accessToken },
+          configId: configId,
         });
         console.log("Voice connection initiated");
 
